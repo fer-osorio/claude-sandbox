@@ -30,14 +30,11 @@ RUN groupadd -r claude-agent && \
 # If the directory doesn't exist, Docker creates it.
 WORKDIR /workspace
 
-# ── RUN again: give ownership of /workspace to claude-agent.
-# This matters because WORKDIR creates the directory as root by default.
-RUN chown claude-agent:claude-agent /workspace
+# Entrypoint script: runs as root briefly to fix ownership, then drops to claude-agent
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-# ── USER switches the active user for all subsequent instructions and
-# for the container's default process at runtime.
-# After this line, nothing in the build or runtime runs as root.
-USER claude-agent
+ENTRYPOINT ["/entrypoint.sh"]
 
 # ── CMD defines the default command run when the container starts.
 # This is what executes when you run `docker run claude-sandbox` with no

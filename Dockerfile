@@ -3,14 +3,13 @@
 # "ubuntu:24.04" means: fetch the official Ubuntu image, version 24.04 (Noble Numbat).
 # This is downloaded from Docker Hub (hub.docker.com) the first time you use it,
 # then cached locally. Your host OS is completely irrelevant to this choice.
-FROM ubuntu:24.04
+FROM debian:bookworm-slim
 
 # ── RUN executes a shell command during the BUILD phase (not at runtime).
 # The result is baked into the image as a new filesystem layer.
 # Best practice: chain related commands with && and clean up in the same layer
 # (rm -rf /var/lib/apt/lists/*) so the cache files don't bloat the image.
-RUN apt-get update && apt-get install -y \
-    curl git nodejs npm \
+RUN apt-get update && apt-get install -y curl git nodejs npm \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Another RUN: npm installs to /usr/local/bin/claude — always on PATH, no ambiguity

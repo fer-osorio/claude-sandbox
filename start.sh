@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Usage: start-claude [project_directory]
+# Before running this, check if the claude-net has been created. If not, create if using
+# docker network create --driver bridge claude-net
 
 PROJECT_DIR="${1:-$(pwd)}"
 PROJECT_DIR="$(realpath "$PROJECT_DIR")"

@@ -22,8 +22,11 @@ RUN npm install -g @anthropic-ai/claude-code
 # groupadd creates a group called "claude-agent".
 # useradd creates a user with: -r (system user), -g (group), -m (create home),
 #   -d (home directory path).
+# Create claude-agent with the same UID as your host user.
+# Replace 1000 with the output of `id -u` if yours is different.
+ARG HOST_UID=1000
 RUN groupadd -r claude-agent && \
-    useradd -r -g claude-agent -m -d /home/claude-agent claude-agent
+    useradd -r -g claude-agent -m -d /home/claude-agent -u $HOST_UID claude-agent
 
 # ── WORKDIR sets the working directory for all subsequent instructions
 # and for the process that runs when the container starts.

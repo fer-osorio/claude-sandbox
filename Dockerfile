@@ -45,3 +45,5 @@ USER claude-agent
 # This is what executes when you run `docker run claude-sandbox` with no
 # extra arguments. Here it launches Claude Code directly.
 CMD ["claude"]
+
+# Build image: docker build --build-arg HOST_UID=$(id -u) -t claude-sandbox ~/path/to/Dockerfile

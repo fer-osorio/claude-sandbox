@@ -1,64 +1,60 @@
 #!/usr/bin/env bash
-# Usage: start-claude [project_directory]
-# Before running this, check if the claude-net has been created. If not, create if using
-# docker network create --driver bridge claude-net
+# Usage: start.sh <project_directory> [image]
+#
+# Arguments:
+#   project_directory  — path to the project to mount (default: current dir)
+#   image              — which sandbox image to use (default: base)
+#                        one of: base, crypto, systems, research
+#
+# Examples:
+#   ./start.sh ~/projects/mylib crypto      — HSM / cryptography work
+#   ./start.sh ~/projects/myapp systems     — C++ / CMake projects
+#   ./start.sh ~/projects/paper research    — LaTeX documents
+#   ./start.sh ~/projects/webapp            — web / Python (uses base)
+#
+# Before running this for the first time, ensure the network exists:
+#   docker network create --driver bridge claude-net
+
+set -euo pipefail
 
 PROJECT_DIR="${1:-$(pwd)}"
 PROJECT_DIR="$(realpath "$PROJECT_DIR")"
+IMAGE_TAG="${2:-base}"
+
+VALID_IMAGES="base crypto systems research"
 
 if [ ! -d "$PROJECT_DIR" ]; then
-  echo "Error: '$PROJECT_DIR' is not a directory."
-  exit 1
+    echo "Error: '$PROJECT_DIR' is not a directory."
+    exit 1
 fi
 
-echo "Starting Claude Code sandbox for: $PROJECT_DIR"
-echo "Network: Anthropic API + package registries only"
-echo "Filesystem: $PROJECT_DIR (read/write), host is otherwise inaccessible"
+if ! echo "$VALID_IMAGES" | grep -qw "$IMAGE_TAG"; then
+    echo "Error: unknown image '$IMAGE_TAG'."
+    echo "Valid options: $VALID_IMAGES"
+    exit 1
+fi
+
+IMAGE_NAME="claude-${IMAGE_TAG}"
+
+if ! docker image inspect "$IMAGE_NAME" > /dev/null 2>&1; then
+    echo "Error: image '$IMAGE_NAME' does not exist."
+    echo "Build it first with: ./build.sh $IMAGE_TAG"
+    exit 1
+fi
+
+echo "Project:  $PROJECT_DIR"
+echo "Image:    $IMAGE_NAME"
+echo "Network:  claude-net (Anthropic API + package registries only)"
 echo ""
 
-# ── --rm: delete the container automatically when it exits.
-# Without this, stopped containers accumulate on disk. Since you want
-# ephemeral, stateless sessions, always use --rm for Claude Code.
-#
-# ── -it: two flags combined.
-# -i (interactive): keep stdin open so you can type into Claude Code.
-# -t (tty): allocate a terminal so the output is formatted properly.
-# Nearly always used together for interactive programs.
-#
-# ── --name: give the container a human-readable name for this session.
-# Without it, Docker assigns a random name like "quirky_hopper".
-#
-# ── --mount: this is how your project files become visible inside.
-# type=bind: a bind mount (mirror a host directory into the container).
-# source: the absolute path on your Fedora machine.
-# target: where it appears inside the container's filesystem.
-# The container sees /workspace; it is physically ~/projects/myproject on your disk.
-#
-# ── Network isolation ─────────────────────────────────────────────
-# --network claude-net: drop ALL capabilities, then restore only what's needed
-#
-# ── --memory and --cpus: resource caps. The container cannot consume more
-# than 2 GB of RAM or 2 CPU cores regardless of what runs inside it.
-#
-#── --security-opt=no-new-privileges: a kernel-level restriction that prevents
-# any process inside the container from using setuid tricks to gain
-# more privileges than it started with.
-#
-# ── --cap-drop=ALL: drop every Linux capability from the container.
-# Capabilities are fine-grained kernel permissions (e.g. CAP_NET_RAW for
-# raw sockets, CAP_SYS_ADMIN for mounting filesystems). Dropping all of them
-# means even a root process inside the container can't do much damage.
-#
-# ── claude-sandbox: the final argument is the IMAGE NAME to run.
-# This is what you built with `docker build -t claude-sandbox`.
 docker run \
-  --rm \
-  -it \
-  --name "claude-$(basename "$PROJECT_DIR")-$(date +%s)" \
-  --mount type=bind,source="$PROJECT_DIR",target=/workspace \
-  --network claude-net \
-  --memory="2g" \
-  --cpus="2" \
-  --security-opt=no-new-privileges \
-  --cap-drop=ALL \
-  claude-sandbox
+    --rm \
+    -it \
+    --name "claude-$(basename "$PROJECT_DIR")-$(date +%s)" \
+    --mount type=bind,source="$PROJECT_DIR",target=/workspace \
+    --network claude-net \
+    --memory="2g" \
+    --cpus="2" \
+    --security-opt=no-new-privileges \
+    --cap-drop=ALL \
+    "$IMAGE_NAME"

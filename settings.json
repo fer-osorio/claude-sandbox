@@ -9,7 +9,8 @@
       "Bash(scp *)",
       "Bash(git remote *)",
       "Bash(git push *)",
-      "Write(../*)"
+      "Write(../*)",
+      "Write(/run/*)"
     ]
   }
 }

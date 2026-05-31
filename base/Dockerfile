@@ -79,6 +79,15 @@ RUN groupadd -r claude-agent \
 WORKDIR /workspace
 RUN chown claude-agent:claude-agent /workspace
 
+# ─────────────────────────────────────────────────────────────────────────────
+# LAYER 5 — Entrypoint script for global layer injection
+# The script runs as claude-agent (non-root). COPY and chmod run here as root
+# because USER claude-agent is set immediately after.
+# ─────────────────────────────────────────────────────────────────────────────
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
 USER claude-agent
 
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["claude"]

@@ -452,8 +452,8 @@ The complete `~/.claude-sandbox/` tree after this design is implemented:
     ├── claude_code_security_plan.md
     ├── security_plan_changelog.md
     ├── squid_proxy_guide.md
-    ├── global_layer_injection_sdd.md   ← this document
-    └── global_layer_injection_impl.md  ← companion implementation guide
+    └── designs/
+        └── global-layer-injection.md    ← this document
 ```
 
 ---
@@ -493,7 +493,29 @@ break these contracts require a revision to this document.
 
 ---
 
-## 8. Open Questions and Non-Decisions
+## 8. Implementation Plan
+
+Each step maps to a single commit.
+
+1. **Create `global-claude/`** — add `CLAUDE.md`, `skills/`, and `commands/` subdirectories with
+   initial cross-project operator instructions.
+2. **Populate `global-claude/` skills** — add one skill file per skill (`commit-convention`,
+   `design`, etc.), each in its own commit.
+3. **Create overlay directories** — `global-crypto/skills/`, `global-systems/skills/`,
+   `global-research/skills/` (empty; populated as domain needs arise).
+4. **Write `base/entrypoint.sh`** — the merge script; pair with the Dockerfile change below.
+5. **Modify `base/Dockerfile`** — add `COPY entrypoint.sh`, `RUN chmod +x`, and `ENTRYPOINT`
+   before `USER claude-agent`; commit together with step 4 (tightly coupled).
+6. **Rewrite `start.sh`** — add `SANDBOX_DIR`, `GLOBAL_BASE`, `GLOBAL_OVERLAY` variables and
+   conditional array-based `--mount` flags for both layers.
+7. **Update `settings.json`** — add `Write(/run/*)` to `permissions.deny` as the
+   application-layer gate complementing the OS-level readonly mount.
+8. **Rebuild images** — run `./build.sh` to bake the entrypoint into `claude-base`; all child
+   images inherit it automatically.
+
+---
+
+## 9. Open Questions and Non-Decisions
 
 **Q: Should `global-claude/` be a git submodule rather than a subdirectory of the sandbox
 repo?**
@@ -521,6 +543,10 @@ produces insights worth preserving, the operator reviews them and manually adds 
 ---
 
 ## Changelog
+
+### Version 1.1 — 2026-05-31
+Added implementation plan (§8). Renamed file to kebab-case. Updated self-reference in §6
+to reflect move to `docs/designs/`.
 
 ### Version 1.0 — 2026-05-20
 Initial design document. Covers Strategy 3 (entrypoint-based copy injection) and its natural

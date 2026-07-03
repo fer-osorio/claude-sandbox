@@ -414,6 +414,7 @@ The complete `~/.claude-sandbox/` tree after this design is implemented:
 
 ```
 ~/.claude-sandbox/
+├── ARCHITECTURE.md
 ├── build.sh
 ├── start.sh                     ← modified
 ├── global-claude/               ← new
@@ -448,10 +449,9 @@ The complete `~/.claude-sandbox/` tree after this design is implemented:
 │   ├── Dockerfile
 │   └── squid.conf
 └── docs/
-    ├── AGENTS.md
     ├── claude_code_security_plan.md
-    ├── security_plan_changelog.md
     ├── squid_proxy_guide.md
+    ├── adr/
     └── designs/
         └── global-layer-injection.md    ← this document
 ```

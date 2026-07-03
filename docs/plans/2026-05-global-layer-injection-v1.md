@@ -1,7 +1,7 @@
 # Global Layer Injection — Implementation Guide
 
 > **Document type:** Implementation Guide
-> **Companion document:** `global_layer_injection_sdd.md`
+> **Companion document:** `docs/designs/global-layer-injection.md`
 > **Prerequisite reading:** `claude_code_security_plan.md`, `squid_proxy_guide.md`
 > **Audience:** The engineer implementing the design described in the companion SDD. Steps are
 > ordered for a clean first-time implementation. A rollback note appears at the end of each
@@ -589,7 +589,7 @@ git add start.sh settings.json
 git commit -m "feat(global-layer): add entrypoint-based global layer injection
 
 Implements Strategy 3 (entrypoint copy injection) and Strategy 4
-(per-image overlay). See docs/global_layer_injection_sdd.md.
+(per-image overlay). See docs/designs/global-layer-injection.md.
 
 - global-claude/: base layer injected into every session
 - global-{crypto,systems,research}/: per-image overlays
@@ -659,4 +659,4 @@ manually to `global-claude/CLAUDE.md` and commit.
 
 ### Version 1.0 — 2026-05-20
 Initial implementation guide. Covers all six phases from directory creation through version
-control initialization. Companion to `global_layer_injection_sdd.md` v1.0.
+control initialization. Companion to `docs/designs/global-layer-injection.md` v1.0.

@@ -1,7 +1,7 @@
 # Global Layer Injection — Implementation Guide
 
 > **Document type:** Implementation Guide
-> **Companion document:** `global_layer_injection_sdd.md`
+> **Companion document:** `docs/designs/global-layer-injection.md`
 > **Prerequisite reading:** `claude_code_security_plan.md`, `squid_proxy_guide.md`
 > **Audience:** The engineer implementing the design described in the companion SDD. Steps are
 > ordered for a clean first-time implementation. A rollback note appears at the end of each

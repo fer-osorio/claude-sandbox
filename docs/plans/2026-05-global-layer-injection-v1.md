@@ -589,7 +589,7 @@ git add start.sh settings.json
 git commit -m "feat(global-layer): add entrypoint-based global layer injection
 
 Implements Strategy 3 (entrypoint copy injection) and Strategy 4
-(per-image overlay). See docs/global_layer_injection_sdd.md.
+(per-image overlay). See docs/designs/global-layer-injection.md.
 
 - global-claude/: base layer injected into every session
 - global-{crypto,systems,research}/: per-image overlays
@@ -659,4 +659,4 @@ manually to `global-claude/CLAUDE.md` and commit.
 
 ### Version 1.0 — 2026-05-20
 Initial implementation guide. Covers all six phases from directory creation through version
-control initialization. Companion to `global_layer_injection_sdd.md` v1.0.
+control initialization. Companion to `docs/designs/global-layer-injection.md` v1.0.

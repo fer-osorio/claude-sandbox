@@ -178,7 +178,7 @@ Place all files under `~/.claude-sandbox/`:
 ~/.claude-sandbox/
 ├── build.sh          — builds all images, or a named target
 ├── start.sh          — launches a container for a given project
-├── AGENTS.md         — dependency management reference
+├── ARCHITECTURE.md   — architecture and dependency management reference
 ├── base/
 │   └── Dockerfile
 ├── crypto/
@@ -243,7 +243,7 @@ Build a single image and its dependencies:
 ./build.sh research
 ```
 
-You only need to rebuild when you change a Dockerfile or want to pull updated package versions. See `AGENTS.md` for the full dependency management strategy.
+You only need to rebuild when you change a Dockerfile or want to pull updated package versions. See `ARCHITECTURE.md` for the full dependency management strategy.
 
 #### 2.7 — Launch script
 
@@ -557,7 +557,7 @@ set of directories, each with its own `Dockerfile`:
 ~/.claude-sandbox/
 ├── build.sh
 ├── start.sh
-├── AGENTS.md
+├── ARCHITECTURE.md
 ├── base/Dockerfile
 ├── crypto/Dockerfile
 ├── systems/Dockerfile

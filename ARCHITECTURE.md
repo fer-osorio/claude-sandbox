@@ -1,6 +1,6 @@
-# AGENTS.md — Dependency Management for the Claude Sandbox
+# ARCHITECTURE.md — Architecture and Dependency Management
 
-A reference for managing the toolchain in the claude-sandbox image hierarchy.
+A reference for the claude-sandbox image hierarchy and toolchain.
 
 ---
 
@@ -15,7 +15,7 @@ cost once, not per image.
 debian:bookworm-slim
     └── claude-base          git, gh, node, npm, python3, sqlite3, Claude Code
             ├── claude-crypto    + openssl, p11-kit, softhsm2, gnutls
-            ├── claude-systems   + cmake, gcc/g++, gtest, ninja
+            ├── claude-systems   + cmake, gcc/g++, gtest, ninja, clang/clang-tidy, cppcheck, lcov, sanitizers
             └── claude-research  + texlive, latexmk
 ```
 

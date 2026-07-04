@@ -40,4 +40,30 @@ echo "[entrypoint] ~/.claude contents:"
 find "$DEST" -type f | sort | sed "s|^|[entrypoint]   |"
 
 echo "[entrypoint] Injection complete. Starting: $*"
+
+echo "[entrypoint] Checking /workspace for interpreter-path mismatches"
+
+check_venv_interpreter() {
+    local venv_python="$1"
+    if "$venv_python" -c "" 2>/dev/null; then
+        echo "[entrypoint] OK: $venv_python"
+    else
+        echo "[entrypoint] WARNING: broken interpreter reference detected"
+        echo "[entrypoint]   $venv_python -> $(readlink -f "$venv_python" 2>/dev/null || echo unresolvable)"
+        echo "[entrypoint]   Likely cause: venv built against a Strategy B (ephemeral)"
+        echo "[entrypoint]   interpreter that was never promoted to the Dockerfile."
+        echo "[entrypoint]   Fix: rm -rf $(dirname "$(dirname "$venv_python")") && rebuild the venv"
+    fi
+}
+
+while IFS= read -r -d '' venv_dir; do
+    # Use nullglob locally so an empty match produces no iterations rather than
+    # passing the literal glob string to check_venv_interpreter.
+    ( shopt -s nullglob; for py in "$venv_dir"/bin/python3*; do
+        check_venv_interpreter "$py"
+    done )
+done < <(find /workspace -maxdepth 3 -type d -name '.venv' -print0 2>/dev/null)
+
+echo "[entrypoint] Interpreter check complete"
+
 exec "$@"

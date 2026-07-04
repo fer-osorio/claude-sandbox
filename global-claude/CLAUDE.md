@@ -11,3 +11,19 @@
 - Avoid command substitution `$()` in commit messages
 - Prefer single-file atomic commits; use multi-file commits only when changes are tightly coupled
 - Always ask before staging and committing any change
+
+## Interpreter discipline
+- Before creating a venv or any build artifact in /workspace, verify the
+  interpreter or toolchain version is already baked into the image
+  (check the relevant Dockerfile), not installed ephemerally via
+  Strategy B (docker exec -u root).
+- If the needed version isn't in the image, stop and tell the operator
+  to rebuild via Strategy A rather than installing it ephemerally and
+  building a persistent artifact against it.
+- If entrypoint logs a "broken interpreter reference" warning at session
+  start, treat it as a signal to rebuild the venv before proceeding with
+  any task that depends on it.
+- Note: the entrypoint check only scans .venv directories up to three
+  levels below /workspace (maxdepth 3). A venv nested more deeply than
+  that is not inspected — apply this policy uniformly regardless of
+  nesting depth.

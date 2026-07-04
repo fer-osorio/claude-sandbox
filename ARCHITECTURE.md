@@ -151,6 +151,12 @@ namespace — it does not affect your host. This is an acceptable
 operator-level action for your own sandbox. Claude Code itself never has
 root access.
 
+**Boundary with Strategy A:** Strategy B is for *evaluating* a tool, not for building anything
+durable against it. If a venv, compiled binary, or any other artifact persisted to `/workspace`
+will depend on the ephemerally-installed tool's exact path or version, promote it via Strategy A
+first. An artifact built against a Strategy B install silently inherits a dependency the image
+itself does not have — the artifact will outlive the container, the tool will not.
+
 ---
 
 ## Cheat Sheet

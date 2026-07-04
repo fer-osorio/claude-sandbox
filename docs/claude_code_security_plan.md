@@ -801,3 +801,35 @@ Docker before any shell is involved and are unambiguously safe.
 
 **Security posture:** No functional change. This is a correctness and
 reliability fix that prevents silent command omission during builds.
+
+### Change 13 — Interpreter-Presence Health Check Added to Entrypoint
+**Affects:** `base/entrypoint.sh`, `global-claude/CLAUDE.md`, `ARCHITECTURE.md`. Date: 2026-07-04.
+
+**What changed:**
+A venv-interpreter presence check was added to `base/entrypoint.sh`, running after the
+global-layer injection and before `exec "$@"` on every session start. The check scans
+`/workspace` for `.venv` directories (up to `maxdepth 3`) and attempts to execute each
+discovered `bin/python3*` binary with `-c ""`. A failure logs a `WARNING` block with the
+broken symlink target and a remediation hint; the session continues regardless (warn-only).
+
+Two policy documents were updated in parallel: `global-claude/CLAUDE.md` received an
+"Interpreter discipline" section instructing Claude not to create venvs or build artifacts
+against ephemerally-installed interpreters; `ARCHITECTURE.md` received a "Boundary with
+Strategy A" note at the end of the Strategy B section clarifying that Strategy B is for
+evaluation only, not for building durable artifacts.
+
+**Why:** A Python 3.12 venv created during a Strategy B session (`store-transfer-report`,
+2026-06-22) persisted to `/workspace`. The next session started from the unmodified
+`claude-base` image (Python 3.11 only), leaving the venv's symlink chain broken. The failure
+was silent — no existing control surfaced the mismatch until three failed task attempts
+localized it. This change converts that silent state into a one-line, timestamped log entry
+at a deterministic point on every session start.
+
+**STRIDE mapping (delta only):**
+
+| Threat (STRIDE) | Control added |
+|---|---|
+| **Repudiation (R)** | Entrypoint stdout log for interpreter-path mismatches, surfaced at the same deterministic point as the global-layer merge log. Converts a silent multi-step-diagnosis failure into a logged event. |
+
+No other STRIDE category is affected. The check is read-only, introduces no new privilege,
+no new mount, and no new attack surface.

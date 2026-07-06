@@ -203,3 +203,30 @@ Inspect what's installed in an image:
 
 The ephemeral install pattern (Strategy B) gives you the same in-session
 flexibility without any of these downsides.
+
+**Don't build workspace artifacts against ephemeral toolchains.** The
+entrypoint checks three artifact classes at every session start, each
+with a documented detection ceiling:
+
+- **Python venvs** — checked by testing the `bin/python3*` interpreter
+  binary directly. Full detection (Tier 1).
+- **CMake build directories** — checked by reading `CMakeCache.txt` and
+  testing whether the recorded compiler paths are executable. Full
+  detection for compiler-path staleness (Tier 1). Does not detect other
+  forms of CMake cache staleness (changed system headers, changed
+  `find_package` results).
+- **Node.js native addons** (`.node` files) — presence warning only
+  (Tier 2). Full ABI verification would require executing the addon or
+  parsing its ELF NAPI tag, both of which are unsafe or impractical
+  from the entrypoint. If a `.node` file is present, it *may* need
+  recompilation; the check does not confirm it.
+
+**`ldd` is permanently out of scope.** Running `ldd` against a
+workspace-resident binary causes the dynamic linker to execute that
+binary's `.init` sections — making a crafted ELF in `/workspace` a
+code-execution vector before Claude Code has started. This is a hard
+architectural limit (Tier 3), not a deferred implementation task. If
+you need to verify shared library dependencies of a compiled binary,
+do so manually with `docker exec -u root` after the session starts,
+using `readelf -d`, with full awareness of what you are inspecting and
+why. See `workspace-artifact-staleness.md` §6.3 for the full ruling.

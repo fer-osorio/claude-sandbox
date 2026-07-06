@@ -833,3 +833,44 @@ at a deterministic point on every session start.
 
 No other STRIDE category is affected. The check is read-only, introduces no new privilege,
 no new mount, and no new attack surface.
+
+### Change 14 — CMake and Node.js Native Addon Staleness Checks Added to Entrypoint
+**Affects:** `base/entrypoint.sh`, `ARCHITECTURE.md`. Date: 2026-07-06.
+
+**What changed:**
+Two additional staleness checks were added to `base/entrypoint.sh`, running after the
+interpreter-presence check (Change 13) and before `exec "$@"` on every session start.
+
+1. **CMake build directory check (Tier 1):** scans `/workspace` for `CMakeCache.txt` files
+   (up to `maxdepth 4`). For each, reads the `CMAKE_C_COMPILER:FILEPATH=` and
+   `CMAKE_CXX_COMPILER:FILEPATH=` entries via `grep` and tests whether those paths are
+   executable with `test -x`. A missing or non-executable compiler path logs a `WARNING` block
+   with the cache file path, the stale entry, and a `rm -rf` remediation hint.
+
+2. **Node.js native addon check (Tier 2):** scans `/workspace` for `.node` files under
+   `node_modules/` (up to `maxdepth 5`). Each discovered file triggers a presence warning
+   noting that the addon is ABI-version-dependent and may fail to load if the Node.js version
+   in the image has changed. This is a presence warning, not a correctness assertion — full ABI
+   verification would require executing the addon or invoking `readelf`, which introduces
+   either untrusted code execution or an unacceptable image surface increase.
+
+Both checks are warn-only (consistent with Change 13) and run in all images universally.
+`ARCHITECTURE.md` was updated to document all three artifact check tiers and to formally record
+the `ldd` hard architectural limit as Tier 3.
+
+**Why:** Same root cause as Change 13: a path-dependent workspace artifact outlives the
+container state it was built against. CMake caches encode absolute compiler paths captured at
+configure time; a compiler installed ephemerally (Strategy B) leaves those paths dangling.
+Node.js native addons encode the ABI version of the Node binary used to compile them; an image
+upgrade silently breaks addons compiled against the prior ABI. Neither failure produces a clear
+"rebuild me" message at the point of use — both are now surfaced at session start.
+
+**STRIDE mapping (delta only):**
+
+| Threat (STRIDE) | Control added |
+|---|---|
+| **Repudiation (R)** | Entrypoint stdout log for stale CMake toolchain paths and native addon presence, surfaced at the same deterministic session-start point as Changes 12–13. |
+| **Tampering (T)** | CMake check reads `CMakeCache.txt` via `grep` with `IFS= read -r`; path values are passed only to `test -x` and `echo` — neither interprets shell metacharacters. No injection risk from crafted `FILEPATH` values. |
+
+No other STRIDE categories are affected. No new privilege, no new mount, no execution of
+workspace-resident code.

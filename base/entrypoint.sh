@@ -66,4 +66,45 @@ done < <(find /workspace -maxdepth 3 -type d -name '.venv' -print0 2>/dev/null)
 
 echo "[entrypoint] Interpreter check complete"
 
+echo "[entrypoint] Checking /workspace for stale CMake build directories"
+
+while IFS= read -r -d '' cache; do
+    while IFS= read -r entry; do
+        path="${entry#*=}"
+        if [ -n "$path" ] && [ ! -x "$path" ]; then
+            echo "[entrypoint] WARNING: stale CMake toolchain path detected"
+            echo "[entrypoint]   Cache:  $cache"
+            echo "[entrypoint]   Entry:  $entry"
+            echo "[entrypoint]   Missing or non-executable: $path"
+            echo "[entrypoint]   Likely cause: compiler installed ephemerally (Strategy B)"
+            echo "[entrypoint]   and not promoted to the Dockerfile before this path was"
+            echo "[entrypoint]   captured at cmake configure time."
+            echo "[entrypoint]   Fix: rm -rf $(dirname "$cache") && re-run cmake"
+        else
+            echo "[entrypoint] OK: CMake toolchain path $path"
+        fi
+    done < <(grep -E "^CMAKE_(C|CXX)_COMPILER:FILEPATH=" "$cache" 2>/dev/null)
+done < <(find /workspace -maxdepth 4 -name "CMakeCache.txt" -print0 2>/dev/null)
+
+echo "[entrypoint] CMake check complete"
+
+echo "[entrypoint] Checking /workspace for Node.js native addons"
+
+ADDON_COUNT=0
+while IFS= read -r -d '' addon; do
+    ADDON_COUNT=$((ADDON_COUNT + 1))
+    echo "[entrypoint] WARNING: native Node.js addon present"
+    echo "[entrypoint]   $addon"
+    echo "[entrypoint]   Native addons are ABI-version-dependent. If the Node.js version"
+    echo "[entrypoint]   in this image differs from the one used to compile this addon,"
+    echo "[entrypoint]   it will fail to load at runtime with a NODE_MODULE_VERSION error."
+    echo "[entrypoint]   Fix: rm -rf $(dirname "$(dirname "$addon")") && npm install"
+done < <(find /workspace -maxdepth 5 -path "*/node_modules/*.node" -print0 2>/dev/null)
+
+if [ "$ADDON_COUNT" -eq 0 ]; then
+    echo "[entrypoint] OK: no native Node.js addons found"
+fi
+
+echo "[entrypoint] Node.js addon check complete"
+
 exec "$@"

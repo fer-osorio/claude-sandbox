@@ -88,4 +88,23 @@ done < <(find /workspace -maxdepth 4 -name "CMakeCache.txt" -print0 2>/dev/null)
 
 echo "[entrypoint] CMake check complete"
 
+echo "[entrypoint] Checking /workspace for Node.js native addons"
+
+ADDON_COUNT=0
+while IFS= read -r -d '' addon; do
+    ADDON_COUNT=$((ADDON_COUNT + 1))
+    echo "[entrypoint] WARNING: native Node.js addon present"
+    echo "[entrypoint]   $addon"
+    echo "[entrypoint]   Native addons are ABI-version-dependent. If the Node.js version"
+    echo "[entrypoint]   in this image differs from the one used to compile this addon,"
+    echo "[entrypoint]   it will fail to load at runtime with a NODE_MODULE_VERSION error."
+    echo "[entrypoint]   Fix: rm -rf $(dirname "$(dirname "$addon")") && npm install"
+done < <(find /workspace -maxdepth 5 -path "*/node_modules/*.node" -print0 2>/dev/null)
+
+if [ "$ADDON_COUNT" -eq 0 ]; then
+    echo "[entrypoint] OK: no native Node.js addons found"
+fi
+
+echo "[entrypoint] Node.js addon check complete"
+
 exec "$@"

@@ -66,4 +66,26 @@ done < <(find /workspace -maxdepth 3 -type d -name '.venv' -print0 2>/dev/null)
 
 echo "[entrypoint] Interpreter check complete"
 
+echo "[entrypoint] Checking /workspace for stale CMake build directories"
+
+while IFS= read -r -d '' cache; do
+    while IFS= read -r entry; do
+        path="${entry#*=}"
+        if [ -n "$path" ] && [ ! -x "$path" ]; then
+            echo "[entrypoint] WARNING: stale CMake toolchain path detected"
+            echo "[entrypoint]   Cache:  $cache"
+            echo "[entrypoint]   Entry:  $entry"
+            echo "[entrypoint]   Missing or non-executable: $path"
+            echo "[entrypoint]   Likely cause: compiler installed ephemerally (Strategy B)"
+            echo "[entrypoint]   and not promoted to the Dockerfile before this path was"
+            echo "[entrypoint]   captured at cmake configure time."
+            echo "[entrypoint]   Fix: rm -rf $(dirname "$cache") && re-run cmake"
+        else
+            echo "[entrypoint] OK: CMake toolchain path $path"
+        fi
+    done < <(grep -E "^CMAKE_(C|CXX)_COMPILER:FILEPATH=" "$cache" 2>/dev/null)
+done < <(find /workspace -maxdepth 4 -name "CMakeCache.txt" -print0 2>/dev/null)
+
+echo "[entrypoint] CMake check complete"
+
 exec "$@"

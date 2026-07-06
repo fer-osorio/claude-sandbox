@@ -28,6 +28,12 @@ IMAGE_TAG="${2:-base}"
 
 VALID_IMAGES="base crypto systems research"
 
+if ! docker info > /dev/null 2>&1; then
+    echo "Error: Docker daemon is not running."
+    echo "Start Docker and try again."
+    exit 1
+fi
+
 if [ ! -d "$PROJECT_DIR" ]; then
     echo "Error: '$PROJECT_DIR' is not a directory."
     exit 1
@@ -44,6 +50,12 @@ IMAGE_NAME="claude-${IMAGE_TAG}"
 if ! docker image inspect "$IMAGE_NAME" > /dev/null 2>&1; then
     echo "Error: image '$IMAGE_NAME' does not exist."
     echo "Build it first with: ./build.sh $IMAGE_TAG"
+    exit 1
+fi
+
+if ! docker network inspect claude-net > /dev/null 2>&1; then
+    echo "Error: network 'claude-net' does not exist."
+    echo "Create it with: docker network create --driver bridge claude-net"
     exit 1
 fi
 

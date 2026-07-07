@@ -107,4 +107,31 @@ fi
 
 echo "[entrypoint] Node.js addon check complete"
 
+echo "[entrypoint] Checking /workspace for commit-msg hook"
+
+HOOK_DIR="/workspace/.git/hooks"
+HOOK_PATH="${HOOK_DIR}/commit-msg"
+
+if [ ! -d "/workspace/.git" ]; then
+    echo "[entrypoint] No .git directory found — commit-msg hook installation skipped"
+elif [ -f "$HOOK_PATH" ]; then
+    echo "[entrypoint] commit-msg hook already present at $HOOK_PATH — skipping"
+    echo "[entrypoint] Invoke the commit-hook-setup skill to inspect or update it"
+else
+    mkdir -p "$HOOK_DIR"
+    cat > "$HOOK_PATH" << 'HOOK'
+#!/usr/bin/env bash
+# Installed by claude-sandbox entrypoint
+if grep -qi "^Co-Authored-By:" "$1"; then
+    echo "ERROR: Co-Authored-By lines are not allowed in this repository." >&2
+    echo "       Remove the trailer and commit again." >&2
+    exit 1
+fi
+HOOK
+    chmod +x "$HOOK_PATH"
+    echo "[entrypoint] commit-msg hook installed at $HOOK_PATH"
+fi
+
+echo "[entrypoint] Commit-msg hook check complete"
+
 exec "$@"

@@ -38,19 +38,12 @@ Never overwrite silently.
 ## Step 3 — Install standard hook
 
 ```bash
-cat > /workspace/.git/hooks/commit-msg << 'HOOK'
-#!/usr/bin/env bash
-# Installed by claude-sandbox global layer
-if grep -qi "^Co-Authored-By:" "$1"; then
-    echo "ERROR: Co-Authored-By lines are not allowed in this repository." >&2
-    echo "       Remove the trailer and commit again." >&2
-    exit 1
-fi
-HOOK
+cp ~/.claude/hooks/commit-msg /workspace/.git/hooks/commit-msg
 chmod +x /workspace/.git/hooks/commit-msg
 ```
 
 Verify:
 ```bash
 ls -la /workspace/.git/hooks/commit-msg
+cat /workspace/.git/hooks/commit-msg
 ```

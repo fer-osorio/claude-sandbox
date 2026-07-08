@@ -119,15 +119,7 @@ elif [ -f "$HOOK_PATH" ]; then
     echo "[entrypoint] Invoke the commit-hook-setup skill to inspect or update it"
 else
     mkdir -p "$HOOK_DIR"
-    cat > "$HOOK_PATH" << 'HOOK'
-#!/usr/bin/env bash
-# Installed by claude-sandbox entrypoint
-if grep -qi "^Co-Authored-By:" "$1"; then
-    echo "ERROR: Co-Authored-By lines are not allowed in this repository." >&2
-    echo "       Remove the trailer and commit again." >&2
-    exit 1
-fi
-HOOK
+    cp "${HOME}/.claude/hooks/commit-msg" "$HOOK_PATH"
     chmod +x "$HOOK_PATH"
     echo "[entrypoint] commit-msg hook installed at $HOOK_PATH"
 fi

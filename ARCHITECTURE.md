@@ -35,8 +35,9 @@ inside /workspace — they don't need a dedicated image.
 │   └── Dockerfile
 ├── systems/
 │   └── Dockerfile
-└── research/
-    └── Dockerfile
+├── research/
+│   └── Dockerfile
+└── tests/            — bats-core integration test harness (see BUILDING.md)
 ```
 
 ### Build all images (do this once, and after any Dockerfile change)

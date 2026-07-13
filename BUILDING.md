@@ -58,8 +58,27 @@ the host and pass the key into containers via the `ANTHROPIC_API_KEY`
 environment variable. See `docs/claude_code_security_plan.md` §Phase 1
 for the full authentication setup procedure.
 
+## Running the test suite
+
+Requires [`bats-core`](https://github.com/bats-core/bats-core) on the host.
+
+```bash
+# Fast tier only (default local iteration loop)
+bats --filter-tags fast tests/
+
+# Full suite (pre-merge / pre-migration gate)
+bats tests/
+
+# Against Podman, once migrated
+ENGINE=podman bats tests/
+```
+
+See `docs/designs/claude-sandbox-testing-module-sdd.md` for what each test
+group covers and why.
+
 ## See also
 
 - `ARCHITECTURE.md` — image hierarchy and dependency management strategy
 - `docs/claude_code_security_plan.md` — threat model and security controls
 - `docs/squid_proxy_guide.md` — outbound network policy via Squid proxy
+- `docs/designs/claude-sandbox-testing-module-sdd.md` — bats-core test harness design

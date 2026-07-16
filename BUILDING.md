@@ -60,7 +60,28 @@ for the full authentication setup procedure.
 
 ## Running the test suite
 
-Requires [`bats-core`](https://github.com/bats-core/bats-core) on the host.
+Requires [`bats-core`](https://github.com/bats-core/bats-core) on the host —
+a TAP-compliant testing framework for Bash. It was chosen because it's
+shell-native: `build.sh`, `start.sh`, and `entrypoint.sh` are already all
+Bash, so tests can drive and assert on them directly without pulling in a
+new language runtime just for testing.
+
+**Install** (pick one):
+
+```bash
+# Debian / Ubuntu
+sudo apt-get install bats
+
+# Fedora / RHEL / CentOS (via EPEL if not already enabled)
+sudo dnf install epel-release   # RHEL/CentOS only; Fedora ships bats directly
+sudo dnf install bats
+
+# Any distro — canonical upstream install, not tied to a distro package version
+git clone https://github.com/bats-core/bats-core.git
+cd bats-core && sudo ./install.sh /usr/local
+```
+
+Verify with `bats --version`.
 
 ```bash
 # Fast tier only (default local iteration loop)

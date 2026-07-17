@@ -32,7 +32,11 @@ teardown() {
     register_container "$CONTAINER_NAME"
     run engine_run --rm --name "$CONTAINER_NAME" claude-base whoami
     [ "$status" -eq 0 ]
-    [ "$output" = "claude-agent" ]
+    # entrypoint.sh always runs first and logs "[entrypoint] ..." lines to
+    # stdout before exec-ing the overridden CMD — filter those out rather
+    # than asserting on the raw combined output.
+    whoami_output=$(echo "$output" | grep -v '^\[entrypoint\]')
+    [ "$whoami_output" = "claude-agent" ]
 }
 
 @test "R-2: CapDrop: [ALL] is present on a running container" {

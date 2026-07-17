@@ -46,7 +46,11 @@ teardown() {
 
     run engine_run --rm claude-base:test id -u
     [ "$status" -eq 0 ]
-    [ "$output" = "1234" ]
+    # entrypoint.sh always runs first and logs "[entrypoint] ..." lines to
+    # stdout before exec-ing the overridden CMD — filter those out rather
+    # than asserting on the raw combined output.
+    id_output=$(echo "$output" | grep -v '^\[entrypoint\]')
+    [ "$id_output" = "1234" ]
 }
 
 @test "B-3: each Dockerfile builds cleanly standalone, without a prior full-build cache" {

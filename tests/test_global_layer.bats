@@ -40,7 +40,11 @@ teardown() {
         claude-base cat /home/claude-agent/.claude/CLAUDE.md
     [ "$status" -eq 0 ]
 
-    diff <(echo "$output") "${GLOBAL_BASE}/CLAUDE.md"
+    # entrypoint.sh always runs first and logs "[entrypoint] ..." lines to
+    # stdout before exec-ing the overridden CMD — filter those out rather
+    # than diffing the raw combined output.
+    cat_output=$(echo "$output" | grep -v '^\[entrypoint\]')
+    diff <(echo "$cat_output") "${GLOBAL_BASE}/CLAUDE.md"
 }
 
 @test "G-2: overlay layer is applied alongside the base layer" {

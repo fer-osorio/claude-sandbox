@@ -84,6 +84,11 @@ MOUNT_ARGS=(
     "--mount" "type=bind,source=${PROJECT_DIR},target=/workspace"
 )
 
+ENV_ARGS=()
+if [ -n "${GH_TOKEN:-}" ]; then
+    ENV_ARGS+=("-e" "GH_TOKEN")
+fi
+
 if [ -d "$GLOBAL_BASE" ]; then
     MOUNT_ARGS+=(
         "--mount" "type=bind,source=${GLOBAL_BASE},target=/run/claude-global,readonly"
@@ -101,6 +106,7 @@ docker run \
     -it \
     --name "claude-$(basename "$PROJECT_DIR")-$(date +%s)" \
     "${MOUNT_ARGS[@]}" \
+    "${ENV_ARGS[@]}" \
     --network claude-net \
     --memory="2g" \
     --cpus="2" \

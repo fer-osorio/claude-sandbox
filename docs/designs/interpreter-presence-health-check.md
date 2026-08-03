@@ -1,7 +1,7 @@
 # Interpreter-Presence Health Check — Software Design Document
 
 > **Document type:** Software Design Document (SDD)
-> **Status:** Draft
+> **Status:** Accepted
 > **Relates to:** `claude_code_security_plan.md` (Phase 5, Audit Logging; STRIDE coverage map),
 > `global_layer_injection_sdd.md` / `global_layer_injection_impl.md` (entrypoint mechanism this
 > design extends), `ARCHITECTURE.md` (Strategy A / Strategy B dependency management)
@@ -430,5 +430,5 @@ Design review pass. Four issues identified and resolved:
    they be committed together or run back-to-back.
 
 ### Version 1.0 — 2026-06-27
-Initial draft. Derived from the `store-transfer-report` incident (2026-06-22, see
+Accepted. Derived from the `store-transfer-report` incident (2026-06-22, see
 `environment.md`) and the design discussion between the operator and Claude Sonnet 4.6.

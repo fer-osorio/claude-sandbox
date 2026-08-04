@@ -59,12 +59,18 @@ if ! docker network inspect claude-net > /dev/null 2>&1; then
     exit 1
 fi
 
+if ! docker image inspect claude-squid > /dev/null 2>&1; then
+    echo "Error: image 'claude-squid' does not exist."
+    echo "Build it first with: ./build.sh squid"
+    exit 1
+fi
+
 GLOBAL_BASE="${SANDBOX_DIR}/global-claude"
 GLOBAL_OVERLAY="${SANDBOX_DIR}/global-${IMAGE_TAG}"
 
 echo "Project:  $PROJECT_DIR"
 echo "Image:    $IMAGE_NAME"
-echo "Network:  claude-net (Anthropic API + package registries only)"
+echo "Network:  claude-net via claude-squid proxy (see squid/squid.conf for allowlist)"
 
 if [ -d "$GLOBAL_BASE" ]; then
     echo "Global:   $GLOBAL_BASE"
@@ -101,6 +107,33 @@ if [ -d "$GLOBAL_OVERLAY" ] && [ "$IMAGE_TAG" != "base" ]; then
     )
 fi
 
+PROXY_NAME="claude-proxy-$$"
+
+# Guaranteed teardown regardless of how the script exits (normal completion,
+# main-container failure, or Ctrl+C) — a plain "stop after" line only runs
+# on the clean-exit path and would leak the proxy container otherwise.
+cleanup() {
+    local exit_code=$?
+    if docker ps -a --format '{{.Names}}' | grep -qx "$PROXY_NAME"; then
+        docker stop "$PROXY_NAME" > /dev/null 2>&1 || true
+        docker rm "$PROXY_NAME" > /dev/null 2>&1 || true
+    fi
+    exit "$exit_code"
+}
+trap cleanup EXIT
+
+echo "Starting Squid proxy ($PROXY_NAME)..."
+if ! docker run -d \
+    --name "$PROXY_NAME" \
+    --network claude-net \
+    --cap-drop=ALL \
+    --security-opt=no-new-privileges \
+    claude-squid > /dev/null; then
+    echo "Error: Squid proxy failed to start."
+    echo "Fail-closed per docs/designs/squid-proxy-integration.md §6.3 — aborting session."
+    exit 1
+fi
+
 docker run \
     --rm \
     -it \
@@ -108,6 +141,9 @@ docker run \
     "${MOUNT_ARGS[@]}" \
     "${ENV_ARGS[@]}" \
     --network claude-net \
+    --env HTTP_PROXY="http://$PROXY_NAME:3128" \
+    --env HTTPS_PROXY="http://$PROXY_NAME:3128" \
+    --env NO_PROXY="localhost,127.0.0.1" \
     --memory="2g" \
     --cpus="2" \
     --security-opt=no-new-privileges \

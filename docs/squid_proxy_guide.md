@@ -215,78 +215,34 @@ docker build -t claude-squid ~/.claude-sandbox/squid/
 
 ---
 
-### Step 4 — Update the main launch script
+### Step 4 — The launch script
 
-The current `start.sh` already incorporates Squid. For reference, the
-core pattern it uses is shown below. The key points are:
+`start.sh`, tracked at the repository root alongside `build.sh`, implements
+the proxy lifecycle described in this guide. Rather than duplicate its
+contents here — where they can silently drift out of sync with the actual
+script, as the previous version of this section did — this section
+summarizes the pattern; read `start.sh` directly for the authoritative
+implementation.
 
-- The proxy container is started first with `-d` (detached) and given a
-  unique name derived from the shell PID (`$$`) so concurrent sessions
-  don't collide.
-- `HTTP_PROXY` and `HTTPS_PROXY` are set to the proxy container's name.
-  Docker's internal DNS resolves container names on the same network, so
-  `http://claude-proxy-$$:3128` reaches the Squid container without any
-  IP address configuration.
-- `NO_PROXY` excludes localhost so that intra-container loopback traffic
-  is not accidentally routed through the proxy.
-- After the Claude session exits, the proxy container is stopped and
-  removed. The `||  true` guard ensures a failed stop doesn't mask the
-  fact that the session completed.
+- A preflight check aborts before the session starts if the `claude-squid`
+  image has not been built (`./build.sh squid`).
+- The proxy container is started first, detached (`-d`), with a name derived
+  from the shell PID (`claude-proxy-$$`) so concurrent sessions don't
+  collide.
+- If the proxy fails to start, the script aborts and the main session
+  container is never started — a fail-closed decision recorded in
+  `docs/designs/squid-proxy-integration.md` §6.3.
+- `HTTP_PROXY` and `HTTPS_PROXY` are injected into the main container as
+  `http://claude-proxy-$$:3128`. Docker's internal DNS resolves the proxy
+  container's name on the same network without any IP configuration.
+  `NO_PROXY` excludes localhost so intra-container loopback traffic isn't
+  routed through the proxy.
+- A `trap ... EXIT` guarantees the proxy container is stopped and removed
+  regardless of how the script exits — normal completion, a failure in the
+  main container, or an interrupt — not just the clean-exit path.
 
-```bash
-#!/usr/bin/env bash
-# Usage: start.sh <project_directory> [image]
-# image: base | crypto | systems | research  (default: base)
-
-set -euo pipefail
-
-PROJECT_DIR="${1:-$(pwd)}"
-PROJECT_DIR="$(realpath "$PROJECT_DIR")"
-IMAGE_TAG="${2:-base}"
-IMAGE_NAME="claude-${IMAGE_TAG}"
-PROXY_NAME="claude-proxy-$$"
-CLAUDE_NAME="claude-$(basename "$PROJECT_DIR")-$$"
-
-echo "Project : $PROJECT_DIR"
-echo "Image   : $IMAGE_NAME"
-echo "Proxy   : $PROXY_NAME"
-echo ""
-
-echo "Starting Squid proxy..."
-docker run -d \
-    --name "$PROXY_NAME" \
-    --network claude-net \
-    claude-squid
-
-echo "Starting Claude Code sandbox..."
-docker run --rm -it \
-    --name "$CLAUDE_NAME" \
-    --network claude-net \
-    --env HTTP_PROXY="http://$PROXY_NAME:3128" \
-    --env HTTPS_PROXY="http://$PROXY_NAME:3128" \
-    --env NO_PROXY="localhost,127.0.0.1" \
-    --env ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
-    --mount type=bind,source="$PROJECT_DIR",target=/workspace \
-    --memory="2g" \
-    --cpus="2" \
-    --security-opt=no-new-privileges \
-    --cap-drop=ALL \
-    --log-driver json-file \
-    --log-opt max-size=50m \
-    --log-opt max-file=5 \
-    "$IMAGE_NAME"
-
-echo ""
-echo "Session ended. Stopping proxy..."
-docker stop "$PROXY_NAME" && docker rm "$PROXY_NAME" || true
-echo "Done."
-```
-
-Make it executable:
-
-```bash
-chmod +x ~/.claude-sandbox/start.sh
-```
+See `docs/designs/squid-proxy-integration.md` for the full design and the
+STRIDE analysis behind these decisions.
 
 ---
 
@@ -346,7 +302,7 @@ Any `TCP_TUNNEL` or `TCP_MISS` to a domain you did not intentionally allow is a 
 
 ## Part 5 — Maintenance
 
-**Adding an allowed domain** for a specific project: edit `squid.conf`, add a line to the `acl allowed_domains` block, rebuild the Squid image, and restart the proxy container. The Claude Code containers do not need to be rebuilt.
+**Adding an allowed domain** for a specific project: edit `squid.conf`, add a line to the `acl allowed_domains` block, and rebuild the Squid image. No manual restart step is needed — the proxy container is ephemeral and recreated fresh on every `start.sh` invocation (see Part 3, Step 4), so the next session picks up the rebuild automatically. The Claude Code containers do not need to be rebuilt.
 
 ```bash
 docker build -t claude-squid ~/.claude-sandbox/squid/
@@ -492,3 +448,37 @@ image-layer expressions of the same per-domain separation of concerns.
 **Why:** The Ubuntu reference was a stale artefact. The added sentence makes
 the relationship between the image hierarchy and the network policy explicit
 so both can be maintained together when a new project type is added.
+
+---
+
+### Change 6 — Squid Actually Implemented and Wired In
+**Affects:** Part 3 Step 4 (launch script), Part 5 (Maintenance). Date: 2026-08-04.
+
+**What changed:**
+`squid/Dockerfile` and `squid/squid.conf` are now committed and tracked in
+the repository — previously this guide described files that did not exist
+anywhere in version control. `build.sh` now builds `claude-squid` via a new
+`squid` target, included in `all`. The tracked `start.sh` now implements the
+proxy lifecycle Step 4 previously only claimed it did: a fail-closed
+preflight check for the `claude-squid` image, `trap`-based teardown of the
+proxy container covering normal exit, main-container failure, and interrupt,
+and `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY` injection into the main container.
+Step 4's fabricated reference `start.sh` sample — which also predated the
+global-layer-injection mount logic, a second, independent staleness — is
+replaced with a pointer to the actual tracked script. Part 5's "restart the
+proxy container" instruction is removed: the proxy is ephemeral and
+recreated fresh on every `start.sh` invocation, so a `squid.conf` edit plus
+an image rebuild is picked up automatically by the next session with no
+separate restart step.
+
+**Why:** `test_squid_isolation.bats` (Group 3, S-1–S-3) failed at
+`setup_file()` because `squid/` was never committed — this guide's own claim
+that "the current `start.sh` already incorporates Squid" was false against
+the tracked tree. See `docs/designs/squid-proxy-integration.md` for the full
+design, STRIDE analysis, and rationale (fail-closed startup, non-root proxy
+execution, digest pinning).
+
+**Security posture:** Materially improved, not a documentation-only fix.
+Before this change, Layer 4 (network egress allowlisting) was a no-op:
+sessions ran with unrestricted egress on `claude-net`, constrained only by
+`permissions.deny`'s narrow bash-command denials. This closes that gap.

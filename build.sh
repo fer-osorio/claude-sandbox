@@ -7,6 +7,7 @@
 #   ./build.sh crypto           — build claude-base then claude-crypto
 #   ./build.sh systems          — build claude-base then claude-systems
 #   ./build.sh research         — build claude-base then claude-research
+#   ./build.sh squid            — build only claude-squid (no base dependency)
 #   ./build.sh --no-cache       — build all images, bypassing Docker layer cache
 #   ./build.sh base --no-cache  — build only claude-base, bypassing cache
 #
@@ -49,15 +50,24 @@ build_research() {
     docker build $UID_ARG $NO_CACHE -t claude-research ./research/
 }
 
+# No $UID_ARG — the Squid image creates no claude-agent-equivalent user tied
+# to the host UID; it has no bind-mounted /workspace and nothing that needs
+# host-UID alignment.
+build_squid() {
+    echo "→ Building claude-squid..."
+    docker build $NO_CACHE -t claude-squid ./squid/
+}
+
 case "$TARGET" in
     all)
         build_base
         build_crypto
         build_systems
         build_research
+        build_squid
         echo ""
         echo "All images built:"
-        docker images | grep -E "^claude-(base|crypto|systems|research)\s"
+        docker images | grep -E "^claude-(base|crypto|systems|research|squid)\s"
         ;;
     base)
         build_base
@@ -74,9 +84,12 @@ case "$TARGET" in
         build_base
         build_research
         ;;
+    squid)
+        build_squid
+        ;;
     *)
         echo "Unknown target: $TARGET"
-        echo "Usage: $0 [all|base|crypto|systems|research]"
+        echo "Usage: $0 [all|base|crypto|systems|research|squid]"
         exit 1
         ;;
 esac

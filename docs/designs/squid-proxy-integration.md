@@ -276,6 +276,11 @@ that remains explicitly out of scope per §1.2.
 
 http_port 3128
 
+# Docker tracks this container's process directly; no PID file is needed,
+# and /run/squid.pid is not writable by the non-root "proxy" user (see
+# §6.4, §9 — confirmed empirically during smoke testing, not assumed).
+pid_filename none
+
 # ── Core tier — required for basic toolchain operation ────────────────
 acl allowed_domains dstdomain api.anthropic.com
 acl allowed_domains dstdomain registry.npmjs.org
@@ -317,7 +322,10 @@ http_access allow allowed_domains
 http_access deny all
 
 # ── Logging ─────────────────────────────────────────────────────────
-access_log stdio:/dev/stdout combined
+# "squid" (native format, e.g. TCP_TUNNEL/200) — not "combined" (NCSA
+# format, e.g. TCP_TUNNEL:HIER_DIRECT). Confirmed empirically after a
+# bats S-1/S-3 failure traced to this exact format mismatch.
+access_log stdio:/dev/stdout squid
 
 # ── Privacy and cache ───────────────────────────────────────────────
 cache deny all
@@ -617,10 +625,15 @@ not addressed here, to avoid silent scope expansion beyond what this design set 
 **Q: Does the non-root proxy hardening (§6.4) risk breaking anything Squid needs write access
 to?**
 
-Believed no — caching is disabled (`cache deny all`), logging goes to stdout (no file write),
-and the only file the process needs to read is `/etc/squid/squid.conf` (world-readable by
-default from `COPY`). Should be confirmed empirically at implementation time (step 1 of §8)
-rather than assumed.
+Confirmed yes, during step 5 smoke testing — resolved, not merely assumed safe as originally
+written here. Squid fatally failed to start: `FATAL: failed to open /run/squid.pid: (13)
+Permission denied`. `/run/squid.pid` is root-owned inside the container; Squid's normal pattern
+of opening privileged paths as root before dropping to its effective user doesn't apply here,
+since `USER proxy` makes the process non-root from its very first instruction. Caching
+(`cache deny all`) and logging (`access_log stdio:/dev/stdout`) were correctly identified as
+non-issues — the PID file was the actual gap. Fixed by adding `pid_filename none` to
+`squid.conf` (§5.2): Docker already tracks the container's process directly via its own PID 1
+mechanism, so Squid's own PID file serves no purpose in this setup.
 
 ---
 
@@ -639,3 +652,24 @@ on the proxy container).
 Operator signed off on the §6.3 fail-closed decision. Status moved from Draft to Accepted.
 Document relocated to `docs/designs/squid-proxy-integration.md` per the location convention in
 `docs/designs/docs-as-code-workflow.md` (§2.2, repository layout).
+
+### Version 1.2 — 2026-08-05
+Step 5 smoke testing surfaced a fatal startup failure: `USER proxy` (§5.1) left Squid unable to
+write `/run/squid.pid`, since the non-root process never has the root privileges needed to open
+that root-owned path (contrast with the normal Squid pattern of opening privileged resources as
+root, then dropping privileges). This resolves the §9 open question — the non-root hardening did
+break something, just not caching or logging as originally speculated. Fixed by adding
+`pid_filename none` to `squid/squid.conf` (§5.2); Docker's own process tracking makes Squid's PID
+file unnecessary here. `USER proxy` itself is retained — the fix removes the one thing that
+non-root execution couldn't do, rather than reverting the hardening.
+
+### Version 1.3 — 2026-08-05
+Step 6 (`test_squid_isolation.bats`) failed S-1 and S-3 against a proxy confirmed fully
+functional by manual testing — a complete CONNECT tunnel, TLS handshake, and correct HTTP
+response from `api.anthropic.com`. Root cause: `access_log stdio:/dev/stdout combined` (§5.2)
+uses Squid's NCSA-style `combined` format (`TCP_TUNNEL:HIER_DIRECT`), not the native `squid`
+format (`TCP_TUNNEL/200`) that both Part 4 of `docs/squid_proxy_guide.md` and the bats
+assertions assume — an inconsistency present in the guide since its first version, invisible
+without comparing an actual emitted log line against the documented example. S-2 passed
+regardless, on a substring match loose enough to survive either format. Fixed by changing the
+directive to `access_log stdio:/dev/stdout squid`.

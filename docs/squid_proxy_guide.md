@@ -153,8 +153,11 @@ http_access deny all
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
-# Log every request to stdout so Docker captures it
-access_log stdio:/dev/stdout combined
+# Log every request to stdout so Docker captures it. "squid" is Squid's
+# native log format (e.g. TCP_TUNNEL/200) — not "combined", the NCSA/Apache
+# format (e.g. TCP_TUNNEL:HIER_DIRECT), which the result codes in Part 4
+# below assume.
+access_log stdio:/dev/stdout squid
 
 # ── Privacy and cache ─────────────────────────────────────────────────────────
 
@@ -482,3 +485,52 @@ execution, digest pinning).
 Before this change, Layer 4 (network egress allowlisting) was a no-op:
 sessions ran with unrestricted egress on `claude-net`, constrained only by
 `permissions.deny`'s narrow bash-command denials. This closes that gap.
+
+---
+
+### Change 7 — `pid_filename none` Added After Non-Root Startup Failure
+**Affects:** Step 1 (`squid.conf`). Date: 2026-08-05.
+
+**What changed:**
+Smoke testing (per Change 6) found the proxy container exiting immediately after start, with
+`docker logs` showing `FATAL: failed to open /run/squid.pid: (13) Permission denied`. Running
+Squid entirely as the non-root `proxy` user (introduced beyond this guide's original design —
+see `docs/designs/squid-proxy-integration.md` §6.4) means it never holds root privileges to
+open the root-owned `/run/squid.pid`, unlike Squid's normal pattern of opening privileged
+resources as root before dropping to its effective user. `pid_filename none` was added to
+`squid.conf`, telling Squid not to write a PID file at all.
+
+**Why:** Docker already tracks this container's process directly as its PID 1; Squid's own PID
+file serves no purpose in this setup and was the one thing non-root execution from process start
+couldn't do. Caching and logging — the other candidates considered for breakage under non-root
+execution — were unaffected, as expected (caching is disabled via `cache deny all`; the access
+log goes to stdout, not a file).
+
+**Security posture:** Unchanged from Change 6's hardening — `USER proxy` is retained. This
+removes the specific obstacle to non-root execution rather than reverting it.
+
+---
+
+### Change 8 — Access Log Format Corrected from `combined` to `squid`
+**Affects:** Step 1 (`squid.conf`). Date: 2026-08-05.
+
+**What changed:**
+Step 1's `squid.conf` template set `access_log stdio:/dev/stdout combined`. This has been an
+inconsistency in this guide since its first version: `combined` is Squid's NCSA/Apache-style log
+format, whose result field is `%Ss:%Sh` — e.g. `TCP_TUNNEL:HIER_DIRECT` — while Part 4's own
+documented example lines (`TCP_TUNNEL/200`, `TCP_DENIED/403`) are Squid's native `squid` format,
+a different named format entirely. `test_squid_isolation.bats` (S-1, S-3) failed against a fully
+working proxy — full CONNECT tunnel, full TLS handshake, correct 404 from `api.anthropic.com` —
+because the assertions parse the native format's `TAG/CODE` shape, which `combined` never
+produces. S-2 passed regardless, by coincidence: its check is a loose `TCP_DENIED` substring
+match, present in both formats, just followed by `:HIER_NONE` instead of `/403`. The directive
+is now `access_log stdio:/dev/stdout squid`.
+
+**Why:** Nobody had run this configuration end-to-end until step 5 smoke testing surfaced it.
+The mismatch was invisible from reading the config alone — both `combined` and `squid` are valid
+Squid log formats, and only comparing an actual emitted log line against Part 4's documented
+example revealed the discrepancy.
+
+**Security posture:** Unchanged — this is a log-format correctness fix, not a policy change. The
+allowlist enforcement itself (confirmed working via the manual CONNECT tunnel test) was never
+affected.

@@ -874,3 +874,45 @@ upgrade silently breaks addons compiled against the prior ABI. Neither failure p
 
 No other STRIDE categories are affected. No new privilege, no new mount, no execution of
 workspace-resident code.
+
+---
+
+### Change 15 — Squid Network Egress Proxy Actually Implemented
+**Affects:** Phase 2.8–2.9, §5 (STRIDE Coverage Map, delta only). Date: 2026-08-04.
+
+**What changed:**
+Phase 2.9 and the companion *Squid Proxy Implementation Guide* described a Squid-based
+network egress allowlist, but neither `squid/Dockerfile` nor `squid/squid.conf` was ever
+committed to the sandbox repository, and `start.sh` had no proxy lifecycle, no
+`HTTP_PROXY`/`HTTPS_PROXY` injection, and no reference to Squid at all — Layer 4 of the
+five-layer defense described in §3 was a no-op against the tracked tree. This was closed:
+`squid/` is now committed, `build.sh` builds `claude-squid` as a new target, and `start.sh`
+starts the proxy before the main container, injects the proxy environment variables into it,
+and guarantees teardown via `trap ... EXIT` regardless of how the session ends. Full design
+and rationale: `docs/designs/squid-proxy-integration.md`.
+
+Two hardening decisions beyond what Phase 2.8–2.9 originally specified:
+
+- **Fail-closed proxy startup.** If `claude-squid` fails to start, the session aborts rather
+  than falling back to unrestricted egress. A control that silently degrades to absent on its
+  own failure is the anti-pattern this plan has consistently avoided elsewhere (see Change 12).
+- **Non-root, capability-dropped proxy container.** The proxy runs as the `proxy` system
+  account (uid/gid 13, a standard Debian `base-passwd` account) rather than root, with
+  `--cap-drop=ALL`/`--security-opt=no-new-privileges` on its own invocation — consistent with
+  the treatment already given to every other container in this architecture.
+
+**Why:** Surfaced by `test_squid_isolation.bats` (Group 3, S-1–S-3) failing at `setup_file()`
+because the files it depends on did not exist in the tracked tree. Network egress allowlisting
+is named in §3 and Phase 2.8 as the primary control against Information Disclosure via
+exfiltration; until this change, that control was documentation only.
+
+**STRIDE mapping (delta only):**
+
+| Threat (STRIDE) | Control added |
+|---|---|
+| **Information Disclosure (I)** | Squid allowlist actually built, wired into `build.sh`/`start.sh`, and enforced via `HTTP_PROXY`/`HTTPS_PROXY` injection — previously documented but not present in the tracked tree. Residual, accepted risk: any allowlisted domain remains a potential blind exfiltration channel, since Squid sees only the CONNECT tunnel for HTTPS, not its contents. |
+| **Repudiation (R)** | Squid access log (`access_log stdio:/dev/stdout combined`) actually active and captured by Docker's default log driver, joining the Docker and Claude Code session logs named in Phase 5. |
+| **Elevation of Privilege (E)** | Non-root execution inside the proxy container; `--cap-drop=ALL`/`--security-opt=no-new-privileges` on the proxy's own runtime invocation. Not present in the original guide. |
+| **Denial of Service (D)** | Fail-closed proxy startup is a deliberate, bounded availability cost accepted in exchange for not silently degrading the egress control on proxy failure. |
+
+No other STRIDE category in §5 changes as a result of this work.

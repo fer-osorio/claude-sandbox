@@ -283,6 +283,10 @@ pid_filename none
 
 # ── Core tier — required for basic toolchain operation ────────────────
 acl allowed_domains dstdomain api.anthropic.com
+# Claude Code's own service endpoint — distinct from api.anthropic.com.
+# Confirmed required by a live 403 denial during a real session; the
+# original guide's allowlist only ever listed api.anthropic.com.
+acl allowed_domains dstdomain platform.claude.com
 acl allowed_domains dstdomain registry.npmjs.org
 acl allowed_domains dstdomain pypi.org
 acl allowed_domains dstdomain files.pythonhosted.org
@@ -673,3 +677,10 @@ assertions assume — an inconsistency present in the guide since its first vers
 without comparing an actual emitted log line against the documented example. S-2 passed
 regardless, on a substring match loose enough to survive either format. Fixed by changing the
 directive to `access_log stdio:/dev/stdout squid`.
+
+### Version 1.4 — 2026-08-06
+A real Claude Code session through the (now-working) proxy failed with `Failed to connect to
+platform.claude.com: Status 403` — Squid correctly denying a domain absent from the allowlist.
+`platform.claude.com` (Claude Code's own service endpoint, distinct from `api.anthropic.com`)
+is now added to the core tier (§5.2). Confirmed required by a live denial rather than
+anticipated in advance; `api.anthropic.com` is retained.

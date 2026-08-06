@@ -128,8 +128,11 @@ http_port 3128
 
 # ── Allowed destinations ──────────────────────────────────────────────────────
 
-# Claude Code API endpoint (required for all Claude Code operation)
+# Claude Code API endpoints (both required for all Claude Code operation —
+# platform.claude.com is Claude Code's own service endpoint, distinct from
+# the classic Anthropic API domain)
 acl allowed_domains dstdomain api.anthropic.com
+acl allowed_domains dstdomain platform.claude.com
 
 # Package registries — add or remove based on your project's needs
 # acl allowed_domains dstdomain registry.npmjs.org
@@ -534,3 +537,22 @@ example revealed the discrepancy.
 **Security posture:** Unchanged — this is a log-format correctness fix, not a policy change. The
 allowlist enforcement itself (confirmed working via the manual CONNECT tunnel test) was never
 affected.
+
+---
+
+### Change 9 — `platform.claude.com` Added to the Core Tier Allowlist
+**Affects:** Step 1 (`squid.conf`). Date: 2026-08-06.
+
+**What changed:**
+A real Claude Code session through the fixed proxy hit `Failed to connect to
+platform.claude.com: Status 403` — Squid correctly denying a domain that was never on the
+allowlist. Step 1's core tier had only ever listed `api.anthropic.com`. `platform.claude.com` —
+Claude Code's own service endpoint, distinct from the classic Anthropic API domain — is now
+also allowed.
+
+**Why:** Confirmed required by a live, session-blocking denial, not by inspecting Claude Code's
+source or documentation in advance. `api.anthropic.com` is retained; nothing so far indicates
+it's unused.
+
+**Security posture:** The allowlist grows by exactly one entry, required for Claude Code to
+function at all. No change to the default-deny posture or any other control.

@@ -2,7 +2,8 @@
 
 ## Prerequisites
 
-- Docker
+- Docker (default), or rootless Podman under WSL2 — see
+  [Podman prerequisites](#podman-prerequisites-rootless-wsl2) below
 - GitHub CLI (`gh`) — optional, for issue and PR management
 
 ## Build all images
@@ -45,11 +46,66 @@ Add `--no-cache` to force a full rebuild (pulls updated apt packages):
 
 ## First-time network setup
 
-The sandbox requires a Docker bridge network. Create it once:
+The sandbox requires a bridge network. Create it once, using the same engine
+`build.sh`/`start.sh` will use (`docker` by default; `podman` if `$ENGINE` is
+set — see below):
 
 ```bash
 docker network create --driver bridge claude-net
+# or, under Podman:
+# podman network create --driver bridge claude-net
 ```
+
+## Podman prerequisites (rootless, WSL2)
+
+`build.sh` and `start.sh` both honor an `$ENGINE` environment variable
+(default `docker`). Set `ENGINE=podman` to route every build/run invocation
+through Podman instead — see `docs/designs/podman-migration.md` for the full
+design. Rootless Podman needs a few things Docker's rootless setup doesn't
+require you to think about directly:
+
+- **subuid/subgid delegation.** Podman's user-namespace remapping needs a
+  range of UIDs/GIDs delegated to your user. Check for an existing entry:
+
+  ```bash
+  grep "^$(whoami):" /etc/subuid /etc/subgid
+  ```
+
+  If either file has no entry for your user, add one (as root):
+
+  ```bash
+  sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "$(whoami)"
+  ```
+
+- **cgroups v2**, required for `--memory`/`--cpus` enforcement under
+  rootless Podman. Confirm it's active:
+
+  ```bash
+  cat /sys/fs/cgroup/cgroup.controllers
+  ```
+
+  A non-empty list of controllers (e.g. `cpu memory ...`) confirms cgroups
+  v2 is mounted and delegated.
+
+- **systemd under WSL2**, required for the user session that cgroups v2
+  delegation depends on. WSL2 does not enable this by default — add to
+  `/etc/wsl.conf` on the WSL2 instance, then restart it (`wsl --shutdown`
+  from Windows):
+
+  ```ini
+  [boot]
+  systemd=true
+  ```
+
+Once these are in place, run the test suite against Podman to confirm your
+setup before relying on it for a real session:
+
+```bash
+ENGINE=podman bats tests/
+```
+
+Docker remains the default and fully supported (`$ENGINE` unset, or
+`ENGINE=docker` explicitly) until a separate, later decision retires it.
 
 ## Authentication
 

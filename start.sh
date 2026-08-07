@@ -18,8 +18,15 @@
 #
 # Before running this for the first time, ensure the network exists:
 #   docker network create --driver bridge claude-net
+#   (or: podman network create --driver bridge claude-net, under ENGINE=podman)
+#
+# Engine:
+#   ENGINE=docker (default) or ENGINE=podman selects which container engine
+#   binary is invoked. See docs/designs/podman-migration.md.
 
 set -euo pipefail
+
+ENGINE="${ENGINE:-docker}"
 
 SANDBOX_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="${1:-$(pwd)}"
@@ -28,9 +35,9 @@ IMAGE_TAG="${2:-base}"
 
 VALID_IMAGES="base crypto systems research"
 
-if ! docker info > /dev/null 2>&1; then
-    echo "Error: Docker daemon is not running."
-    echo "Start Docker and try again."
+if ! "$ENGINE" info > /dev/null 2>&1; then
+    echo "Error: $ENGINE is not reachable."
+    echo "Start $ENGINE and try again."
     exit 1
 fi
 
@@ -47,21 +54,21 @@ fi
 
 IMAGE_NAME="claude-${IMAGE_TAG}"
 
-if ! docker image inspect "$IMAGE_NAME" > /dev/null 2>&1; then
+if ! "$ENGINE" image inspect "$IMAGE_NAME" > /dev/null 2>&1; then
     echo "Error: image '$IMAGE_NAME' does not exist."
-    echo "Build it first with: ./build.sh $IMAGE_TAG"
+    echo "Build it first with: ENGINE=$ENGINE ./build.sh $IMAGE_TAG"
     exit 1
 fi
 
-if ! docker network inspect claude-net > /dev/null 2>&1; then
+if ! "$ENGINE" network inspect claude-net > /dev/null 2>&1; then
     echo "Error: network 'claude-net' does not exist."
-    echo "Create it with: docker network create --driver bridge claude-net"
+    echo "Create it with: $ENGINE network create --driver bridge claude-net"
     exit 1
 fi
 
-if ! docker image inspect claude-squid > /dev/null 2>&1; then
+if ! "$ENGINE" image inspect claude-squid > /dev/null 2>&1; then
     echo "Error: image 'claude-squid' does not exist."
-    echo "Build it first with: ./build.sh squid"
+    echo "Build it first with: ENGINE=$ENGINE ./build.sh squid"
     exit 1
 fi
 
@@ -114,27 +121,46 @@ PROXY_NAME="claude-proxy-$$"
 # on the clean-exit path and would leak the proxy container otherwise.
 cleanup() {
     local exit_code=$?
-    if docker ps -a --format '{{.Names}}' | grep -qx "$PROXY_NAME"; then
-        docker stop "$PROXY_NAME" > /dev/null 2>&1 || true
-        docker rm "$PROXY_NAME" > /dev/null 2>&1 || true
+    if "$ENGINE" ps -a --format '{{.Names}}' | grep -qx "$PROXY_NAME"; then
+        "$ENGINE" stop "$PROXY_NAME" > /dev/null 2>&1 || true
+        "$ENGINE" rm "$PROXY_NAME" > /dev/null 2>&1 || true
     fi
     exit "$exit_code"
 }
 trap cleanup EXIT
 
+# --userns=keep-id remaps the main container's baked UID 1000 (claude-agent)
+# onto whatever UID is actually invoking $ENGINE, at run time — only needed
+# (and only supported) under Podman. The Docker path keeps matching the host
+# UID at build time via HOST_UID (see build.sh). The proxy container has no
+# bind mounts, so it never needs this. See docs/designs/podman-migration.md §3.A.
+USERNS_ARGS=()
+if [ "$ENGINE" = "podman" ]; then
+    USERNS_ARGS=(--userns=keep-id:uid=1000,gid=1000)
+fi
+
+# Explicit, size-capped log drivers on both containers, pinned to the same
+# driver regardless of engine rather than relying on differing defaults
+# (Podman's default varies by configuration). Closes the proxy hygiene gap
+# noted in squid-proxy-integration.md §6.2-R and the main-container gap noted
+# in claude_code_security_plan.md Phase 5. See podman-migration.md §3.B.
+PROXY_LOG_ARGS=(--log-driver json-file --log-opt max-size=10m --log-opt max-file=3)
+MAIN_LOG_ARGS=(--log-driver json-file --log-opt max-size=50m --log-opt max-file=5)
+
 echo "Starting Squid proxy ($PROXY_NAME)..."
-if ! docker run -d \
+if ! "$ENGINE" run -d \
     --name "$PROXY_NAME" \
     --network claude-net \
     --cap-drop=ALL \
     --security-opt=no-new-privileges \
+    "${PROXY_LOG_ARGS[@]}" \
     claude-squid > /dev/null; then
     echo "Error: Squid proxy failed to start."
     echo "Fail-closed per docs/designs/squid-proxy-integration.md §6.3 — aborting session."
     exit 1
 fi
 
-docker run \
+"$ENGINE" run \
     --rm \
     -it \
     --name "claude-$(basename "$PROJECT_DIR")-$(date +%s)" \
@@ -148,4 +174,6 @@ docker run \
     --cpus="2" \
     --security-opt=no-new-privileges \
     --cap-drop=ALL \
+    "${USERNS_ARGS[@]}" \
+    "${MAIN_LOG_ARGS[@]}" \
     "$IMAGE_NAME"

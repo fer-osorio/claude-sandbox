@@ -56,7 +56,7 @@ IMAGE_NAME="claude-${IMAGE_TAG}"
 
 if ! "$ENGINE" image inspect "$IMAGE_NAME" > /dev/null 2>&1; then
     echo "Error: image '$IMAGE_NAME' does not exist."
-    echo "Build it first with: ENGINE=$ENGINE ./build.sh $IMAGE_TAG"
+    echo "Build it first with: ./build.sh $IMAGE_TAG"
     exit 1
 fi
 
@@ -68,7 +68,7 @@ fi
 
 if ! "$ENGINE" image inspect claude-squid > /dev/null 2>&1; then
     echo "Error: image 'claude-squid' does not exist."
-    echo "Build it first with: ENGINE=$ENGINE ./build.sh squid"
+    echo "Build it first with: ./build.sh squid"
     exit 1
 fi
 

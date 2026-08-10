@@ -2,8 +2,9 @@
 
 ## Prerequisites
 
-- Docker (default), or rootless Podman under WSL2 — see
-  [Podman prerequisites](#podman-prerequisites-rootless-wsl2) below
+- Rootless Podman under WSL2 (default) — see
+  [Podman prerequisites](#podman-prerequisites-rootless-wsl2) below, or
+- Docker (`ENGINE=docker`), fully supported as a fallback
 - GitHub CLI (`gh`) — optional, for issue and PR management
 
 ## Build all images
@@ -47,20 +48,20 @@ Add `--no-cache` to force a full rebuild (pulls updated apt packages):
 ## First-time network setup
 
 The sandbox requires a bridge network. Create it once, using the same engine
-`build.sh`/`start.sh` will use (`docker` by default; `podman` if `$ENGINE` is
-set — see below):
+`build.sh`/`start.sh` will use (`podman` by default; `docker` if
+`ENGINE=docker` is set):
 
 ```bash
-docker network create --driver bridge claude-net
-# or, under Podman:
-# podman network create --driver bridge claude-net
+podman network create --driver bridge claude-net
+# or, under Docker:
+# docker network create --driver bridge claude-net
 ```
 
 ## Podman prerequisites (rootless, WSL2)
 
 `build.sh` and `start.sh` both honor an `$ENGINE` environment variable
-(default `docker`). Set `ENGINE=podman` to route every build/run invocation
-through Podman instead — see `docs/designs/podman-migration.md` for the full
+(default `podman`). Set `ENGINE=docker` to route every build/run invocation
+through Docker instead — see `docs/designs/podman-migration.md` for the full
 design. Rootless Podman needs a few things Docker's rootless setup doesn't
 require you to think about directly:
 
@@ -101,11 +102,11 @@ Once these are in place, run the test suite against Podman to confirm your
 setup before relying on it for a real session:
 
 ```bash
-ENGINE=podman bats tests/
+bats tests/   # ENGINE unset — podman is now the default
 ```
 
-Docker remains the default and fully supported (`$ENGINE` unset, or
-`ENGINE=docker` explicitly) until a separate, later decision retires it.
+Docker remains fully supported as a fallback via `ENGINE=docker`, until a
+separate, later decision retires it.
 
 ## Authentication
 
@@ -140,14 +141,14 @@ cd bats-core && sudo ./install.sh /usr/local
 Verify with `bats --version`.
 
 ```bash
-# Fast tier only (default local iteration loop)
+# Fast tier only (default local iteration loop) — runs against Podman
 bats --filter-tags fast tests/
 
-# Full suite (pre-merge / pre-migration gate)
+# Full suite (pre-merge gate) — runs against Podman
 bats tests/
 
-# Against Podman, once migrated
-ENGINE=podman bats tests/
+# Against the Docker fallback
+ENGINE=docker bats tests/
 ```
 
 See `docs/designs/claude-sandbox-testing-module-sdd.md` for what each test

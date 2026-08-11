@@ -18,7 +18,7 @@
 # Place this file in the same directory as base/, crypto/, systems/, research/.
 #
 # Engine:
-#   ENGINE=docker (default) or ENGINE=podman selects which container engine
+#   ENGINE=podman (default) or ENGINE=docker selects which container engine
 #   binary is invoked. See docs/designs/podman-migration.md. HOST_UID is only
 #   passed as a build-arg under Docker — the Podman path relies on the
 #   Dockerfiles' baked default (1000) plus --userns=keep-id at run time
@@ -26,7 +26,7 @@
 
 set -euo pipefail
 
-ENGINE="${ENGINE:-docker}"
+ENGINE="${ENGINE:-podman}"
 
 UID_ARG=""
 if [ "$ENGINE" = "docker" ]; then

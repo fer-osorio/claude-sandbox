@@ -17,16 +17,16 @@
 #   ./start.sh ~/projects/webapp            — web / Python (uses base)
 #
 # Before running this for the first time, ensure the network exists:
-#   docker network create --driver bridge claude-net
-#   (or: podman network create --driver bridge claude-net, under ENGINE=podman)
+#   podman network create --driver bridge claude-net
+#   (or: docker network create --driver bridge claude-net, under ENGINE=docker)
 #
 # Engine:
-#   ENGINE=docker (default) or ENGINE=podman selects which container engine
+#   ENGINE=podman (default) or ENGINE=docker selects which container engine
 #   binary is invoked. See docs/designs/podman-migration.md.
 
 set -euo pipefail
 
-ENGINE="${ENGINE:-docker}"
+ENGINE="${ENGINE:-podman}"
 
 SANDBOX_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="${1:-$(pwd)}"

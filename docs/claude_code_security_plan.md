@@ -16,7 +16,7 @@ This document describes the security architecture for running Claude Code on a l
 
 ### Scope
 
-This plan covers a single-user local workstation running Fedora with rootless Docker. It does not cover multi-user deployments, CI/CD pipeline integration, or cloud-hosted agents. Extensions to those contexts would require additional controls not described here.
+This plan covers a single-user local workstation running rootless Podman under WSL2 (default engine as of Change 16; rootless Docker on Fedora remains fully supported via `ENGINE=docker`). It does not cover multi-user deployments, CI/CD pipeline integration, or cloud-hosted agents. Extensions to those contexts would require additional controls not described here.
 
 ### Non-Goals
 
@@ -914,5 +914,53 @@ exfiltration; until this change, that control was documentation only.
 | **Repudiation (R)** | Squid access log (`access_log stdio:/dev/stdout combined`) actually active and captured by Docker's default log driver, joining the Docker and Claude Code session logs named in Phase 5. |
 | **Elevation of Privilege (E)** | Non-root execution inside the proxy container; `--cap-drop=ALL`/`--security-opt=no-new-privileges` on the proxy's own runtime invocation. Not present in the original guide. |
 | **Denial of Service (D)** | Fail-closed proxy startup is a deliberate, bounded availability cost accepted in exchange for not silently degrading the egress control on proxy failure. |
+
+No other STRIDE category in §5 changes as a result of this work.
+
+---
+
+### Change 16 — Container Engine Migrated from Docker to Rootless Podman/WSL2
+**Affects:** Scope, Phase 5 (Audit Logging), §5 (STRIDE Coverage Map, delta only). Date: 2026-08-10.
+
+**What changed:**
+`build.sh` and `start.sh` now route every build/run invocation through `$ENGINE`
+(default `podman`, rootless under WSL2; `ENGINE=docker` selects Docker instead — fully
+supported as a fallback). Three changes travel with the engine swap:
+
+- **Runtime UID matching for the Podman path.** The main session container now adds
+  `--userns=keep-id:uid=1000,gid=1000` under Podman, remapping the image's fixed
+  `claude-agent` UID onto the actual invoking host UID at run time. The Docker path is
+  unchanged — it still matches UID at build time via `HOST_UID` (Change 7).
+- **Explicit, size-capped log drivers on both containers, both engines.**
+  `--log-driver json-file --log-opt max-size=... --log-opt max-file=...` is now present
+  on the proxy container (closing the hygiene gap noted but not implemented in
+  `squid-proxy-integration.md` §6.2-R/§9) and on the main session container (closing
+  the gap between this document's Phase 5 and the tracked `start.sh`, noted in the same
+  Squid SDD passage). Pinned to `json-file` on both engines deliberately, rather than
+  relying on differing per-engine defaults.
+- **`base/Dockerfile`'s `FROM debian:bookworm-slim` is now digest-pinned**, closing the
+  repo-wide gap the Squid SDD deferred to this migration (§5.1).
+
+Full design and rationale: `docs/designs/podman-migration.md`.
+
+**Why:** Podman is daemonless — no root-owned `dockerd` process runs on the host, unlike
+even "rootless" Docker's typical desktop configuration. This closes a root-daemon attack
+surface this document did not previously address. The Squid sibling-container proxy
+pattern (`claude-proxy-$$` on `claude-net`) had never been exercised under anything but
+Docker's bridge network; `squid-proxy-integration.md` §7.4 explicitly flagged this as
+unvalidated, not merely unmigrated, and deferred its resolution to this change. It is now
+confirmed: `ENGINE=podman bats tests/` passes in full, including
+`test_squid_isolation.bats` S-1–S-3 under `slirp4netns`.
+
+**STRIDE mapping (delta only):**
+
+| Threat (STRIDE) | Control added or changed |
+|---|---|
+| **Spoofing (S)** | Sibling-container name resolution for `claude-proxy-$$` confirmed functional under `slirp4netns` (`test_squid_isolation.bats` S-1–S-3 green under `ENGINE=podman`) — previously an open, explicitly unvalidated question. |
+| **Tampering (T)** | No change. `squid.conf` remains baked into the image at build time; out of scope for this migration. |
+| **Repudiation (R)** | Explicit `--log-driver`/`--log-opt` now present on both the proxy and the main session container, on both engines — closes two previously-flagged gaps (see "What changed"). |
+| **Information Disclosure (I)** | No change to the allowlist mechanism itself; confirmed to still hold under the new networking backend by the same S-1–S-3 gate. |
+| **Denial of Service (D)** | Fail-closed proxy startup unchanged. Residual, not yet closed: `--memory`/`--cpus` enforcement on the main container depends on cgroups v2 delegation under rootless Podman, which is not exercised by the automated suite — manual confirmation (attempt to exceed `--memory`, observe an OOM-kill) is a tracked action item, not yet performed. |
+| **Elevation of Privilege (E)** | Primary contribution of this change: no root-owned daemon process on the host. `--cap-drop=ALL`/`--security-opt=no-new-privileges` retained unchanged on both containers, on both engines — under rootless Podman these now defend against within-namespace capability gain rather than a host-root escape, which rootless execution already prevents structurally. Runtime UID matching via `--userns=keep-id` (Podman path only) replaces build-time `HOST_UID` matching (Change 7) for that path only; the Docker path is unchanged. |
 
 No other STRIDE category in §5 changes as a result of this work.

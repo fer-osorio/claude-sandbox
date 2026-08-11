@@ -92,3 +92,33 @@ teardown() {
     [[ "$output" == *"Build it first with: ./build.sh ${target}"* ]]
     ! engine_inspect "claude-${target}" > /dev/null 2>&1
 }
+
+@test "R-6: cgroups memory limit is actually enforced, not just accepted" {
+    # bats test_tags=fast
+    #
+    # Regression test for a real finding (podman-migration.md §6.2-D,
+    # claude_code_security_plan.md Change 17): under a WSL2 host without
+    # cgroups v2 "memory" delegated to the user session, Podman accepted
+    # --memory without error but never actually enforced it — the process
+    # was killed by some other, unscoped boundary (exit 137), and Podman's
+    # own OOMKilled bookkeeping never reflected it (reported false). A
+    # --memory flag that's merely accepted, not enforced, is a silent
+    # Denial-of-Service-relevant regression — assert on the real outcome,
+    # not just that start.sh/build.sh pass the flag through.
+    register_container "$CONTAINER_NAME"
+
+    userns_args=()
+    if [ "$ENGINE" = "podman" ]; then
+        userns_args=(--userns=keep-id:uid=1000,gid=1000)
+    fi
+
+    run engine_run --name "$CONTAINER_NAME" --memory=100m \
+        --cap-drop=ALL --security-opt=no-new-privileges \
+        "${userns_args[@]}" \
+        claude-base python3 -c "bytearray(500 * 1024 * 1024)"
+    [ "$status" -eq 137 ]
+
+    run engine_inspect --format '{{.State.OOMKilled}}' "$CONTAINER_NAME"
+    [ "$status" -eq 0 ]
+    [ "$output" = "true" ]
+}

@@ -349,10 +349,21 @@ change.
    currently work under Docker. Under rootless Podman, enforcement requires cgroups
    v2 with a delegated systemd user session — not guaranteed by default on WSL2,
    which gained systemd support relatively recently and requires explicit enablement.
-   If delegation is absent, these flags silently become no-ops — a regression from
-   currently-working behavior. Must be confirmed by deliberately exceeding
-   `--memory` inside a session container and observing an OOM-kill (§8 step 8), not
-   assumed to carry over.
+
+   **Confirmed broken by default, not merely a theoretical risk** — the operator's own
+   §8 step 8 smoke test (exceed `--memory=100m`, expect an OOM-kill) reproduced exactly
+   the failure mode predicted here: the process was killed (`exit 137`), but
+   `podman inspect --format '{{.State.OOMKilled}}'` reported `false`. Root cause: WSL2's
+   default systemd `user@.service` does not delegate the `memory` controller down to
+   the user's own cgroup subtree by default (`memory` is absent from
+   `/sys/fs/cgroup/user.slice/user-<uid>.slice/cgroup.subtree_control` even though it's
+   present at `/sys/fs/cgroup/cgroup.controllers` — the check in `BUILDING.md` prior to
+   this finding only verified the latter, which is necessary but not sufficient). Without
+   delegation, the container's own `memory.max` cgroup limit is never actually wired up;
+   the kill that was observed came from a different, unscoped boundary (not the
+   container's own cgroup), which is also why Podman's own per-container bookkeeping
+   never recorded an OOM event for it. Fix and regression test: `claude_code_security_plan.md`
+   Change 17; `tests/test_runtime_posture.bats` R-6.
 2. The fail-closed proxy-startup decision (`squid-proxy-integration.md` §6.3) is
    unchanged — still the primary DoS trade-off for proxy unavailability, engine-agnostic.
 
@@ -459,7 +470,12 @@ operator-executed (not a repo change).
 8. **Manual smoke test of cgroups v2 resource-limit enforcement** (§6.2-D) — exceed
    `--memory` inside a `podman`-run session container and confirm an OOM-kill, since
    no automated test in the current suite covers this and it is a newly-introduced
-   risk with no Docker-path equivalent to regress against.
+   risk with no Docker-path equivalent to regress against. **Done — and it found a
+   real gap**: memory delegation was not active by default under the operator's WSL2
+   setup (§6.2-D). Fixed via a `user@.service` systemd delegate drop-in (documented in
+   `BUILDING.md`); `test_runtime_posture.bats` R-6 now regression-tests this
+   automatically so future environment drift is caught by `bats tests/` instead of
+   requiring another manual smoke test.
 9. **Update `ARCHITECTURE.md`/`BUILDING.md`** to document `$ENGINE`, the Podman
    prerequisites now proven necessary by step 5/6, and (once flipped) the new default.
 10. **Add a changelog entry to `docs/claude_code_security_plan.md`** documenting the

@@ -960,7 +960,48 @@ confirmed: `ENGINE=podman bats tests/` passes in full, including
 | **Tampering (T)** | No change. `squid.conf` remains baked into the image at build time; out of scope for this migration. |
 | **Repudiation (R)** | Explicit `--log-driver`/`--log-opt` now present on both the proxy and the main session container, on both engines — closes two previously-flagged gaps (see "What changed"). |
 | **Information Disclosure (I)** | No change to the allowlist mechanism itself; confirmed to still hold under the new networking backend by the same S-1–S-3 gate. |
-| **Denial of Service (D)** | Fail-closed proxy startup unchanged. Residual, not yet closed: `--memory`/`--cpus` enforcement on the main container depends on cgroups v2 delegation under rootless Podman, which is not exercised by the automated suite — manual confirmation (attempt to exceed `--memory`, observe an OOM-kill) is a tracked action item, not yet performed. |
+| **Denial of Service (D)** | Fail-closed proxy startup unchanged. Residual, not yet closed: `--memory`/`--cpus` enforcement on the main container depends on cgroups v2 delegation under rootless Podman, which is not exercised by the automated suite — manual confirmation (attempt to exceed `--memory`, observe an OOM-kill) is a tracked action item, not yet performed. **Resolved — see Change 17**, which found this gap genuinely present and fixed it. |
 | **Elevation of Privilege (E)** | Primary contribution of this change: no root-owned daemon process on the host. `--cap-drop=ALL`/`--security-opt=no-new-privileges` retained unchanged on both containers, on both engines — under rootless Podman these now defend against within-namespace capability gain rather than a host-root escape, which rootless execution already prevents structurally. Runtime UID matching via `--userns=keep-id` (Podman path only) replaces build-time `HOST_UID` matching (Change 7) for that path only; the Docker path is unchanged. |
+
+No other STRIDE category in §5 changes as a result of this work.
+
+---
+
+### Change 17 — cgroups v2 Memory Delegation Gap Found and Fixed
+**Affects:** Change 16 (Denial of Service row), `BUILDING.md`. Date: 2026-08-11.
+
+**What changed:**
+Change 16 flagged, but had not yet confirmed, that `--memory`/`--cpus` enforcement on
+the main session container depends on cgroups v2 delegation under rootless Podman. The
+operator ran the manual smoke test that entry called for (exceed `--memory=100m`,
+expect an OOM-kill) and reproduced exactly the predicted failure mode: the process was
+killed (`exit 137`), but `podman inspect --format '{{.State.OOMKilled}}'` reported
+`false`.
+
+Root cause: WSL2's default `user@.service` does not delegate the `memory` cgroup
+controller down to the user's own session by default — present in
+`/sys/fs/cgroup/cgroup.controllers` (machine-wide availability) but absent from
+`/sys/fs/cgroup/user.slice/user-<uid>.slice/cgroup.subtree_control` (delegated
+availability). Without delegation, the container's own `memory.max` is never actually
+wired up; the SIGKILL that was observed came from a different, unscoped boundary, which
+is also why it was never recorded against the container's own cgroup. `BUILDING.md`'s
+original Podman-prerequisites check only verified machine-wide availability — necessary
+but not sufficient — and has been corrected to check the actual delegation chain.
+
+Fix: a `Delegate=memory pids cpu io` drop-in for `user@.service`
+(`/etc/systemd/system/user@.service.d/delegate.conf`), requiring a full WSL2 restart to
+take effect (documented in `BUILDING.md`).
+
+**Why:** `--memory`/`--cpus` silently becoming no-ops is a Denial-of-Service-relevant
+regression from the Docker path's previously-working behavior, and — more subtly — a
+resource limit that Podman's own tooling reports as never having fired is exactly the
+kind of silently-degraded control this plan has consistently treated as unacceptable
+elsewhere (Change 12, `squid-proxy-integration.md` §6.3).
+
+**STRIDE mapping (delta only):**
+
+| Threat (STRIDE) | Control added |
+|---|---|
+| **Denial of Service (D)** | `--memory`/`--cpus` enforcement on the main session container now actually holds under rootless Podman/WSL2, closing the item Change 16 left open. Regression-tested going forward by `tests/test_runtime_posture.bats` R-6, so environment drift (e.g. a delegation drop-in lost across a host rebuild) is caught by `bats tests/` rather than requiring another manual smoke test. |
 
 No other STRIDE category in §5 changes as a result of this work.

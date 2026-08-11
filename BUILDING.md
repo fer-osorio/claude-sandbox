@@ -78,16 +78,6 @@ require you to think about directly:
   sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "$(whoami)"
   ```
 
-- **cgroups v2**, required for `--memory`/`--cpus` enforcement under
-  rootless Podman. Confirm it's active:
-
-  ```bash
-  cat /sys/fs/cgroup/cgroup.controllers
-  ```
-
-  A non-empty list of controllers (e.g. `cpu memory ...`) confirms cgroups
-  v2 is mounted and delegated.
-
 - **systemd under WSL2**, required for the user session that cgroups v2
   delegation depends on. WSL2 does not enable this by default — add to
   `/etc/wsl.conf` on the WSL2 instance, then restart it (`wsl --shutdown`
@@ -97,6 +87,44 @@ require you to think about directly:
   [boot]
   systemd=true
   ```
+
+- **cgroups v2 `memory` delegation**, required for `--memory`/`--cpus` to
+  actually be *enforced* under rootless Podman, not just accepted. Checking
+  `cat /sys/fs/cgroup/cgroup.controllers` is **not sufficient** — that only
+  shows which controllers exist on the machine, not whether `memory` has
+  been delegated down to your own user session. Check the delegation chain
+  instead:
+
+  ```bash
+  cat /sys/fs/cgroup/user.slice/user-$(id -u).slice/cgroup.subtree_control
+  ```
+
+  If `memory` is missing from that list (it commonly is — systemd does not
+  delegate it to user sessions by default on many distros), `--memory`
+  limits will be silently unenforced: a container can be killed by some
+  other, unscoped boundary without Podman's own `OOMKilled` bookkeeping
+  ever reflecting it (see `docs/claude_code_security_plan.md` Change 17).
+  Fix it:
+
+  ```bash
+  sudo mkdir -p /etc/systemd/system/user@.service.d
+  printf '[Service]\nDelegate=memory pids cpu io\n' \
+    | sudo tee /etc/systemd/system/user@.service.d/delegate.conf
+  sudo systemctl daemon-reload
+  ```
+
+  Then fully restart the WSL2 instance so `user@<uid>.service` restarts
+  with delegation active — a live session will not pick this up
+  retroactively:
+
+  ```bash
+  # From Windows PowerShell:
+  wsl --shutdown
+  # then reopen your WSL2 terminal and re-check cgroup.subtree_control above
+  ```
+
+  `tests/test_runtime_posture.bats` R-6 regression-tests this
+  automatically — run `bats tests/` after the fix to confirm.
 
 Once these are in place, run the test suite against Podman to confirm your
 setup before relying on it for a real session:

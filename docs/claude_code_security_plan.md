@@ -960,7 +960,7 @@ confirmed: `ENGINE=podman bats tests/` passes in full, including
 | **Tampering (T)** | No change. `squid.conf` remains baked into the image at build time; out of scope for this migration. |
 | **Repudiation (R)** | Explicit `--log-driver`/`--log-opt` now present on both the proxy and the main session container, on both engines — closes two previously-flagged gaps (see "What changed"). |
 | **Information Disclosure (I)** | No change to the allowlist mechanism itself; confirmed to still hold under the new networking backend by the same S-1–S-3 gate. |
-| **Denial of Service (D)** | Fail-closed proxy startup unchanged. Residual, not yet closed: `--memory`/`--cpus` enforcement on the main container depends on cgroups v2 delegation under rootless Podman, which is not exercised by the automated suite — manual confirmation (attempt to exceed `--memory`, observe an OOM-kill) is a tracked action item, not yet performed. **Resolved — see Change 17**, which found this gap genuinely present and fixed it. |
+| **Denial of Service (D)** | Fail-closed proxy startup unchanged. Residual, not yet closed: `--memory`/`--cpus` enforcement on the main container depends on cgroups v2 delegation under rootless Podman, which is not exercised by the automated suite — manual confirmation (attempt to exceed `--memory`, observe an OOM-kill) is a tracked action item, not yet performed. **Resolved — see Change 17**, which found this gap genuinely present and fixed it. **Change 18** found and closed a second, narrower gap in the same area: Podman's own OOM *reporting* (not enforcement) is unreliable under this host's cgroup layout. |
 | **Elevation of Privilege (E)** | Primary contribution of this change: no root-owned daemon process on the host. `--cap-drop=ALL`/`--security-opt=no-new-privileges` retained unchanged on both containers, on both engines — under rootless Podman these now defend against within-namespace capability gain rather than a host-root escape, which rootless execution already prevents structurally. Runtime UID matching via `--userns=keep-id` (Podman path only) replaces build-time `HOST_UID` matching (Change 7) for that path only; the Docker path is unchanged. |
 
 No other STRIDE category in §5 changes as a result of this work.
@@ -1003,5 +1003,55 @@ elsewhere (Change 12, `squid-proxy-integration.md` §6.3).
 | Threat (STRIDE) | Control added |
 |---|---|
 | **Denial of Service (D)** | `--memory`/`--cpus` enforcement on the main session container now actually holds under rootless Podman/WSL2, closing the item Change 16 left open. Regression-tested going forward by `tests/test_runtime_posture.bats` R-6, so environment drift (e.g. a delegation drop-in lost across a host rebuild) is caught by `bats tests/` rather than requiring another manual smoke test. |
+
+No other STRIDE category in §5 changes as a result of this work.
+
+---
+
+### Change 18 — Podman OOM Self-Reporting Unreliable Under Nested Rootless Cgroups
+**Affects:** Change 16 and Change 17 (Denial of Service row), `tests/test_runtime_posture.bats`. Date: 2026-08-13.
+
+**What changed:**
+After the Change 17 delegation fix, the operator re-ran R-6 and it still failed — but on
+a different assertion than before, indicating a different underlying cause. Diagnosis
+this time ruled *enforcement* fully in:
+
+- `memory.max` on the container's actual leaf cgroup
+  (`.../user@<uid>.service/user.slice/libpod-<id>.scope/container/memory.max`) correctly
+  reflects the configured `--memory` limit.
+- Kernel `dmesg` records a genuine `Memory cgroup out of memory: Killed process ...`
+  entry for the offending process, with `anon-rss` consistently pinned near the
+  configured limit — airtight, engine-independent proof the kernel enforced it.
+
+But `podman events --filter container=<name>` never emits an `oom` event, and
+`podman inspect --format '{{.State.OOMKilled}}'` remains `false`. This rules out a
+merely-stale inspect field (which would still show up in the event log) and points to
+Podman's real-time OOM watcher itself never observing the kill. Root cause: this host's
+rootless cgroup path is doubly nested — `user.slice/user-<uid>.slice/user@<uid>.service/`
+**`user.slice`**`/libpod-<id>.scope/container` — because systemd running inside WSL2
+places the user manager's own transient scopes under a second `user.slice` beneath
+`user@<uid>.service`, a level that doesn't exist on a bare-metal systemd host. Podman's
+OOM watcher does not observe the kill in this layout. No further delegation
+configuration fixes this — it is a Podman/WSL2-specific self-reporting gap, not an
+enforcement gap.
+
+Fix: `tests/test_runtime_posture.bats` R-6 no longer asserts on `.State.OOMKilled`.
+It asserts only on `exit 137`, the one signal already confirmed (via `dmesg`) to
+reliably indicate a genuine cgroup-triggered kill in this environment.
+
+**Why:** Chasing further cgroups configuration would not have closed this gap — the
+kernel enforcement was already correct, and the failure was purely in Podman's own
+bookkeeping. Asserting on a summary field that's proven unreliable under this host's
+layout would make R-6 either permanently red (masking a passing control) or, worse,
+tempt a future change to weaken the test to "pass" rather than reflecting reality.
+Asserting on the kernel-verified signal instead keeps the test meaningful. Same
+rationale as the R-2 fix earlier on this branch: prefer ground truth (kernel state,
+`/proc`) over an engine's own inspect metadata whenever the two diverge.
+
+**STRIDE mapping (delta only):**
+
+| Threat (STRIDE) | Control added |
+|---|---|
+| **Denial of Service (D)** | No change to the actual control — `--memory` enforcement was already correct (Change 17). This closes a test-fidelity gap: R-6 now asserts on a signal (kernel exit code, cross-checked manually via `dmesg`) that is actually reliable under this host's cgroup layout, instead of a Podman-reported field proven not to fire here. |
 
 No other STRIDE category in §5 changes as a result of this work.

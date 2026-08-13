@@ -39,14 +39,22 @@ teardown() {
     [ "$whoami_output" = "claude-agent" ]
 }
 
-@test "R-2: CapDrop: [ALL] is present on a running container" {
+@test "R-2: all capabilities are dropped on a running container" {
     # bats test_tags=fast
+    #
+    # Docker preserves the literal "ALL" token passed via --cap-drop in
+    # .HostConfig.CapDrop, but Podman normalizes/expands it and does not
+    # echo back the substring "ALL" — even though capabilities genuinely
+    # are dropped at the kernel level (containers/podman#14882, #7747).
+    # Assert on the real kernel state instead of engine-specific inspect
+    # bookkeeping, per the same rationale as R-6.
     register_container "$CONTAINER_NAME"
     engine_run -d --rm --name "$CONTAINER_NAME" --cap-drop=ALL claude-base sleep 30
 
-    run engine_inspect --format '{{.HostConfig.CapDrop}}' "$CONTAINER_NAME"
+    run engine_exec "$CONTAINER_NAME" cat /proc/1/status
     [ "$status" -eq 0 ]
-    [[ "$output" == *"ALL"* ]]
+    cap_eff=$(echo "$output" | awk '/^CapEff:/ {print $2}')
+    [ "$cap_eff" = "0000000000000000" ]
 }
 
 @test "R-3: no-new-privileges security option is active" {

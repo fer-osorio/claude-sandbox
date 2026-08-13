@@ -371,14 +371,20 @@ change.
    (`.../user@<uid>.service/user.slice/libpod-<id>.scope/container/memory.max`) now
    correctly reads the configured limit, and kernel `dmesg` records a genuine
    `Memory cgroup out of memory: Killed process ... anon-rss:~100MB` for the offending
-   process — enforcement itself is confirmed correct. However, `podman events` shows no
-   `oom` event was ever emitted, and `.State.OOMKilled` remains `false`: Podman's own
-   real-time OOM watcher does not detect the kill under this host's doubly-nested
-   rootless cgroup path (an extra `user.slice` level introduced by running systemd
-   inside WSL2). This is a Podman self-reporting gap, not an enforcement gap — no
-   further delegation fixes it. R-6 was corrected to assert only on the kernel-verified
-   signal (`exit 137`), not on `.State.OOMKilled`. Fix and regression test:
-   `claude_code_security_plan.md` Change 18; `tests/test_runtime_posture.bats` R-6.
+   process — enforcement itself is confirmed correct. However, `.State.OOMKilled`
+   remains `false`. Root cause, confirmed by a stray empty file named `oom` left behind
+   in the operator's working directory after every R-6 run: `conmon` (Podman's
+   per-container monitor) does correctly watch `memory.events` and does correctly detect
+   the kill — it writes an `oom` marker file as evidence, which `podman inspect`/`wait`
+   later checks for to set `.State.OOMKilled`. Under this host's rootless setup, that
+   marker is written to conmon's current working directory (wherever `podman run`
+   itself was invoked from) instead of the container's own expected exit/state
+   directory, so Podman's own inspect logic looks in the right place and simply never
+   finds it. This is a path-resolution bug in OOM-marker placement, not a failure to
+   detect the OOM — no further delegation fixes it. R-6 was corrected to assert only on
+   the kernel-verified signal (`exit 137`), not on `.State.OOMKilled`. Fix and
+   regression test: `claude_code_security_plan.md` Change 18;
+   `tests/test_runtime_posture.bats` R-6.
 2. The fail-closed proxy-startup decision (`squid-proxy-integration.md` §6.3) is
    unchanged — still the primary DoS trade-off for proxy unavailability, engine-agnostic.
 
@@ -491,10 +497,10 @@ operator-executed (not a repo change).
    `BUILDING.md`); `test_runtime_posture.bats` R-6 now regression-tests this
    automatically so future environment drift is caught by `bats tests/` instead of
    requiring another manual smoke test. **Follow-up**: re-running R-6 after the fix
-   surfaced a second, distinct gap — Podman's own OOM detection (`podman events`,
-   `.State.OOMKilled`) never fires under this host's nested rootless cgroup path, even
-   though kernel `dmesg` confirms enforcement is genuinely correct. See §6.2-D
-   follow-up and `claude_code_security_plan.md` Change 18.
+   surfaced a second, distinct gap — `conmon` correctly detects the OOM kill (kernel
+   `dmesg` confirms enforcement is genuinely correct) but writes its `oom` marker file
+   to the wrong working directory under this host's rootless setup, so `.State.OOMKilled`
+   never reflects it. See §6.2-D follow-up and `claude_code_security_plan.md` Change 18.
 9. **Update `ARCHITECTURE.md`/`BUILDING.md`** to document `$ENGINE`, the Podman
    prerequisites now proven necessary by step 5/6, and (once flipped) the new default.
 10. **Add a changelog entry to `docs/claude_code_security_plan.md`** documenting the

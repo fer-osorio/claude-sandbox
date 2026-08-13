@@ -1008,7 +1008,7 @@ No other STRIDE category in §5 changes as a result of this work.
 
 ---
 
-### Change 18 — Podman OOM Self-Reporting Unreliable Under Nested Rootless Cgroups
+### Change 18 — Podman's `conmon` OOM Marker File Written to the Wrong Directory
 **Affects:** Change 16 and Change 17 (Denial of Service row), `tests/test_runtime_posture.bats`. Date: 2026-08-13.
 
 **What changed:**
@@ -1023,35 +1023,40 @@ this time ruled *enforcement* fully in:
   entry for the offending process, with `anon-rss` consistently pinned near the
   configured limit — airtight, engine-independent proof the kernel enforced it.
 
-But `podman events --filter container=<name>` never emits an `oom` event, and
-`podman inspect --format '{{.State.OOMKilled}}'` remains `false`. This rules out a
-merely-stale inspect field (which would still show up in the event log) and points to
-Podman's real-time OOM watcher itself never observing the kill. Root cause: this host's
-rootless cgroup path is doubly nested — `user.slice/user-<uid>.slice/user@<uid>.service/`
-**`user.slice`**`/libpod-<id>.scope/container` — because systemd running inside WSL2
-places the user manager's own transient scopes under a second `user.slice` beneath
-`user@<uid>.service`, a level that doesn't exist on a bare-metal systemd host. Podman's
-OOM watcher does not observe the kill in this layout. No further delegation
-configuration fixes this — it is a Podman/WSL2-specific self-reporting gap, not an
-enforcement gap.
+But `podman inspect --format '{{.State.OOMKilled}}'` remains `false`. Investigating why
+turned up an unrelated-looking clue: an empty file literally named `oom` appearing in
+the operator's working directory after every R-6 run. That file is the actual
+mechanism Podman uses for OOM bookkeeping — `conmon` (the per-container monitor
+process) watches the container's `memory.events` file itself, and when it observes
+`oom_kill` increment, it writes an empty `oom` marker file as a record of that; `podman
+inspect`/`wait` later check for that marker's presence at the container's expected
+exit/state directory to populate `.State.OOMKilled`. So `conmon` **did** correctly
+detect the kill — the marker file being created at all is proof of that. The bug is
+that under this host's rootless setup, the marker lands in `conmon`'s own current
+working directory (wherever `podman run` was invoked from) rather than the container's
+real exit/state directory, so Podman's own inspect logic checks the correct path,
+finds nothing there, and reports `false`. This is a path-resolution bug in *where the
+evidence gets written*, not a failure to detect the OOM, and not a cgroups delegation
+issue — no further delegation configuration fixes it (Change 17's fix was already
+correct and complete).
 
 Fix: `tests/test_runtime_posture.bats` R-6 no longer asserts on `.State.OOMKilled`.
 It asserts only on `exit 137`, the one signal already confirmed (via `dmesg`) to
 reliably indicate a genuine cgroup-triggered kill in this environment.
 
 **Why:** Chasing further cgroups configuration would not have closed this gap — the
-kernel enforcement was already correct, and the failure was purely in Podman's own
-bookkeeping. Asserting on a summary field that's proven unreliable under this host's
-layout would make R-6 either permanently red (masking a passing control) or, worse,
-tempt a future change to weaken the test to "pass" rather than reflecting reality.
-Asserting on the kernel-verified signal instead keeps the test meaningful. Same
-rationale as the R-2 fix earlier on this branch: prefer ground truth (kernel state,
-`/proc`) over an engine's own inspect metadata whenever the two diverge.
+kernel enforcement was already correct, and the failure was purely in where `conmon`
+happened to write its own bookkeeping file. Asserting on a summary field that's proven
+unreliable under this host's layout would make R-6 either permanently red (masking a
+passing control) or, worse, tempt a future change to weaken the test to "pass" rather
+than reflecting reality. Asserting on the kernel-verified signal instead keeps the test
+meaningful. Same rationale as the R-2 fix earlier on this branch: prefer ground truth
+(kernel state, `/proc`) over an engine's own inspect metadata whenever the two diverge.
 
 **STRIDE mapping (delta only):**
 
 | Threat (STRIDE) | Control added |
 |---|---|
-| **Denial of Service (D)** | No change to the actual control — `--memory` enforcement was already correct (Change 17). This closes a test-fidelity gap: R-6 now asserts on a signal (kernel exit code, cross-checked manually via `dmesg`) that is actually reliable under this host's cgroup layout, instead of a Podman-reported field proven not to fire here. |
+| **Denial of Service (D)** | No change to the actual control — `--memory` enforcement was already correct (Change 17), and `conmon` does correctly detect the OOM kill. This closes a test-fidelity gap: R-6 now asserts on a signal (kernel exit code, cross-checked manually via `dmesg`) that is actually reliable under this host's cgroup layout, instead of a Podman-reported field left stale by a `conmon` marker-file path bug. |
 
 No other STRIDE category in §5 changes as a result of this work.

@@ -16,10 +16,22 @@
 # no-op if nothing has changed, thanks to Docker layer caching).
 #
 # Place this file in the same directory as base/, crypto/, systems/, research/.
+#
+# Engine:
+#   ENGINE=podman (default) or ENGINE=docker selects which container engine
+#   binary is invoked. See docs/designs/podman-migration.md. HOST_UID is only
+#   passed as a build-arg under Docker — the Podman path relies on the
+#   Dockerfiles' baked default (1000) plus --userns=keep-id at run time
+#   instead (see start.sh).
 
 set -euo pipefail
 
-UID_ARG="--build-arg HOST_UID=$(id -u)"
+ENGINE="${ENGINE:-podman}"
+
+UID_ARG=""
+if [ "$ENGINE" = "docker" ]; then
+    UID_ARG="--build-arg HOST_UID=$(id -u)"
+fi
 NO_CACHE=""
 TARGET="all"
 
@@ -32,22 +44,22 @@ done
 
 build_base() {
     echo "→ Building claude-base..."
-    docker build $UID_ARG $NO_CACHE -t claude-base ./base/
+    "$ENGINE" build $UID_ARG $NO_CACHE -t claude-base ./base/
 }
 
 build_crypto() {
     echo "→ Building claude-crypto..."
-    docker build $UID_ARG $NO_CACHE -t claude-crypto ./crypto/
+    "$ENGINE" build $UID_ARG $NO_CACHE -t claude-crypto ./crypto/
 }
 
 build_systems() {
     echo "→ Building claude-systems..."
-    docker build $UID_ARG $NO_CACHE -t claude-systems ./systems/
+    "$ENGINE" build $UID_ARG $NO_CACHE -t claude-systems ./systems/
 }
 
 build_research() {
     echo "→ Building claude-research..."
-    docker build $UID_ARG $NO_CACHE -t claude-research ./research/
+    "$ENGINE" build $UID_ARG $NO_CACHE -t claude-research ./research/
 }
 
 # No $UID_ARG — the Squid image creates no claude-agent-equivalent user tied
@@ -55,7 +67,7 @@ build_research() {
 # host-UID alignment.
 build_squid() {
     echo "→ Building claude-squid..."
-    docker build $NO_CACHE -t claude-squid ./squid/
+    "$ENGINE" build $NO_CACHE -t claude-squid ./squid/
 }
 
 case "$TARGET" in
@@ -67,7 +79,7 @@ case "$TARGET" in
         build_squid
         echo ""
         echo "All images built:"
-        docker images | grep -E "^claude-(base|crypto|systems|research|squid)\s"
+        "$ENGINE" images | grep -E "^claude-(base|crypto|systems|research|squid)\s"
         ;;
     base)
         build_base

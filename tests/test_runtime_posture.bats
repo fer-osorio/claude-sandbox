@@ -39,14 +39,22 @@ teardown() {
     [ "$whoami_output" = "claude-agent" ]
 }
 
-@test "R-2: CapDrop: [ALL] is present on a running container" {
+@test "R-2: all capabilities are dropped on a running container" {
     # bats test_tags=fast
+    #
+    # Docker preserves the literal "ALL" token passed via --cap-drop in
+    # .HostConfig.CapDrop, but Podman normalizes/expands it and does not
+    # echo back the substring "ALL" — even though capabilities genuinely
+    # are dropped at the kernel level (containers/podman#14882, #7747).
+    # Assert on the real kernel state instead of engine-specific inspect
+    # bookkeeping, per the same rationale as R-6.
     register_container "$CONTAINER_NAME"
     engine_run -d --rm --name "$CONTAINER_NAME" --cap-drop=ALL claude-base sleep 30
 
-    run engine_inspect --format '{{.HostConfig.CapDrop}}' "$CONTAINER_NAME"
+    run engine_exec "$CONTAINER_NAME" cat /proc/1/status
     [ "$status" -eq 0 ]
-    [[ "$output" == *"ALL"* ]]
+    cap_eff=$(echo "$output" | awk '/^CapEff:/ {print $2}')
+    [ "$cap_eff" = "0000000000000000" ]
 }
 
 @test "R-3: no-new-privileges security option is active" {
@@ -91,4 +99,37 @@ teardown() {
     [ "$status" -ne 0 ]
     [[ "$output" == *"Build it first with: ./build.sh ${target}"* ]]
     ! engine_inspect "claude-${target}" > /dev/null 2>&1
+}
+
+@test "R-6: cgroups memory limit is actually enforced, not just accepted" {
+    # bats test_tags=fast
+    #
+    # Regression test for a real finding (podman-migration.md §6.2-D,
+    # claude_code_security_plan.md Change 17): under a WSL2 host without
+    # cgroups v2 "memory" delegated to the user session, Podman accepted
+    # --memory without error but never actually enforced it. A --memory
+    # flag that's merely accepted, not enforced, is a silent
+    # Denial-of-Service-relevant regression — assert on the real outcome,
+    # not just that start.sh/build.sh pass the flag through.
+    #
+    # We only assert on exit 137 (SIGKILL), not .State.OOMKilled. Once
+    # delegation is actually fixed, exit 137 + a matching "Memory cgroup
+    # out of memory: Killed process" line in dmesg confirm the kernel
+    # genuinely enforced the cgroup limit — but Podman's own OOM watcher
+    # never emits an "oom" event or sets OOMKilled under this host's
+    # nested rootless cgroup layout (.../user@<uid>.service/user.slice/
+    # libpod-<id>.scope/container), so that field can't be trusted here.
+    # See podman-migration.md §6.2-D follow-up.
+    register_container "$CONTAINER_NAME"
+
+    userns_args=()
+    if [ "$ENGINE" = "podman" ]; then
+        userns_args=(--userns=keep-id:uid=1000,gid=1000)
+    fi
+
+    run engine_run --name "$CONTAINER_NAME" --memory=100m \
+        --cap-drop=ALL --security-opt=no-new-privileges \
+        "${userns_args[@]}" \
+        claude-base python3 -c "bytearray(500 * 1024 * 1024)"
+    [ "$status" -eq 137 ]
 }

@@ -6,10 +6,17 @@ A reference for the claude-sandbox image hierarchy and toolchain.
 
 ## Image Hierarchy
 
-The sandbox is structured as a hierarchy of Docker images. Each image adds
-only what its domain requires. Docker's layer cache means the base layers are
-built once and shared on disk across all child images — you pay the storage
-cost once, not per image.
+The sandbox is structured as a hierarchy of container images, built and run
+via `build.sh`/`start.sh`. Each image adds only what its domain requires. The
+engine's layer cache means the base layers are built once and shared on disk
+across all child images — you pay the storage cost once, not per image.
+
+Both scripts route through `$ENGINE` (default `podman`, rootless under
+WSL2; `ENGINE=docker` selects Docker instead). Examples in this document use
+`docker` for the commands run directly against a container (`exec`, ad-hoc
+`run`), since that's the longer-standing precedent — substitute `podman` if
+that's your active engine. See `BUILDING.md` for Podman-specific setup and
+`docs/designs/podman-migration.md` for the full engine-swap design.
 
 ```
 debian:bookworm-slim

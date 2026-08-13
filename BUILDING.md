@@ -2,7 +2,9 @@
 
 ## Prerequisites
 
-- Docker
+- Rootless Podman under WSL2 (default) — see
+  [Podman prerequisites](#podman-prerequisites-rootless-wsl2) below, or
+- Docker (`ENGINE=docker`), fully supported as a fallback
 - GitHub CLI (`gh`) — optional, for issue and PR management
 
 ## Build all images
@@ -45,11 +47,94 @@ Add `--no-cache` to force a full rebuild (pulls updated apt packages):
 
 ## First-time network setup
 
-The sandbox requires a Docker bridge network. Create it once:
+The sandbox requires a bridge network. Create it once, using the same engine
+`build.sh`/`start.sh` will use (`podman` by default; `docker` if
+`ENGINE=docker` is set):
 
 ```bash
-docker network create --driver bridge claude-net
+podman network create --driver bridge claude-net
+# or, under Docker:
+# docker network create --driver bridge claude-net
 ```
+
+## Podman prerequisites (rootless, WSL2)
+
+`build.sh` and `start.sh` both honor an `$ENGINE` environment variable
+(default `podman`). Set `ENGINE=docker` to route every build/run invocation
+through Docker instead — see `docs/designs/podman-migration.md` for the full
+design. Rootless Podman needs a few things Docker's rootless setup doesn't
+require you to think about directly:
+
+- **subuid/subgid delegation.** Podman's user-namespace remapping needs a
+  range of UIDs/GIDs delegated to your user. Check for an existing entry:
+
+  ```bash
+  grep "^$(whoami):" /etc/subuid /etc/subgid
+  ```
+
+  If either file has no entry for your user, add one (as root):
+
+  ```bash
+  sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "$(whoami)"
+  ```
+
+- **systemd under WSL2**, required for the user session that cgroups v2
+  delegation depends on. WSL2 does not enable this by default — add to
+  `/etc/wsl.conf` on the WSL2 instance, then restart it (`wsl --shutdown`
+  from Windows):
+
+  ```ini
+  [boot]
+  systemd=true
+  ```
+
+- **cgroups v2 `memory` delegation**, required for `--memory`/`--cpus` to
+  actually be *enforced* under rootless Podman, not just accepted. Checking
+  `cat /sys/fs/cgroup/cgroup.controllers` is **not sufficient** — that only
+  shows which controllers exist on the machine, not whether `memory` has
+  been delegated down to your own user session. Check the delegation chain
+  instead:
+
+  ```bash
+  cat /sys/fs/cgroup/user.slice/user-$(id -u).slice/cgroup.subtree_control
+  ```
+
+  If `memory` is missing from that list (it commonly is — systemd does not
+  delegate it to user sessions by default on many distros), `--memory`
+  limits will be silently unenforced: a container can be killed by some
+  other, unscoped boundary without Podman's own `OOMKilled` bookkeeping
+  ever reflecting it (see `docs/claude_code_security_plan.md` Change 17).
+  Fix it:
+
+  ```bash
+  sudo mkdir -p /etc/systemd/system/user@.service.d
+  printf '[Service]\nDelegate=memory pids cpu io\n' \
+    | sudo tee /etc/systemd/system/user@.service.d/delegate.conf
+  sudo systemctl daemon-reload
+  ```
+
+  Then fully restart the WSL2 instance so `user@<uid>.service` restarts
+  with delegation active — a live session will not pick this up
+  retroactively:
+
+  ```bash
+  # From Windows PowerShell:
+  wsl --shutdown
+  # then reopen your WSL2 terminal and re-check cgroup.subtree_control above
+  ```
+
+  `tests/test_runtime_posture.bats` R-6 regression-tests this
+  automatically — run `bats tests/` after the fix to confirm.
+
+Once these are in place, run the test suite against Podman to confirm your
+setup before relying on it for a real session:
+
+```bash
+bats tests/   # ENGINE unset — podman is now the default
+```
+
+Docker remains fully supported as a fallback via `ENGINE=docker`, until a
+separate, later decision retires it.
 
 ## Authentication
 
@@ -84,14 +169,14 @@ cd bats-core && sudo ./install.sh /usr/local
 Verify with `bats --version`.
 
 ```bash
-# Fast tier only (default local iteration loop)
+# Fast tier only (default local iteration loop) — runs against Podman
 bats --filter-tags fast tests/
 
-# Full suite (pre-merge / pre-migration gate)
+# Full suite (pre-merge gate) — runs against Podman
 bats tests/
 
-# Against Podman, once migrated
-ENGINE=podman bats tests/
+# Against the Docker fallback
+ENGINE=docker bats tests/
 ```
 
 See `docs/designs/claude-sandbox-testing-module-sdd.md` for what each test

@@ -195,6 +195,7 @@ Test bodies call `engine_run`, `engine_build`, etc. Migrating the suite to valid
 | R-3 | No-new-privileges present | `engine inspect` shows `no-new-privileges` security option active |
 | R-4 | Unknown image rejected | `start.sh <project> nonexistent-image` fails before any container starts, with an actionable error |
 | R-5 | Missing image rejected | `start.sh` against a valid image tag that hasn't been built fails with the documented `./build.sh <tag>` guidance, not a silent registry pull |
+| R-6 | Memory limit actually enforced | `--memory=100m` container allocating 500MB is killed (`exit 137`) with `OOMKilled: true` — added post-migration after `podman-migration.md` §6.2-D/Change 17 found rootless Podman under WSL2 can accept `--memory` without enforcing it when cgroups v2 `memory` delegation is absent |
 
 ### 4.3 Group 3 — Squid Egress Enforcement
 
@@ -336,6 +337,8 @@ Consistent with the fail-fast philosophy already established in `setup.sh` / `ru
 | `docs/designs/global-layer-injection.md` | §5, STRIDE analysis of new surfaces | G-1 through G-6 |
 | `docs/plans/2026-05-global-layer-injection-v1.md` | Phase 6, Tests 1–6 | G-1 through G-6 |
 | `docs/claude_code_security_plan.md` | Changelog, Change 7 (UID matching) | B-2 |
+| `docs/claude_code_security_plan.md` | Changelog, Change 17 (cgroups v2 delegation) | R-6 |
+| `docs/designs/podman-migration.md` | §6.2, STRIDE analysis (Denial of Service) | R-6 |
 
 This table is the single place to check for coverage gaps: any claim in the source documents without a corresponding test ID here is undocumented risk, not tested risk.
 

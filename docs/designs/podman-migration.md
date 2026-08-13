@@ -364,6 +364,21 @@ change.
    container's own cgroup), which is also why Podman's own per-container bookkeeping
    never recorded an OOM event for it. Fix and regression test: `claude_code_security_plan.md`
    Change 17; `tests/test_runtime_posture.bats` R-6.
+
+   **Follow-up finding, delegation confirmed fully fixed:** after the Change 17 fix,
+   re-running R-6 still failed — but on a different assertion, and for a different
+   reason. `memory.max` on the container's actual leaf cgroup
+   (`.../user@<uid>.service/user.slice/libpod-<id>.scope/container/memory.max`) now
+   correctly reads the configured limit, and kernel `dmesg` records a genuine
+   `Memory cgroup out of memory: Killed process ... anon-rss:~100MB` for the offending
+   process — enforcement itself is confirmed correct. However, `podman events` shows no
+   `oom` event was ever emitted, and `.State.OOMKilled` remains `false`: Podman's own
+   real-time OOM watcher does not detect the kill under this host's doubly-nested
+   rootless cgroup path (an extra `user.slice` level introduced by running systemd
+   inside WSL2). This is a Podman self-reporting gap, not an enforcement gap — no
+   further delegation fixes it. R-6 was corrected to assert only on the kernel-verified
+   signal (`exit 137`), not on `.State.OOMKilled`. Fix and regression test:
+   `claude_code_security_plan.md` Change 18; `tests/test_runtime_posture.bats` R-6.
 2. The fail-closed proxy-startup decision (`squid-proxy-integration.md` §6.3) is
    unchanged — still the primary DoS trade-off for proxy unavailability, engine-agnostic.
 
@@ -475,7 +490,11 @@ operator-executed (not a repo change).
    setup (§6.2-D). Fixed via a `user@.service` systemd delegate drop-in (documented in
    `BUILDING.md`); `test_runtime_posture.bats` R-6 now regression-tests this
    automatically so future environment drift is caught by `bats tests/` instead of
-   requiring another manual smoke test.
+   requiring another manual smoke test. **Follow-up**: re-running R-6 after the fix
+   surfaced a second, distinct gap — Podman's own OOM detection (`podman events`,
+   `.State.OOMKilled`) never fires under this host's nested rootless cgroup path, even
+   though kernel `dmesg` confirms enforcement is genuinely correct. See §6.2-D
+   follow-up and `claude_code_security_plan.md` Change 18.
 9. **Update `ARCHITECTURE.md`/`BUILDING.md`** to document `$ENGINE`, the Podman
    prerequisites now proven necessary by step 5/6, and (once flipped) the new default.
 10. **Add a changelog entry to `docs/claude_code_security_plan.md`** documenting the

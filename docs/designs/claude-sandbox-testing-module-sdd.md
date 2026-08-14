@@ -196,6 +196,8 @@ Test bodies call `engine_run`, `engine_build`, etc. Migrating the suite to valid
 | R-4 | Unknown image rejected | `start.sh <project> nonexistent-image` fails before any container starts, with an actionable error |
 | R-5 | Missing image rejected | `start.sh` against a valid image tag that hasn't been built fails with the documented `./build.sh <tag>` guidance, not a silent registry pull |
 | R-6 | Memory limit actually enforced | `--memory=100m` container allocating 500MB is killed (`exit 137`) with `OOMKilled: true` — added post-migration after `podman-migration.md` §6.2-D/Change 17 found rootless Podman under WSL2 can accept `--memory` without enforcing it when cgroups v2 `memory` delegation is absent |
+| R-7 | `/workspace` bind mount genuinely readable/writable under SELinux | A host-side file written before the container starts is readable inside it, and a file written inside the container lands on the host — added after `podman-migration.md` §6.2-T/Change 19 found a bind mount with correct POSIX bits still `EACCES` on an SELinux-enforcing host because Podman never relabeled it. Skips on non-SELinux-enforcing hosts, where the bug isn't observable |
+| R-8 | `relabel=shared` (not `private`) works across concurrent sessions | Two containers concurrently mounting the same host path can both read it — distinguishes the Change 19 `shared` choice from `private`/`:Z`, which would pass a single-container check but break a second concurrent mount. Podman-only, skips on non-SELinux-enforcing hosts |
 
 ### 4.3 Group 3 — Squid Egress Enforcement
 
@@ -339,6 +341,8 @@ Consistent with the fail-fast philosophy already established in `setup.sh` / `ru
 | `docs/claude_code_security_plan.md` | Changelog, Change 7 (UID matching) | B-2 |
 | `docs/claude_code_security_plan.md` | Changelog, Change 17 (cgroups v2 delegation) | R-6 |
 | `docs/designs/podman-migration.md` | §6.2, STRIDE analysis (Denial of Service) | R-6 |
+| `docs/claude_code_security_plan.md` | Changelog, Change 19 (SELinux mount relabeling) | R-7, R-8 |
+| `docs/designs/podman-migration.md` | §6.2, STRIDE analysis (Tampering, follow-up finding) | R-7, R-8 |
 
 This table is the single place to check for coverage gaps: any claim in the source documents without a corresponding test ID here is undocumented risk, not tested risk.
 

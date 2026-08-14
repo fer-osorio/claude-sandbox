@@ -25,6 +25,8 @@ setup() {
 
 teardown() {
     teardown_registered
+    [ -n "${R7_TMPDIR:-}" ] && [ -d "$R7_TMPDIR" ] && rm -rf "$R7_TMPDIR"
+    [ -n "${R8_TMPDIR:-}" ] && [ -d "$R8_TMPDIR" ] && rm -rf "$R8_TMPDIR"
 }
 
 @test "R-1: container runs as claude-agent, never root" {
@@ -132,4 +134,92 @@ teardown() {
         "${userns_args[@]}" \
         claude-base python3 -c "bytearray(500 * 1024 * 1024)"
     [ "$status" -eq 137 ]
+}
+
+@test "R-7: /workspace bind mount is genuinely readable and writable under SELinux" {
+    # bats test_tags=fast
+    #
+    # Regression test for a real finding (claude_code_security_plan.md
+    # Change 19, podman-migration.md §6.2 Tampering follow-up): a bind
+    # mount with correct POSIX bits (0755, owned by claude-agent) was fully
+    # unreadable and unwritable from inside a Podman container on an
+    # SELinux-enforcing host, because start.sh's --mount invocations never
+    # relabeled the host path — a MAC-layer EACCES on top of correct Unix
+    # permissions. Only meaningful on a host where SELinux is actually
+    # enforcing; on a non-enforcing host this passes identically before and
+    # after the fix and would report a false green, so skip instead (same
+    # rationale as R-5's environment-conditional skip).
+    if ! command -v getenforce > /dev/null 2>&1 || [ "$(getenforce)" != "Enforcing" ]; then
+        skip "host is not SELinux-enforcing — this regression is only observable under enforcing SELinux"
+    fi
+
+    register_container "$CONTAINER_NAME"
+
+    R7_TMPDIR="$(mktemp -d)"
+    echo "known-content-$$" > "${R7_TMPDIR}/preexisting.txt"
+
+    relabel_arg=""
+    userns_args=()
+    if [ "$ENGINE" = "podman" ]; then
+        relabel_arg=",relabel=shared"
+        userns_args=(--userns=keep-id:uid=1000,gid=1000)
+    fi
+
+    engine_run -d --rm --name "$CONTAINER_NAME" \
+        --mount "type=bind,source=${R7_TMPDIR},target=/workspace${relabel_arg}" \
+        --cap-drop=ALL --security-opt=no-new-privileges \
+        "${userns_args[@]}" \
+        claude-base sleep 30
+
+    run engine_exec "$CONTAINER_NAME" cat /workspace/preexisting.txt
+    [ "$status" -eq 0 ]
+    [ "$output" = "known-content-$$" ]
+
+    run engine_exec "$CONTAINER_NAME" sh -c 'echo written-from-container > /workspace/written.txt'
+    [ "$status" -eq 0 ]
+
+    [ -f "${R7_TMPDIR}/written.txt" ]
+    [ "$(cat "${R7_TMPDIR}/written.txt")" = "written-from-container" ]
+}
+
+@test "R-8: relabel=shared (not private) allows two concurrent sessions on the same host path" {
+    # bats test_tags=fast
+    #
+    # R-7 alone doesn't validate the shared-vs-private design decision in
+    # Change 19 — a relabel=private (:Z) mount would also pass a
+    # single-container read/write check; it only breaks a *second*
+    # concurrent container on the same host path, which is exactly the
+    # GLOBAL_BASE/GLOBAL_OVERLAY scenario "shared" was chosen for. Confirms
+    # the choice empirically rather than by inspection alone.
+    if ! command -v getenforce > /dev/null 2>&1 || [ "$(getenforce)" != "Enforcing" ]; then
+        skip "host is not SELinux-enforcing — this regression is only observable under enforcing SELinux"
+    fi
+    if [ "$ENGINE" != "podman" ]; then
+        skip "relabel=shared is a Podman-specific --mount suboption; not applicable under ENGINE=docker"
+    fi
+
+    register_container "${CONTAINER_NAME}-a"
+    register_container "${CONTAINER_NAME}-b"
+
+    R8_TMPDIR="$(mktemp -d)"
+    echo "shared-content" > "${R8_TMPDIR}/f.txt"
+
+    engine_run -d --rm --name "${CONTAINER_NAME}-a" \
+        --mount "type=bind,source=${R8_TMPDIR},target=/workspace,relabel=shared" \
+        --cap-drop=ALL --security-opt=no-new-privileges \
+        --userns=keep-id:uid=1000,gid=1000 \
+        claude-base sleep 30
+
+    engine_run -d --rm --name "${CONTAINER_NAME}-b" \
+        --mount "type=bind,source=${R8_TMPDIR},target=/workspace,relabel=shared" \
+        --cap-drop=ALL --security-opt=no-new-privileges \
+        --userns=keep-id:uid=1000,gid=1000 \
+        claude-base sleep 30
+
+    run engine_exec "${CONTAINER_NAME}-a" cat /workspace/f.txt
+    [ "$status" -eq 0 ]
+    [ "$output" = "shared-content" ]
+    run engine_exec "${CONTAINER_NAME}-b" cat /workspace/f.txt
+    [ "$status" -eq 0 ]
+    [ "$output" = "shared-content" ]
 }

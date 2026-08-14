@@ -25,8 +25,13 @@ setup() {
 
 teardown() {
     teardown_registered
-    [ -n "${R7_TMPDIR:-}" ] && [ -d "$R7_TMPDIR" ] && rm -rf "$R7_TMPDIR"
-    [ -n "${R8_TMPDIR:-}" ] && [ -d "$R8_TMPDIR" ] && rm -rf "$R8_TMPDIR"
+    # `|| true` matters: under bats' `set -e`, a failing first link in this
+    # && chain (R7_TMPDIR/R8_TMPDIR unset, the case for every test but R-7/
+    # R-8) would otherwise leave the chain's own nonzero status as the last
+    # thing teardown() executes, which bats reports as a teardown failure
+    # on every single test in this file, not just R-7/R-8.
+    [ -n "${R7_TMPDIR:-}" ] && [ -d "$R7_TMPDIR" ] && rm -rf "$R7_TMPDIR" || true
+    [ -n "${R8_TMPDIR:-}" ] && [ -d "$R8_TMPDIR" ] && rm -rf "$R8_TMPDIR" || true
 }
 
 @test "R-1: container runs as claude-agent, never root" {

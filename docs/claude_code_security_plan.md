@@ -1060,3 +1060,68 @@ meaningful. Same rationale as the R-2 fix earlier on this branch: prefer ground 
 | **Denial of Service (D)** | No change to the actual control — `--memory` enforcement was already correct (Change 17), and `conmon` does correctly detect the OOM kill. This closes a test-fidelity gap: R-6 now asserts on a signal (kernel exit code, cross-checked manually via `dmesg`) that is actually reliable under this host's cgroup layout, instead of a Podman-reported field left stale by a `conmon` marker-file path bug. |
 
 No other STRIDE category in §5 changes as a result of this work.
+
+---
+
+### Change 19 — Podman SELinux Mount-Labeling Gap on `/workspace`
+**Affects:** Change 16 (`start.sh` mount invocations), `docs/designs/podman-migration.md` §6.2 (Tampering) and §9, `BUILDING.md`, `tests/test_runtime_posture.bats`. Date: 2026-08-14.
+
+**What changed:**
+An operator reported that from inside a running session, `/workspace` and every file
+under it were unreadable and unwritable — `ls`, `stat`, `cat`, and the Write tool's temp
+file all failed with `EACCES`, even though the path was owned by `claude-agent` (uid
+1000) with mode `0755`. Investigation found the operator's host filesystem is `btrfs`
+mounted with the `seclabel` option — SELinux is enforcing at the kernel level. Podman
+does not automatically relabel bind-mounted host directories: unless a mount is
+explicitly relabeled, it keeps its original SELinux context, and the container's
+type-enforcement policy denies access to it regardless of correct POSIX bits — a
+mandatory-access-control layer that sits above standard Unix permissions and is
+invisible to `stat`/`ls -la`.
+
+`start.sh`'s three `--mount type=bind,...` invocations (`/workspace`,
+`/run/claude-global`, `/run/claude-overlay`) have never carried a relabel option — the
+mount block is byte-identical from before Change 16 through the merged Podman
+migration. This was a latent gap the whole time; it simply never mattered under the
+prior Docker-only default, and only became symptomatic once Change 16 flipped the
+default engine to Podman on an SELinux-enforcing host. `podman-migration.md` never
+analyzed volume labeling as a Docker→Podman delta, so it wasn't caught in that review.
+
+Fix: `start.sh` now appends `,relabel=shared` to all three `--mount type=bind,...`
+strings, gated on `ENGINE=podman` (Docker's `--mount` has no relabel suboption — only
+the legacy `-v host:container:z` syntax does — so the Docker fallback path is
+unchanged). `shared` (Podman's `:z`) was chosen over `private` (`:Z`): `GLOBAL_BASE`/
+`GLOBAL_OVERLAY` are mounted by every concurrent session by design, and `/workspace`
+itself can be mounted by two sessions against the same project directory — `private`
+relabeling assigns an exclusive MCS category per container and is documented to
+invalidate a prior container's access when a second container relabels the same host
+path, which `shared` avoids. On a host where SELinux isn't enforcing, Podman's relabel
+logic is a no-op, so this is safe to apply unconditionally under `ENGINE=podman`.
+
+**Why:** `EACCES` on the project root makes the sandbox entirely unusable, not merely
+less secure — this is a fail-shut usability break masquerading as a permissions bug,
+discovered only because an operator happened to be running on an SELinux-enforcing
+host. `relabel=shared` does have a real cost worth stating plainly: it drops these
+paths to the generic, non-exclusive `container_file_t` context, removing SELinux
+MCS-based isolation between claude-sandbox sessions and any other container on the
+host also using shared context. This is accepted because SELinux MCS separation was
+never the primary isolation boundary for these paths — `--cap-drop=ALL`, non-root
+execution, `--security-opt no-new-privileges`, and per-session mount namespacing
+already do that work (§3, Layered Defense Architecture); SELinux relabeling here
+restores basic access, it doesn't newly rely on SELinux as the load-bearing control.
+
+**Residual, not yet closed:** the Scope section above lists rootless Docker on Fedora
+(also commonly SELinux-enforcing) as a fully supported fallback via `ENGINE=docker`.
+The same underlying bug is presumed to still be present on that path — Docker's
+`--mount` has no equivalent to `relabel=`, so fixing it would mean diverging the
+mount-construction mechanism per engine (e.g. switching Docker to the legacy `-v
+...:z` form). Tracked as an open question in `podman-migration.md` §9, not fixed here.
+
+**STRIDE mapping (delta only):**
+
+| Threat (STRIDE) | Control added |
+|---|---|
+| **Tampering (T)** | Bind mounts are now genuinely accessible under Podman on SELinux-enforcing hosts, closing an unintended over-restriction. Trade-off: `relabel=shared` removes SELinux MCS-based isolation on these specific paths from other shared-context containers on the host — accepted per the "Why" rationale above, since capability-drop/non-root/no-new-privileges/mount-namespacing remain the primary boundary. Regression-tested going forward by `tests/test_runtime_posture.bats` R-7/R-8 (skipped, not silently passed, on non-SELinux-enforcing hosts). |
+| **Denial of Service (D)** | Restores basic sandbox availability on affected hosts; not a new DoS control. |
+
+No other STRIDE category in §5 changes as a result of this work. The Docker-path
+residual noted above remains open.

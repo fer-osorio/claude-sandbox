@@ -136,6 +136,37 @@ bats tests/   # ENGINE unset — podman is now the default
 Docker remains fully supported as a fallback via `ENGINE=docker`, until a
 separate, later decision retires it.
 
+## SELinux relabeling (Fedora / other SELinux-enforcing hosts)
+
+If your host enforces SELinux (common on Fedora and RHEL-family distros;
+check with `getenforce` — `Enforcing` means it applies here), Podman does
+not automatically relabel bind-mounted host directories. Without a relabel,
+a mount keeps its original SELinux context and the container is denied
+access at the MAC layer regardless of correct POSIX permissions — you'd see
+`EACCES` on `/workspace` even though `ls -la` shows the right owner and
+mode.
+
+`start.sh` handles this automatically as of
+`docs/claude_code_security_plan.md` Change 19: under `ENGINE=podman`, its
+bind mounts carry a `relabel=shared` option, which is a no-op on hosts where
+SELinux isn't enforcing. You shouldn't need to do anything for a normal
+`./start.sh` session.
+
+If you're invoking `podman run` yourself (bypassing `start.sh`) and hit
+`EACCES` on a bind-mounted path with otherwise-correct permissions, check:
+
+```bash
+getenforce                       # is SELinux actually enforcing?
+ls -Z /path/on/host              # what context does the host path have?
+```
+
+and add `relabel=shared` (or the `:z` suffix on `-v`) to your own mount.
+
+Docker's fallback path (`ENGINE=docker`) does not currently get this fix —
+Docker's `--mount` has no relabel suboption — so the same issue is possible
+there on an SELinux-enforcing host. See
+`docs/designs/podman-migration.md` §9 for the open question on that gap.
+
 ## Authentication
 
 Claude Code requires an Anthropic API key. On first use, authenticate on

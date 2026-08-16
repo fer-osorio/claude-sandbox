@@ -93,8 +93,31 @@ fi
 
 echo ""
 
+# SELinux relabel suboption for bind mounts, Podman path only. Without it, a
+# bind-mounted host directory keeps its original SELinux context on an
+# SELinux-enforcing host, and the confined container process gets EACCES on
+# it regardless of correct POSIX bits (a MAC layer above standard Unix
+# permissions) — see docs/claude_code_security_plan.md Change 19. "shared"
+# (not "private"/:Z) because GLOBAL_BASE/GLOBAL_OVERLAY are mounted by every
+# concurrent session and /workspace itself can be mounted by two sessions
+# against the same project dir; "private" relabeling is exclusive per
+# container and invalidates a prior container's access to the same host
+# path. Trade-off: "shared" drops these paths to the generic, non-exclusive
+# container_file_t context, removing SELinux MCS-based isolation from other
+# shared-context containers on the host — accepted because --cap-drop=ALL,
+# non-root execution, no-new-privileges, and per-session mount namespacing
+# are the primary isolation boundary here, not SELinux. Docker's --mount has
+# no relabel suboption (only the legacy -v ...:z syntax does), so the
+# Docker fallback path is unchanged; the same underlying bug is presumed to
+# still be present there on SELinux-enforcing hosts (e.g. Fedora) — tracked
+# in podman-migration.md §9, not fixed here.
+RELABEL_ARG=""
+if [ "$ENGINE" = "podman" ]; then
+    RELABEL_ARG=",relabel=shared"
+fi
+
 MOUNT_ARGS=(
-    "--mount" "type=bind,source=${PROJECT_DIR},target=/workspace"
+    "--mount" "type=bind,source=${PROJECT_DIR},target=/workspace${RELABEL_ARG}"
 )
 
 ENV_ARGS=()
@@ -104,13 +127,13 @@ fi
 
 if [ -d "$GLOBAL_BASE" ]; then
     MOUNT_ARGS+=(
-        "--mount" "type=bind,source=${GLOBAL_BASE},target=/run/claude-global,readonly"
+        "--mount" "type=bind,source=${GLOBAL_BASE},target=/run/claude-global,readonly${RELABEL_ARG}"
     )
 fi
 
 if [ -d "$GLOBAL_OVERLAY" ] && [ "$IMAGE_TAG" != "base" ]; then
     MOUNT_ARGS+=(
-        "--mount" "type=bind,source=${GLOBAL_OVERLAY},target=/run/claude-overlay,readonly"
+        "--mount" "type=bind,source=${GLOBAL_OVERLAY},target=/run/claude-overlay,readonly${RELABEL_ARG}"
     )
 fi
 

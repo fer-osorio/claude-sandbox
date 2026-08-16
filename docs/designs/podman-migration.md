@@ -266,6 +266,23 @@ MAIN_LOG_ARGS=(--log-driver json-file --log-opt max-size=50m --log-opt max-file=
 - Fail-closed behavior on proxy startup failure (`squid-proxy-integration.md` §6.3) is
   unchanged — still aborts before starting the main container.
 
+**Post-merge addendum (`claude_code_security_plan.md` Change 19):** the pre-existing
+`MOUNT_ARGS` bind mounts (`/workspace`, `/run/claude-global`, `/run/claude-overlay`),
+not shown above because they weren't touched by this migration, needed a follow-up
+fix — see the §6.2 Tampering follow-up finding above.
+
+```bash
+RELABEL_ARG=""
+if [ "$ENGINE" = "podman" ]; then
+    RELABEL_ARG=",relabel=shared"
+fi
+
+MOUNT_ARGS=(
+    "--mount" "type=bind,source=${PROJECT_DIR},target=/workspace${RELABEL_ARG}"
+)
+```
+(and correspondingly for the two readonly global-layer mounts.)
+
 ### 5.3 `base/Dockerfile`
 
 Single-line change: pin the digest.
@@ -324,6 +341,24 @@ unchanged by this migration.
 
 **Tampering (T).** Unchanged in kind. `squid.conf` remains baked into the image at
 build time (§3.C); no new bind-mount or write path is introduced by the engine swap.
+
+**Follow-up finding, post-merge: SELinux relabeling gap on existing bind mounts.**
+The `/workspace`, `/run/claude-global`, and `/run/claude-overlay` bind mounts in
+`start.sh` were not new to this migration and so were not analyzed here as a
+Docker→Podman delta — but they should have been. An operator on an SELinux-enforcing
+host (btrfs with the `seclabel` mount option) found `/workspace` fully unreadable and
+unwritable via `EACCES`, despite correct POSIX bits (`0755`, owned by `claude-agent`).
+Root cause: Podman does not automatically relabel bind-mounted host directories: a
+mount without an explicit relabel option keeps its original SELinux context, and the
+container's type-enforcement policy denies access regardless of POSIX permissions — a
+MAC layer above standard Unix permissions, invisible to `stat`/`ls -la`. The mount
+block was byte-identical before and after this migration; it simply never mattered
+under the prior Docker-only default and only became symptomatic once Change 16
+flipped the default engine to Podman on an SELinux-enforcing host. Fix: `start.sh`
+now appends `,relabel=shared` to all three `--mount type=bind,...` strings, gated on
+`ENGINE=podman` (Docker's `--mount` has no relabel suboption). See
+`claude_code_security_plan.md` Change 19; `tests/test_runtime_posture.bats` R-7/R-8;
+open question on the still-unfixed Docker path in §9 below.
 
 **Repudiation (R).** Net improvement (§3.B): both containers now carry explicit,
 size-capped log drivers, closing the previously-flagged main-container gap
@@ -531,6 +566,18 @@ prescribed in this document.
 
 Not decided here — explicitly deferred to a separate, later decision. This document's
 scope is landing Podman as an option and eventually the default, not removing Docker.
+
+**Q: Does the Docker fallback path need the same SELinux relabeling fix as Change 19?**
+
+Not decided/fixed here. `claude_code_security_plan.md` Change 19 fixed `start.sh`'s
+bind mounts under `ENGINE=podman` (`,relabel=shared` on `--mount type=bind,...`), but
+Docker's `--mount` has no equivalent relabel suboption — only the legacy `-v
+host:container:z` syntax supports it. The Scope section of the security plan lists
+rootless Docker on Fedora (commonly SELinux-enforcing) as a fully supported fallback,
+so the same underlying bug is presumed to still be present there, just unexercised.
+Fixing it would mean diverging the mount-construction mechanism per engine rather than
+sharing one `--mount` code path. Left open until someone actually hits it on the
+Docker path or decides it's worth fixing preemptively.
 
 **Q: Should `ARG HOST_UID` be removed from the Dockerfiles now, since Podman doesn't
 need it?**

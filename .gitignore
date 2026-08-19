@@ -1,0 +1,5 @@
+# Per-machine config override — see config.local.sh.example and
+# docs/designs/sandbox-config-file.md. Never committed: it exists so an
+# operator can tune resource limits / engine choice for their own host
+# without touching the reviewed, shared config.sh.
+config.local.sh

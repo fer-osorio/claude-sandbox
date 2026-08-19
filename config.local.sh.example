@@ -1,0 +1,27 @@
+# config.local.sh.example — copy to config.local.sh and edit.
+#
+# config.local.sh is gitignored — it is never committed to this project.
+# It holds one operator's per-machine overrides (resource limits,
+# preferred engine, a personal image prefix, etc.) without touching
+# config.sh, which is reviewed and shared by everyone.
+#
+# Precedence (later wins):
+#   hardcoded defaults < config.sh < config.local.sh (this file) < env var
+#
+# Uncomment only the values you want to override on this machine. Anything
+# left commented out falls through to config.sh's value.
+
+# ENGINE="docker"          # prefer Docker over Podman on this host
+# IMAGE_PREFIX="claude"    # e.g. if you've forked the images under a new prefix
+
+# MAIN_MEMORY="4g"         # this machine has more RAM to spare
+# MAIN_CPUS="4"
+# MAIN_LOG_MAX_SIZE="50m"
+# MAIN_LOG_MAX_FILE="5"
+
+# PROXY_LOG_MAX_SIZE="10m"
+# PROXY_LOG_MAX_FILE="3"
+
+# Profiles (PROFILES / PROFILE_BASE) are intentionally not meant to be
+# overridden per-machine — add or change a profile in config.sh instead,
+# since it affects what build.sh/start.sh accept for everyone.

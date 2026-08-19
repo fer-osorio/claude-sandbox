@@ -17,6 +17,11 @@
 #
 # Place this file in the same directory as base/, crypto/, systems/, research/.
 #
+# Profile list, image prefix, and engine default come from config.sh (and
+# optionally config.local.sh, gitignored, per-machine). Precedence:
+# hardcoded defaults below < config.sh < config.local.sh < env var.
+# See docs/designs/sandbox-config-file.md.
+#
 # Engine:
 #   ENGINE=podman (default) or ENGINE=docker selects which container engine
 #   binary is invoked. See docs/designs/podman-migration.md. HOST_UID is only
@@ -26,7 +31,42 @@
 
 set -euo pipefail
 
-ENGINE="${ENGINE:-podman}"
+SANDBOX_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# --- Layer 4 capture: preserve any pre-set env var overrides before the
+# layers below can clobber them.
+_ENV_ENGINE="${ENGINE:-}"
+_ENV_IMAGE_PREFIX="${IMAGE_PREFIX:-}"
+
+# --- Layer 1: hardcoded defaults, so this script still works if config.sh
+# is missing.
+ENGINE="podman"
+IMAGE_PREFIX="claude"
+PROFILES=(base crypto systems research)
+declare -A PROFILE_BASE=(
+    [crypto]=base
+    [systems]=base
+    [research]=base
+)
+
+# --- Layer 2: committed, project-wide config.
+[ -f "${SANDBOX_DIR}/config.sh" ] && source "${SANDBOX_DIR}/config.sh"
+
+# --- Layer 3: gitignored, per-machine overrides.
+[ -f "${SANDBOX_DIR}/config.local.sh" ] && source "${SANDBOX_DIR}/config.local.sh"
+
+# --- Layer 4: env var wins over everything sourced above.
+ENGINE="${_ENV_ENGINE:-$ENGINE}"
+IMAGE_PREFIX="${_ENV_IMAGE_PREFIX:-$IMAGE_PREFIX}"
+
+is_profile() {
+    local candidate="$1"
+    local p
+    for p in "${PROFILES[@]}"; do
+        [ "$p" = "$candidate" ] && return 0
+    done
+    return 1
+}
 
 UID_ARG=""
 if [ "$ENGINE" = "docker" ]; then
@@ -42,66 +82,55 @@ for arg in "$@"; do
   esac
 done
 
-build_base() {
-    echo "→ Building claude-base..."
-    "$ENGINE" build $UID_ARG $NO_CACHE -t claude-base ./base/
+build_profile() {
+    local profile="$1"
+    local tag="${IMAGE_PREFIX}-${profile}"
+    echo "→ Building ${tag}..."
+    "$ENGINE" build $UID_ARG $NO_CACHE -t "${tag}" "${SANDBOX_DIR}/${profile}/"
 }
 
-build_crypto() {
-    echo "→ Building claude-crypto..."
-    "$ENGINE" build $UID_ARG $NO_CACHE -t claude-crypto ./crypto/
-}
-
-build_systems() {
-    echo "→ Building claude-systems..."
-    "$ENGINE" build $UID_ARG $NO_CACHE -t claude-systems ./systems/
-}
-
-build_research() {
-    echo "→ Building claude-research..."
-    "$ENGINE" build $UID_ARG $NO_CACHE -t claude-research ./research/
+# Builds a profile's base dependency first (if it has one), then the
+# profile itself.
+build_with_deps() {
+    local profile="$1"
+    local base="${PROFILE_BASE[$profile]:-}"
+    [ -n "$base" ] && build_profile "$base"
+    build_profile "$profile"
 }
 
 # No $UID_ARG — the Squid image creates no claude-agent-equivalent user tied
 # to the host UID; it has no bind-mounted /workspace and nothing that needs
 # host-UID alignment.
 build_squid() {
-    echo "→ Building claude-squid..."
-    "$ENGINE" build $NO_CACHE -t claude-squid ./squid/
+    local tag="${IMAGE_PREFIX}-squid"
+    echo "→ Building ${tag}..."
+    "$ENGINE" build $NO_CACHE -t "${tag}" "${SANDBOX_DIR}/squid/"
 }
 
 case "$TARGET" in
     all)
-        build_base
-        build_crypto
-        build_systems
-        build_research
+        build_profile "base"
+        for p in "${PROFILES[@]}"; do
+            [ "$p" = "base" ] && continue
+            build_profile "$p"
+        done
         build_squid
         echo ""
         echo "All images built:"
-        "$ENGINE" images | grep -E "^claude-(base|crypto|systems|research|squid)\s"
-        ;;
-    base)
-        build_base
-        ;;
-    crypto)
-        build_base
-        build_crypto
-        ;;
-    systems)
-        build_base
-        build_systems
-        ;;
-    research)
-        build_base
-        build_research
+        joined_profiles="$(IFS='|'; echo "${PROFILES[*]}")"
+        "$ENGINE" images | grep -E "^${IMAGE_PREFIX}-(${joined_profiles}|squid)\s"
         ;;
     squid)
         build_squid
         ;;
     *)
-        echo "Unknown target: $TARGET"
-        echo "Usage: $0 [all|base|crypto|systems|research|squid]"
-        exit 1
+        if is_profile "$TARGET"; then
+            build_with_deps "$TARGET"
+        else
+            joined_profiles="$(IFS='|'; echo "${PROFILES[*]}")"
+            echo "Unknown target: $TARGET"
+            echo "Usage: $0 [all|${joined_profiles}|squid]"
+            exit 1
+        fi
         ;;
 esac

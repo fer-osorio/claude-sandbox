@@ -1,5 +1,27 @@
 # Building and Running
 
+## Configuration
+
+Profile list, image tag prefix, default engine, and `start.sh`'s resource
+limits / log-driver settings come from `config.sh` (committed) and,
+optionally, `config.local.sh` (gitignored — per-machine overrides, never
+committed). Precedence, later wins:
+
+```
+hardcoded defaults in build.sh/start.sh  <  config.sh  <  config.local.sh  <  env var
+```
+
+To override something on your own machine only (e.g. more memory, or a
+different default engine) without touching the shared, reviewed
+`config.sh`:
+
+```bash
+cp config.local.sh.example config.local.sh
+$EDITOR config.local.sh   # uncomment and edit only what you need
+```
+
+Full design rationale: [`docs/designs/sandbox-config-file.md`](docs/designs/sandbox-config-file.md).
+
 ## Prerequisites
 
 - Rootless Podman under WSL2 (default) — see

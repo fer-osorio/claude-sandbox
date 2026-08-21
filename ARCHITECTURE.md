@@ -34,8 +34,13 @@ inside /workspace — they don't need a dedicated image.
 
 ```
 ~/.claude-sandbox/
-├── build.sh          — builds all images (or a named target)
-├── start.sh          — launches a container for a given project
+├── build.sh                  — builds all images (or a named target)
+├── start.sh                  — launches a container for a given project
+├── config.sh                 — profile list, image prefix, engine default,
+│                                resource/log-driver values (committed)
+├── config.local.sh.example   — template for per-machine overrides (committed)
+├── config.local.sh           — your own overrides (gitignored, not present
+│                                until you create it)
 ├── base/
 │   └── Dockerfile
 ├── crypto/
@@ -46,6 +51,13 @@ inside /workspace — they don't need a dedicated image.
 │   └── Dockerfile
 └── tests/            — bats-core integration test harness (see BUILDING.md)
 ```
+
+`build.sh` and `start.sh` both source `config.sh` (then `config.local.sh`,
+if present) rather than hardcoding the profile list or runtime values
+themselves. Precedence, later wins: hardcoded fallback in the scripts <
+`config.sh` < `config.local.sh` < a matching env var at call time (e.g.
+`ENGINE=docker ./start.sh ...`). Full design rationale:
+[`docs/designs/sandbox-config-file.md`](docs/designs/sandbox-config-file.md).
 
 ### Build all images (do this once, and after any Dockerfile change)
 
@@ -131,6 +143,14 @@ pip is managed alongside the system Python.
 If it's an npm global tool, add it to the `npm install -g` invocation in
 `base/Dockerfile` LAYER 3, or add a new `RUN npm install -g <pkg>` line.
 
+**Adding an entirely new profile** (not just a tool inside an existing
+one) is a different, smaller step since the Podman migration: create the
+`<profile>/Dockerfile`, then register the profile in `config.sh` (add it
+to `PROFILES`, and to `PROFILE_BASE` if it builds on top of `base`).
+`build.sh` and `start.sh` both pick it up automatically — no other file
+needs editing. See [`config.sh`](config.sh) and
+[`docs/designs/sandbox-config-file.md`](docs/designs/sandbox-config-file.md).
+
 ---
 
 ## Strategy B — Ephemeral Install (Experiment First)
@@ -179,6 +199,13 @@ Start a session (pick the right image for your project type):
 Add a tool permanently:
   Edit the appropriate Dockerfile, add to the relevant layer
   ./build.sh [base|crypto|systems|research]
+
+Add a new profile:
+  Create <profile>/Dockerfile, register it in config.sh
+  (PROFILES + PROFILE_BASE) — build.sh/start.sh pick it up automatically
+
+Tune resource limits or engine for this machine only:
+  cp config.local.sh.example config.local.sh, edit — never committed
 
 Try a tool without committing:
   docker exec -u root -it <container-name> bash

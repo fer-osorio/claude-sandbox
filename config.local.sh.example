@@ -25,3 +25,14 @@
 # Profiles (PROFILES / PROFILE_BASE) are intentionally not meant to be
 # overridden per-machine — add or change a profile in config.sh instead,
 # since it affects what build.sh/start.sh accept for everyone.
+
+# Project registry: adding a name here that config.sh doesn't already have
+# is fully supported — e.g. a personal or scratch project not worth a
+# reviewed commit. Redefining a name config.sh already registers is not:
+# start.sh detects it, reverts to config.sh's value, and prints a warning.
+# To repoint a committed name, edit config.sh instead — see
+# docs/designs/named-project-registry.md, "Layering: config.local.sh may
+# add, not override".
+#
+# PROJECT_PATH[scratch-thing]="${PROJECT_BASE}/scratch-thing"
+# PROJECT_PROFILE[scratch-thing]=base

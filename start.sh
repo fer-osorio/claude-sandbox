@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
-# Usage: start.sh <project_directory> [image]
+# Usage: start.sh [<project_directory> | @<name>] [image]
 #
 # Arguments:
 #   project_directory  — path to the project to mount (default: current dir)
-#   image              — which sandbox image to use (default: base)
+#   @name              — a project registered in config.sh's PROJECT_PATH /
+#                        PROJECT_PROFILE (and optionally extended by
+#                        config.local.sh — see docs/designs/named-project-registry.md)
+#   image              — which sandbox image to use (default: base, or the
+#                        registered project's default profile for @name);
 #                        one of the profiles defined in config.sh
 #
 # Global layer directories (relative to this script's location):
@@ -15,6 +19,8 @@
 #   ./start.sh ~/projects/myapp systems     — C++ / CMake projects
 #   ./start.sh ~/projects/paper research    — LaTeX documents
 #   ./start.sh ~/projects/webapp            — web / Python (uses base)
+#   ./start.sh @mylib                       — registry path + registry profile
+#   ./start.sh @mylib systems               — registry path, profile overridden
 #
 # Before running this for the first time, ensure the network exists:
 #   podman network create --driver bridge claude-net
@@ -55,12 +61,41 @@ MAIN_LOG_MAX_SIZE="50m"
 MAIN_LOG_MAX_FILE="5"
 PROXY_LOG_MAX_SIZE="10m"
 PROXY_LOG_MAX_FILE="3"
+declare -A PROJECT_PATH=()
+declare -A PROJECT_PROFILE=()
 
 # --- Layer 2: committed, project-wide config.
 [ -f "${SANDBOX_DIR}/config.sh" ] && source "${SANDBOX_DIR}/config.sh"
 
+# Snapshot of the committed registry, taken before config.local.sh can see
+# or touch it. Used below to detect and revert an attempt to redefine a
+# committed name — see "Layering: config.local.sh may add, not override"
+# in docs/designs/named-project-registry.md. Adding a name not present in
+# config.sh is unrestricted; this only guards names that are.
+declare -A COMMITTED_PROJECT_PATH=()
+declare -A COMMITTED_PROJECT_PROFILE=()
+for _name in "${!PROJECT_PATH[@]}"; do
+    COMMITTED_PROJECT_PATH[$_name]="${PROJECT_PATH[$_name]}"
+    COMMITTED_PROJECT_PROFILE[$_name]="${PROJECT_PROFILE[$_name]:-}"
+done
+unset _name
+
 # --- Layer 3: gitignored, per-machine overrides.
 [ -f "${SANDBOX_DIR}/config.local.sh" ] && source "${SANDBOX_DIR}/config.local.sh"
+
+# Revert (and warn about) any committed project name config.local.sh
+# redefined. An operator who wants to repoint a committed name edits
+# config.sh instead — a one-line, reviewed change.
+for _name in "${!COMMITTED_PROJECT_PATH[@]}"; do
+    if [[ "${PROJECT_PATH[$_name]:-}" != "${COMMITTED_PROJECT_PATH[$_name]}" ]] \
+    || [[ "${PROJECT_PROFILE[$_name]:-}" != "${COMMITTED_PROJECT_PROFILE[$_name]}" ]]; then
+        echo "Warning: config.local.sh redefines committed project '$_name';" \
+             "ignoring the local value (config.sh wins)." >&2
+        PROJECT_PATH[$_name]="${COMMITTED_PROJECT_PATH[$_name]}"
+        PROJECT_PROFILE[$_name]="${COMMITTED_PROJECT_PROFILE[$_name]}"
+    fi
+done
+unset _name
 
 # --- Layer 4: env var wins over everything sourced above.
 ENGINE="${_ENV_ENGINE:-$ENGINE}"
@@ -72,9 +107,44 @@ MAIN_LOG_MAX_FILE="${_ENV_MAIN_LOG_MAX_FILE:-$MAIN_LOG_MAX_FILE}"
 PROXY_LOG_MAX_SIZE="${_ENV_PROXY_LOG_MAX_SIZE:-$PROXY_LOG_MAX_SIZE}"
 PROXY_LOG_MAX_FILE="${_ENV_PROXY_LOG_MAX_FILE:-$PROXY_LOG_MAX_FILE}"
 
-PROJECT_DIR="${1:-$(pwd)}"
-PROJECT_DIR="$(realpath "$PROJECT_DIR")"
-IMAGE_TAG="${2:-base}"
+PROJECT_ARG="${1:-$(pwd)}"
+IMAGE_TAG="${2:-}"
+
+# @name resolution — see docs/designs/named-project-registry.md. Runs
+# after both config layers are sourced, before the existing directory
+# check below, so a resolved registry path receives exactly the
+# validation an explicit path receives.
+if [[ "$PROJECT_ARG" == @* ]]; then
+    PROJECT_NAME="${PROJECT_ARG#@}"
+
+    if [ -z "$PROJECT_NAME" ]; then
+        echo "Error: '@' is not a project name."
+        exit 1
+    fi
+
+    # ':-' is required: under 'set -u' a lookup on a missing associative
+    # array key aborts the script with a bash error instead of reaching
+    # the message below.
+    RESOLVED_PATH="${PROJECT_PATH[$PROJECT_NAME]:-}"
+    if [ -z "$RESOLVED_PATH" ]; then
+        echo "Error: unknown project '$PROJECT_NAME'."
+        echo "Registered projects: ${!PROJECT_PATH[*]}"
+        echo "Add it to config.sh, or pass a path instead."
+        exit 1
+    fi
+
+    RESOLVED_PROFILE="${PROJECT_PROFILE[$PROJECT_NAME]:-}"
+    if [ -z "$RESOLVED_PROFILE" ]; then
+        echo "Error: project '$PROJECT_NAME' has a path but no profile in config.sh."
+        exit 1
+    fi
+
+    PROJECT_ARG="$RESOLVED_PATH"
+    IMAGE_TAG="${IMAGE_TAG:-$RESOLVED_PROFILE}"
+fi
+
+PROJECT_DIR="$(realpath "$PROJECT_ARG")"
+IMAGE_TAG="${IMAGE_TAG:-base}"
 
 if ! "$ENGINE" info > /dev/null 2>&1; then
     echo "Error: $ENGINE is not reachable."

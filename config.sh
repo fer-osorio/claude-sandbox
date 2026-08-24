@@ -40,3 +40,32 @@ MAIN_LOG_MAX_FILE="5"
 # Squid proxy container (start.sh).
 PROXY_LOG_MAX_SIZE="10m"
 PROXY_LOG_MAX_FILE="3"
+
+# ── Project Registry ─────────────────────────────────────────────
+# Maps a project name to its path and its default profile. Addressed
+# from start.sh as "@<name>" (e.g. ./start.sh @mylib). See
+# docs/designs/named-project-registry.md.
+#
+# ${PROJECT_BASE} keeps this file portable across machines: it is the
+# one machine-specific value, and it is resolved from the environment
+# with a sensible default rather than being hardcoded here.
+#
+# config.local.sh may add entries for names not listed here (a
+# machine-local project not worth committing); it may not redefine a
+# name already registered below — such an attempt is reverted with a
+# warning rather than honored. See the Layering section of the design
+# doc above.
+
+PROJECT_BASE="${PROJECT_BASE:-$HOME/projects}"
+
+# Example (commented out — no real project entries ship in this file):
+# declare -A PROJECT_PATH=(
+#     [mylib]="${PROJECT_BASE}/mylib"
+# )
+#
+# declare -A PROJECT_PROFILE=(
+#     [mylib]=crypto
+# )
+
+declare -A PROJECT_PATH=()
+declare -A PROJECT_PROFILE=()

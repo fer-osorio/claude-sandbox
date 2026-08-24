@@ -37,7 +37,8 @@ inside /workspace — they don't need a dedicated image.
 ├── build.sh                  — builds all images (or a named target)
 ├── start.sh                  — launches a container for a given project
 ├── config.sh                 — profile list, image prefix, engine default,
-│                                resource/log-driver values (committed)
+│                                resource/log-driver values, project
+│                                registry (committed)
 ├── config.local.sh.example   — template for per-machine overrides (committed)
 ├── config.local.sh           — your own overrides (gitignored, not present
 │                                until you create it)
@@ -58,6 +59,15 @@ themselves. Precedence, later wins: hardcoded fallback in the scripts <
 `config.sh` < `config.local.sh` < a matching env var at call time (e.g.
 `ENGINE=docker ./start.sh ...`). Full design rationale:
 [`docs/designs/sandbox-config-file.md`](docs/designs/sandbox-config-file.md).
+
+`config.sh` also carries a named project registry — `PROJECT_PATH` /
+`PROJECT_PROFILE`, addressed from `start.sh` as `@<name>` (e.g.
+`./start.sh @mylib` in place of `./start.sh ~/projects/mylib crypto`).
+`config.local.sh` may add entries for names `config.sh` doesn't already
+have (a personal or scratch project not worth a reviewed commit); it may
+not redefine one that's already there — `start.sh` reverts such an
+attempt and warns. Full design rationale:
+[`docs/designs/named-project-registry.md`](docs/designs/named-project-registry.md).
 
 ### Build all images (do this once, and after any Dockerfile change)
 
@@ -196,6 +206,10 @@ Start a session (pick the right image for your project type):
   ./start.sh ~/projects/myproject research    — LaTeX documents
   ./start.sh ~/projects/myproject base        — Python, web, TypeScript
 
+Start a session for a registered project:
+  ./start.sh @mylib                — registry path + registry profile
+  ./start.sh @mylib systems        — registry path, profile overridden
+
 Add a tool permanently:
   Edit the appropriate Dockerfile, add to the relevant layer
   ./build.sh [base|crypto|systems|research]
@@ -203,6 +217,10 @@ Add a tool permanently:
 Add a new profile:
   Create <profile>/Dockerfile, register it in config.sh
   (PROFILES + PROFILE_BASE) — build.sh/start.sh pick it up automatically
+
+Register a project name:
+  Add it to config.sh's PROJECT_PATH/PROJECT_PROFILE (committed, shared),
+  or to config.local.sh (this machine only) — never committed
 
 Tune resource limits or engine for this machine only:
   cp config.local.sh.example config.local.sh, edit — never committed

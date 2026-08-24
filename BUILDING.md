@@ -22,6 +22,20 @@ $EDITOR config.local.sh   # uncomment and edit only what you need
 
 Full design rationale: [`docs/designs/sandbox-config-file.md`](docs/designs/sandbox-config-file.md).
 
+`config.sh` also holds a named project registry (`PROJECT_PATH`/
+`PROJECT_PROFILE`, addressed as `./start.sh @<name>`), resolved against
+`PROJECT_BASE` — an env var, defaulting to `$HOME/projects`, that keeps
+the committed registry's paths portable across machines. It's optional:
+nothing here is required for a basic setup, and only matters if you (or a
+teammate) register a project. If your projects don't live under
+`$HOME/projects`, `export PROJECT_BASE=...` before running `start.sh` (in
+your shell profile, so it's always set). Setting `PROJECT_BASE` inside
+`config.local.sh` instead does *not* work for this — `config.sh`'s
+`PROJECT_PATH` entries expand `${PROJECT_BASE}` when `config.sh` is
+sourced, before `config.local.sh` is, so a later assignment there comes
+too late to affect them. Full design rationale:
+[`docs/designs/named-project-registry.md`](docs/designs/named-project-registry.md).
+
 ## Prerequisites
 
 - Rootless Podman under WSL2 (default) — see

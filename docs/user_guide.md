@@ -19,7 +19,18 @@ Full hierarchy and rationale: [`ARCHITECTURE.md`](../ARCHITECTURE.md#image-hiera
 
 ```bash
 ./start.sh <project_directory> [profile]   # profile defaults to base
+./start.sh @<name> [profile]               # registered project — see below
 ```
+
+If a project is registered by name in `config.sh` (or `config.local.sh`,
+per-machine), `./start.sh @mylib` replaces typing the full path and
+remembering its profile every time; an explicit `[profile]` still
+overrides the registry's default. Register a project by adding it to
+`config.sh`'s `PROJECT_PATH`/`PROJECT_PROFILE` (committed, shared with
+everyone) or to `config.local.sh` (this machine only, never committed) —
+`config.local.sh` can add a name `config.sh` doesn't have, but can't
+redefine one that's already there. Full rationale:
+[`docs/designs/named-project-registry.md`](designs/named-project-registry.md).
 
 Each session is a fresh, ephemeral container: your project directory is
 bind-mounted, the container runs non-root with capabilities dropped and

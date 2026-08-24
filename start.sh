@@ -67,8 +67,35 @@ declare -A PROJECT_PROFILE=()
 # --- Layer 2: committed, project-wide config.
 [ -f "${SANDBOX_DIR}/config.sh" ] && source "${SANDBOX_DIR}/config.sh"
 
+# Snapshot of the committed registry, taken before config.local.sh can see
+# or touch it. Used below to detect and revert an attempt to redefine a
+# committed name — see "Layering: config.local.sh may add, not override"
+# in docs/designs/named-project-registry.md. Adding a name not present in
+# config.sh is unrestricted; this only guards names that are.
+declare -A COMMITTED_PROJECT_PATH=()
+declare -A COMMITTED_PROJECT_PROFILE=()
+for _name in "${!PROJECT_PATH[@]}"; do
+    COMMITTED_PROJECT_PATH[$_name]="${PROJECT_PATH[$_name]}"
+    COMMITTED_PROJECT_PROFILE[$_name]="${PROJECT_PROFILE[$_name]:-}"
+done
+unset _name
+
 # --- Layer 3: gitignored, per-machine overrides.
 [ -f "${SANDBOX_DIR}/config.local.sh" ] && source "${SANDBOX_DIR}/config.local.sh"
+
+# Revert (and warn about) any committed project name config.local.sh
+# redefined. An operator who wants to repoint a committed name edits
+# config.sh instead — a one-line, reviewed change.
+for _name in "${!COMMITTED_PROJECT_PATH[@]}"; do
+    if [[ "${PROJECT_PATH[$_name]:-}" != "${COMMITTED_PROJECT_PATH[$_name]}" ]] \
+    || [[ "${PROJECT_PROFILE[$_name]:-}" != "${COMMITTED_PROJECT_PROFILE[$_name]}" ]]; then
+        echo "Warning: config.local.sh redefines committed project '$_name';" \
+             "ignoring the local value (config.sh wins)." >&2
+        PROJECT_PATH[$_name]="${COMMITTED_PROJECT_PATH[$_name]}"
+        PROJECT_PROFILE[$_name]="${COMMITTED_PROJECT_PROFILE[$_name]}"
+    fi
+done
+unset _name
 
 # --- Layer 4: env var wins over everything sourced above.
 ENGINE="${_ENV_ENGINE:-$ENGINE}"

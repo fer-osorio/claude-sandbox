@@ -22,6 +22,13 @@
 # the operator — so this suite cannot build or commit it (out of scope per
 # SDD §2.3); if it's missing, setup fails loudly rather than silently
 # skipping (SDD §8).
+#
+# The curl helper image is pinned to docker.io/curlimages/curl:latest,
+# fully qualified — an unqualified curlimages/curl:latest depends on
+# the operator's podman unqualified-search-registries order and can
+# silently resolve to a registry that doesn't carry the image (e.g.
+# registry.fedoraproject.org), failing every request in setup_file()
+# before any of them reach the proxy at all.
 
 load 'lib/engine'
 
@@ -51,26 +58,26 @@ setup_file() {
     # S-1 below is what asserts on it.
     engine_run --rm --network claude-net \
         --env HTTPS_PROXY="http://${proxy_name}:3128" \
-        curlimages/curl:latest curl -s -o /dev/null https://api.anthropic.com >&2 || true
+        docker.io/curlimages/curl:latest curl -s -o /dev/null https://api.anthropic.com >&2 || true
 
     # Blocked domain — expect refusal.
     engine_run --rm --network claude-net \
         --env HTTPS_PROXY="http://${proxy_name}:3128" \
-        curlimages/curl:latest curl -s -o /dev/null https://example.com >&2 || true
+        docker.io/curlimages/curl:latest curl -s -o /dev/null https://example.com >&2 || true
 
     # Allowed domains — issue #32 Reference-tier additions. S-4/S-5 assert on these.
     engine_run --rm --network claude-net \
         --env HTTPS_PROXY="http://${proxy_name}:3128" \
-        curlimages/curl:latest curl -s -o /dev/null https://docs.anthropic.com >&2 || true
+        docker.io/curlimages/curl:latest curl -s -o /dev/null https://docs.anthropic.com >&2 || true
 
     engine_run --rm --network claude-net \
         --env HTTPS_PROXY="http://${proxy_name}:3128" \
-        curlimages/curl:latest curl -s -o /dev/null https://code.claude.com >&2 || true
+        docker.io/curlimages/curl:latest curl -s -o /dev/null https://code.claude.com >&2 || true
 
     # dstdom_regex exception — issue #32. S-6 asserts on this.
     engine_run --rm --network claude-net \
         --env HTTPS_PROXY="http://${proxy_name}:3128" \
-        curlimages/curl:latest curl -s -o /dev/null https://mintcdn.com >&2 || true
+        docker.io/curlimages/curl:latest curl -s -o /dev/null https://mintcdn.com >&2 || true
 }
 
 teardown_file() {

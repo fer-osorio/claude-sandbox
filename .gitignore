@@ -3,3 +3,16 @@
 # operator can tune resource limits / engine choice for their own host
 # without touching the reviewed, shared config.sh.
 config.local.sh
+
+# Diagnostic output from check-auto-memory.sh — regenerated on every run,
+# and its contents are environment-specific (container names, session IDs,
+# whatever a live session happened to record). Findings worth keeping are
+# transcribed into docs/designs/auto-memory-seeding-step-zero.md instead.
+check-auto-memory.sh.out
+
+# Session transcript exported from claude.ai, kept locally as working
+# reference for the auto-memory seeding work (#34). Not committed: it is a
+# raw conversation log, not a reviewed design document — the design content
+# worth keeping lives in docs/designs/auto-memory-seeding-step-zero.md.
+injecting_memories_into_containers.md
+injecting_memories_into_containers.md:Zone.Identifier

@@ -242,7 +242,18 @@ What was decided? State it plainly and directly.
 ## Consequences
 What becomes easier, harder, or impossible as a result?
 Include both positive and negative consequences.
+
+## Alternatives considered
+For each rejected option:
+**Chose:** … **Rejected:** … **Why the rejected option is attractive:** …
+**What breaks if you try it anyway:** …
 ```
+
+The **Alternatives considered** section is not optional padding. An option
+recorded without its appeal will simply be reinvented by the next person who
+finds it obvious — the "why the rejected option is attractive" line is the
+one people skip and the one that does the work. Since ADRs are never
+rewritten, an alternative left unrecorded is unrecoverable.
 
 ADRs are **never rewritten**. If a decision is reversed, write a new
 ADR with `Status: Supersedes ADR 00N`.

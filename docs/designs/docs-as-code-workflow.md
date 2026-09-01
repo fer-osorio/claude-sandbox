@@ -240,7 +240,18 @@ What constraints existed? What was tried before?>
 <What becomes easier, harder, or impossible as a result?
 Include both positive and negative consequences.
 Include any implicit assumptions the decision relies on.>
+
+## Alternatives considered
+<For each rejected option:
+**Chose:** … **Rejected:** … **Why the rejected option is attractive:** …
+**What breaks if you try it anyway:** …>
 ```
+
+The **Alternatives considered** section brings ADRs in line with the design
+document structure in Case C, which already records trade-offs. It is not
+optional: an option recorded without its appeal will be reinvented by the
+next person who finds it obvious, and because ADRs are never rewritten, an
+alternative left out at authoring time is unrecoverable.
 
 ADRs are **never rewritten**. If a decision is reversed, a new ADR is
 written with status `Supersedes ADR 00N`.

@@ -71,8 +71,8 @@ Two options, covered in detail in `ARCHITECTURE.md`:
   at session start** — usually means a venv or CMake build directory in
   your project was built against a tool installed via Strategy B that was
   never promoted to the Dockerfile. The warning names the fix. Background:
-  [`interpreter-presence-health-check.md`](../interpreter-presence-health-check.md),
-  [`workspace-artifact-staleness.md`](../workspace-artifact-staleness.md).
+  [`interpreter-presence-health-check.md`](designs/interpreter-presence-health-check.md),
+  [`workspace-artifact-staleness.md`](designs/workspace-artifact-staleness.md).
 - **Session start fails with "unknown image" or "image does not exist"** —
   check the profile name is one of `base`/`crypto`/`systems`/`research`,
   and that you've built it with `./build.sh <profile>`.

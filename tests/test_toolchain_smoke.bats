@@ -23,8 +23,8 @@ teardown() {
     teardown_registered
 }
 
+# bats test_tags=slow
 @test "T-1: crypto profile — softhsm2-util and p11-kit are functional" {
-    # bats test_tags=slow
     if ! engine_inspect claude-crypto > /dev/null 2>&1; then
         echo "claude-crypto image not found — build it first with: ./build.sh crypto" >&2
         return 1
@@ -36,8 +36,8 @@ teardown() {
     [ "$status" -eq 0 ]
 }
 
+# bats test_tags=slow
 @test "T-2: systems profile — minimal CMake project builds and links against GTest" {
-    # bats test_tags=slow
     if ! engine_inspect claude-systems > /dev/null 2>&1; then
         echo "claude-systems image not found — build it first with: ./build.sh systems" >&2
         return 1
@@ -51,8 +51,8 @@ teardown() {
     [ "$status" -eq 0 ]
 }
 
+# bats test_tags=slow
 @test "T-3: research profile — minimal LaTeX document compiles via latexmk" {
-    # bats test_tags=slow
     if ! engine_inspect claude-research > /dev/null 2>&1; then
         echo "claude-research image not found — build it first with: ./build.sh research" >&2
         return 1

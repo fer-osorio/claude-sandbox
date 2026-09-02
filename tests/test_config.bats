@@ -38,8 +38,8 @@ _reg_fixture_dir() {
     cp "${SANDBOX_DIR}/start.sh" "${REG_TMPDIR}/start.sh"
 }
 
+# bats test_tags=fast, hostonly
 @test "C-1: env var overrides config.sh's value for the same variable" {
-    # bats test_tags=fast, hostonly
     run env ENGINE=docker bash -c '
         set -euo pipefail
         cd "'"${SANDBOX_DIR}"'"
@@ -53,8 +53,8 @@ _reg_fixture_dir() {
     [ "$output" = "docker" ]
 }
 
+# bats test_tags=fast, hostonly
 @test "C-2: config.sh overrides the hardcoded layer-1 default when no env var is set" {
-    # bats test_tags=fast, hostonly
     run bash -c '
         set -euo pipefail
         cd "'"${SANDBOX_DIR}"'"
@@ -66,8 +66,8 @@ _reg_fixture_dir() {
     [ "$output" != "sentinel-default-value" ]
 }
 
+# bats test_tags=fast, hostonly
 @test "C-3: config.sh's PROFILES matches the profile directories actually present" {
-    # bats test_tags=fast, hostonly
     run bash -c '
         set -euo pipefail
         cd "'"${SANDBOX_DIR}"'"
@@ -82,8 +82,8 @@ _reg_fixture_dir() {
     done
 }
 
+# bats test_tags=fast, hostonly
 @test "C-4: config.sh's PROFILE_BASE only references profiles PROFILES actually declares" {
-    # bats test_tags=fast, hostonly
     # Regression guard: a typo'd or stale base-dependency entry (e.g.
     # pointing at a renamed/removed profile) would silently no-op the
     # build.sh dependency lookup rather than fail loudly.
@@ -110,8 +110,8 @@ _reg_fixture_dir() {
     done <<< "$output"
 }
 
+# bats test_tags=fast, hostonly
 @test "C-5: build.sh rejects a target not present in config.sh's PROFILES, without touching an engine" {
-    # bats test_tags=fast, hostonly
     # No engine daemon required: dispatch to the "Unknown target" branch
     # happens before build.sh ever shells out to $ENGINE.
     run bash "${SANDBOX_DIR}/build.sh" definitely-not-a-real-profile
@@ -119,8 +119,8 @@ _reg_fixture_dir() {
     [[ "$output" == *"Unknown target"* ]]
 }
 
+# bats test_tags=fast, hostonly
 @test "C-6: build.sh and start.sh both source config.sh, not a re-copied literal list" {
-    # bats test_tags=fast, hostonly
     # Structural guard for the drift problem this design exists to fix:
     # both scripts must read PROFILES from the same sourced file rather
     # than hardcoding their own copies that could silently diverge again.
@@ -130,8 +130,8 @@ _reg_fixture_dir() {
 
 # C-7 onward: named project registry (docs/designs/named-project-registry.md)
 
+# bats test_tags=fast, hostonly
 @test "C-7: @name resolves to the registered path and its registry profile" {
-    # bats test_tags=fast, hostonly
     _reg_fixture_dir
     mkdir -p "${REG_TMPDIR}/mylib"
     cat > "${REG_TMPDIR}/config.sh" <<EOF
@@ -145,8 +145,8 @@ EOF
     [[ "$output" == *"Image:    claude-crypto"* ]]
 }
 
+# bats test_tags=fast, hostonly
 @test "C-8: an explicit second argument overrides the registry's profile" {
-    # bats test_tags=fast, hostonly
     _reg_fixture_dir
     mkdir -p "${REG_TMPDIR}/mylib"
     cat > "${REG_TMPDIR}/config.sh" <<EOF
@@ -159,8 +159,8 @@ EOF
     [[ "$output" == *"Image:    claude-systems"* ]]
 }
 
+# bats test_tags=fast, hostonly
 @test "C-9: an unknown @name exits non-zero and never reaches the engine" {
-    # bats test_tags=fast, hostonly
     _reg_fixture_dir
     cat > "${REG_TMPDIR}/config.sh" <<EOF
 PROJECT_PATH[mylib]="${REG_TMPDIR}/mylib"
@@ -174,8 +174,8 @@ EOF
     [[ "$output" != *"Starting Squid proxy"* ]]  # no container was started
 }
 
+# bats test_tags=fast, hostonly
 @test "C-10: a name with a path but no profile is reported, not a 'set -u' crash" {
-    # bats test_tags=fast, hostonly
     # Regression guard for the two-array sync problem the design doc calls
     # out: PROJECT_PATH and PROJECT_PROFILE can drift apart, and the ':-'
     # guards at the read site must turn that into the intended error
@@ -193,8 +193,8 @@ EOF
     [[ "$output" != *"bad array subscript"* ]]
 }
 
+# bats test_tags=fast, hostonly
 @test "C-11: a bare name matching a registry entry is still treated as a path" {
-    # bats test_tags=fast, hostonly
     # The sigil boundary: from a directory containing a "mylib" subdirectory,
     # "./start.sh mylib" (no @, no second argument) must resolve as a plain
     # relative path and fall through to the base-profile default — not
@@ -214,8 +214,8 @@ EOF
     [[ "$output" == *"Image:    claude-base"* ]]
 }
 
+# bats test_tags=fast, hostonly
 @test "C-12: a name added only in config.local.sh resolves correctly" {
-    # bats test_tags=fast, hostonly
     _reg_fixture_dir
     mkdir -p "${REG_TMPDIR}/localonly"
     : > "${REG_TMPDIR}/config.sh"   # no committed entries
@@ -231,8 +231,8 @@ EOF
     [[ "$output" != *"Warning:"* ]]
 }
 
+# bats test_tags=fast, hostonly
 @test "C-13: config.local.sh redefining a committed name is reverted and warned, not honored" {
-    # bats test_tags=fast, hostonly
     _reg_fixture_dir
     mkdir -p "${REG_TMPDIR}/committed-real" "${REG_TMPDIR}/attempted-override"
     cat > "${REG_TMPDIR}/config.sh" <<EOF

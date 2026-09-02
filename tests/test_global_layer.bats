@@ -32,8 +32,8 @@ teardown() {
     teardown_registered
 }
 
+# bats test_tags=fast
 @test "G-1: base global layer is applied to a new base-image session" {
-    # bats test_tags=fast
     register_container "$CONTAINER_NAME"
     run engine_run --rm --name "$CONTAINER_NAME" \
         --mount "type=bind,source=${GLOBAL_BASE},target=/run/claude-global,readonly" \
@@ -47,8 +47,8 @@ teardown() {
     diff <(echo "$cat_output") "${GLOBAL_BASE}/CLAUDE.md"
 }
 
+# bats test_tags=fast
 @test "G-2: overlay layer is applied alongside the base layer" {
-    # bats test_tags=fast
     register_container "$CONTAINER_NAME"
     run engine_run --rm --name "$CONTAINER_NAME" \
         --mount "type=bind,source=${GLOBAL_BASE},target=/run/claude-global,readonly" \
@@ -58,8 +58,8 @@ teardown() {
     [[ "$output" == *"both-present"* ]]
 }
 
+# bats test_tags=fast
 @test "G-3: /run/claude-global is not writable (OS-level readonly mount)" {
-    # bats test_tags=fast
     register_container "$CONTAINER_NAME"
     run engine_run --rm --name "$CONTAINER_NAME" \
         --mount "type=bind,source=${GLOBAL_BASE},target=/run/claude-global,readonly" \
@@ -68,8 +68,8 @@ teardown() {
     [[ "$output" == *"Read-only file system"* ]]
 }
 
+# bats test_tags=fast
 @test "G-4: a file written to ~/.claude/memory/ does not leak to the host source dir" {
-    # bats test_tags=fast
     register_container "$CONTAINER_NAME"
     engine_run --rm --name "$CONTAINER_NAME" \
         --mount "type=bind,source=${GLOBAL_BASE},target=/run/claude-global,readonly" \
@@ -78,8 +78,8 @@ teardown() {
     [ ! -e "${GLOBAL_BASE}/memory/leak-test.txt" ]
 }
 
+# bats test_tags=fast
 @test "G-5: a file written in one session is not visible from a second, concurrent session" {
-    # bats test_tags=fast
     name_a="test-claude-base-a-$$"
     name_b="test-claude-base-b-$$"
     register_container "$name_a"
@@ -98,8 +98,8 @@ teardown() {
     [ "$status" -ne 0 ]
 }
 
+# bats test_tags=fast
 @test "G-6: settings.json declares Write(/run/*) as an app-layer deny rule" {
-    # bats test_tags=fast
     # Full dynamic enforcement (an actual Claude Code turn attempting the
     # write and getting denied) would require driving a live agent turn,
     # which needs ANTHROPIC_API_KEY — forbidden by SDD §7.2. This test

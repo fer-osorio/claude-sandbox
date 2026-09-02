@@ -95,40 +95,40 @@ proxy_logs() {
     engine_logs "$(cat "${BATS_FILE_TMPDIR}/proxy_name")" 2>&1
 }
 
+# bats test_tags=slow
 @test "S-1: request to an allowed domain succeeds (TCP_TUNNEL/200 in the access log)" {
-    # bats test_tags=slow
     run proxy_logs
     [[ "$output" == *"TCP_TUNNEL/200"* ]]
 }
 
+# bats test_tags=slow
 @test "S-2: request to a blocked domain is refused (TCP_DENIED/403)" {
-    # bats test_tags=slow
     run proxy_logs
     [[ "$output" == *"TCP_DENIED"* ]] || [[ "$output" == *"/403"* ]]
 }
 
+# bats test_tags=slow
 @test "S-3: every attempted connection produces exactly one parseable access log line" {
-    # bats test_tags=slow
     run proxy_logs
     [ "$status" -eq 0 ]
     line_count=$(echo "$output" | grep -cE '^[0-9]+\.[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9.]+[[:space:]]+\S+/[0-9]+')
     [ "$line_count" -ge 5 ]
 }
 
+# bats test_tags=slow
 @test "S-4: request to docs.anthropic.com (issue #32 Reference tier addition) succeeds" {
-    # bats test_tags=slow
     run proxy_logs
     [[ "$output" =~ TCP_TUNNEL/200[[:space:]]+[0-9]+[[:space:]]+CONNECT[[:space:]]+docs\.anthropic\.com:443 ]]
 }
 
+# bats test_tags=slow
 @test "S-5: request to code.claude.com (issue #32 Reference tier addition) succeeds" {
-    # bats test_tags=slow
     run proxy_logs
     [[ "$output" =~ TCP_TUNNEL/200[[:space:]]+[0-9]+[[:space:]]+CONNECT[[:space:]]+code\.claude\.com:443 ]]
 }
 
+# bats test_tags=slow
 @test "S-6: request to mintcdn.com (issue #32 dstdom_regex CDN exception) succeeds" {
-    # bats test_tags=slow
     run proxy_logs
     [[ "$output" =~ TCP_TUNNEL/200[[:space:]]+[0-9]+[[:space:]]+CONNECT[[:space:]]+mintcdn\.com:443 ]]
 }

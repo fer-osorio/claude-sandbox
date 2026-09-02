@@ -6,12 +6,12 @@
 |---|---|
 | **Document Type** | Software Design Document (SDD) |
 | **Status** | Accepted |
-| **Version** | 1.0 |
-| **Date** | 2026-07-09 |
+| **Version** | 1.1 |
+| **Date** | 2026-09-02 |
 | **Author** | Fernando |
 | **Reviewers** | Security Team |
 | **Supersedes** | — (no prior testing SDD exists for claude-sandbox) |
-| **Relates to** | `docs/claude_code_security_plan.md`, `docs/squid_proxy_guide.md`, `docs/designs/global-layer-injection.md`, `docs/plans/2026-05-global-layer-injection-v1.md`, `ARCHITECTURE.md` |
+| **Relates to** | `docs/claude_code_security_plan.md`, `docs/squid_proxy_guide.md`, `docs/designs/global-layer-injection.md`, `docs/plans/2026-05-global-layer-injection-v1.md`, `ARCHITECTURE.md`, `docs/designs/sandbox-config-file.md`, `docs/adr/002-planning-artifact-contract.md` |
 
 ---
 
@@ -21,6 +21,7 @@
 |---|---|---|---|
 | 1.0 | 2026-07-09 | Fernando | Initial design: bats-core harness, five test groups, `$ENGINE` abstraction, naming/fixture conventions |
 | 1.0 | 2026-07-13 | Fernando | Accepted; moved to `docs/designs/` per docs-as-code Case C convention; tracked under issue #11 |
+| 1.1 | 2026-09-02 | Fernando | Reconciled with the suite as built: Groups 6–8 added, Group 3 extended to S-6, `hostonly` tag axis documented, §9 traceability extended. Covers the drift that accumulated through R-6…R-8, S-4…S-6 and three test files added without revision entries (issue #51) |
 
 ---
 
@@ -129,6 +130,9 @@ tests/
 ├── test_squid_isolation.bats       ← Test Group 3
 ├── test_global_layer.bats          ← Test Group 4
 ├── test_toolchain_smoke.bats       ← Test Group 5
+├── test_config.bats                ← Test Group 6
+├── test_docs_integrity.bats        ← Test Group 7
+├── test_planning_artifacts.bats    ← Test Group 8
 ├── lib/
 │   ├── engine.bash                 ← $ENGINE abstraction, shared helpers
 │   └── teardown.bash               ← trap-based cleanup helpers
@@ -149,6 +153,9 @@ Each `.bats` file corresponds to one test group from §4 and runs independently 
 | 3 | `test_squid_isolation.bats` | Egress allowlist enforcement, access log | Slow |
 | 4 | `test_global_layer.bats` | Layer injection, readonly mounts, session isolation | Fast |
 | 5 | `test_toolchain_smoke.bats` | Per-profile toolchain availability | Slow |
+| 6 | `test_config.bats` | Config-layer precedence, `@name` registry resolution | Fast, host-only |
+| 7 | `test_docs_integrity.bats` | Link/skill/ADR/tag conformance, global layer size ceilings | Fast, host-only |
+| 8 | `test_planning_artifacts.bats` | ADR 002 planning-artifact contract | Fast, host-only |
 
 The fast/slow split feeds directly into the two-tier execution model in §6.1.
 
@@ -171,7 +178,7 @@ engine_ps()    { "${ENGINE}" ps "$@"; }
 
 Test bodies call `engine_run`, `engine_build`, etc. Migrating the suite to validate Podman becomes `ENGINE=podman bats tests/`, not a rewrite. This is the single most consequential design decision in this document for the task that follows it — the alternative (docker literals scattered through ~15 test files) would mean re-deriving the suite rather than reusing it in the migration you're about to do.
 
-**On container-in-container**, resolved in the prior discussion and restated here for the record: none of the five test groups require the test runner itself to be containerized. Build/run/posture/toolchain checks are host-level subprocess calls to the engine binary — identical in kind to what `setup.sh`'s existing smoke tests already do. Squid isolation tests use **sibling** containers on a shared network (test runner on host, sandbox container and proxy container both as normal peers), not nested engines. True DinD/DooD is deferred — see §10.
+**On container-in-container**, resolved in the prior discussion and restated here for the record: none of the eight test groups require the test runner itself to be containerized. Build/run/posture/toolchain checks are host-level subprocess calls to the engine binary — identical in kind to what `setup.sh`'s existing smoke tests already do. Squid isolation tests use **sibling** containers on a shared network (test runner on host, sandbox container and proxy container both as normal peers), not nested engines. True DinD/DooD is deferred — see §10.
 
 ---
 
@@ -205,13 +212,16 @@ Test bodies call `engine_run`, `engine_build`, etc. Migrating the suite to valid
 |---|---|---|
 | S-1 | Allowed domain succeeds | Request to an allowlisted domain from a sibling container routed through the test proxy returns `TCP_TUNNEL/200` in the access log |
 | S-2 | Blocked domain refused | Request to a non-allowlisted domain returns `TCP_DENIED/403` or connection refusal — the higher-value direction; a misconfiguration that accidentally allows everything is otherwise silent |
-| S-3 | Access log completeness | Every attempted connection in S-1/S-2 produces exactly one parseable log line (Repudiation control, directly testable) |
+| S-3 | Access log completeness | Every attempted connection in this group produces exactly one parseable log line (Repudiation control, directly testable) — `setup_file()` issues all requests once into a shared log, so the count covers S-1 through S-6, not only the first two |
+| S-4 | `docs.anthropic.com` reachable | Reference-tier allowlist addition from issue #32 resolves and tunnels |
+| S-5 | `code.claude.com` reachable | Reference-tier allowlist addition from issue #32 resolves and tunnels |
+| S-6 | `mintcdn.com` reachable | The `dstdom_regex` CDN exception from issue #32, curled at the bare apex — Mintlify's CSP documentation lists plain `mintcdn.com` as required, so it is a directly-addressable host and not merely a wildcard zone |
 
 Mirrors `docs/squid_proxy_guide.md` Part 3 Step 5 exactly, wrapped as assertions instead of manual `docker logs` inspection.
 
 ### 4.4 Group 4 — Global Layer Injection
 
-Reproduces the six Phase 6 tests from `docs/plans/2026-05-global-layer-injection-v1.md`, restated as assertions rather than manual procedures:
+G-1 through G-6 reproduce the six Phase 6 tests from `docs/plans/2026-05-global-layer-injection-v1.md`, restated as assertions rather than manual procedures. G-7 and G-8 were added later, for the entrypoint's commit-msg hook drift check (issue #54), and are the only tests in the suite that assert on entrypoint stdout — elsewhere those lines are filtered out as noise.
 
 | ID | Test | Assertion |
 |---|---|---|
@@ -221,6 +231,8 @@ Reproduces the six Phase 6 tests from `docs/plans/2026-05-global-layer-injection
 | G-4 | Working copy isolation from host | A file written to `~/.claude/memory/` inside a session does not appear in the host `global-claude/` source directory after the container exits |
 | G-5 | Session-to-session isolation | A file written to `~/.claude/` in one running container is not visible from a second, concurrently running container |
 | G-6 | Application-layer deny rule active | An attempted write to `/run/claude-global/` from inside a Claude Code session is blocked by `permissions.deny`, independent of the OS-level readonly mount (proves the two layers are independently effective, not just one carrying the other) |
+| G-7 | Hook drift reported | A `/workspace` whose `.git/hooks/commit-msg` differs from the shipped copy produces the entrypoint's WARNING line, the container still starts, and the drifted hook is left unmodified — the check reports, it does not resolve |
+| G-8 | Matching hook reported current | An identical installed hook produces the `OK` line and no warning. Pairs with G-7: a one-directional check cannot distinguish a working comparison from one that never fires |
 
 ### 4.5 Group 5 — Profile-Specific Toolchain Smoke Tests
 
@@ -229,6 +241,72 @@ Reproduces the six Phase 6 tests from `docs/plans/2026-05-global-layer-injection
 | T-1 | crypto | `softhsm2-util --show-slots` and `p11-kit list-modules` exit 0 |
 | T-2 | systems | Minimal fixture `CMakeLists.txt` (from `fixtures/cpp-minimal/`) configures, builds, and links against the pre-built GTest without additional `find_package` configuration |
 | T-3 | research | Minimal fixture `.tex` (from `fixtures/research-minimal/`) compiles successfully via `latexmk` |
+
+### 4.6 Group 6 — Layered Config
+
+Covers `config.sh`'s own correctness and the four-layer precedence chain from
+`docs/designs/sandbox-config-file.md` (hardcoded default < `config.sh` <
+`config.local.sh` < environment variable), not container runtime behaviour.
+C-7 onward exercise `@name` registry resolution by running a copy of the real
+`start.sh` with `ENGINE=true` — a no-op stand-in that satisfies every engine
+check without contacting a daemon, so the resolution path is tested end to end
+with no engine present. No test in this group reads or writes an operator's
+real `config.local.sh`.
+
+| ID | Test | Assertion |
+|---|---|---|
+| C-1 | Env var beats `config.sh` | A variable set in the environment overrides the value `config.sh` assigns to the same name |
+| C-2 | `config.sh` beats the built-in default | With no env var set, `config.sh`'s value replaces the hardcoded layer-1 default |
+| C-3 | `PROFILES` matches the tree | Every profile `config.sh` declares has a corresponding profile directory, and vice versa |
+| C-4 | `PROFILE_BASE` references only declared profiles | No entry names a profile absent from `PROFILES` |
+| C-5 | Unknown build target refused | `build.sh` with a target outside `PROFILES` exits non-zero without touching an engine — the refusal is a config-layer decision, so it must not depend on a daemon |
+| C-6 | Both entry points source `config.sh` | `build.sh` and `start.sh` read the shared file rather than each carrying a re-copied literal list |
+| C-7 | `@name` resolves | A registered name yields both its path and its registry profile |
+| C-8 | Explicit profile wins | A second argument overrides the profile the registry supplies |
+| C-9 | Unknown `@name` refused | Exits non-zero and never reaches the engine |
+| C-10 | Path without profile is reported | A registry entry missing its profile produces a diagnostic, not a `set -u` crash |
+| C-11 | Bare name is a path | A name matching a registry entry but written without `@` is still treated as a filesystem path |
+| C-12 | `config.local.sh` name resolves | A name added only in the operator's uncommitted layer resolves correctly |
+| C-13 | Committed names are not overridable | `config.local.sh` redefining a name that `config.sh` already declares is reverted and warned about, not silently honoured |
+
+### 4.7 Group 7 — Documentation Integrity
+
+Moves doc-discipline rules off rung 2 of the enforcement ladder. Every
+assertion here exists because a real instance of the failure was already in
+the tree, or because the failure is invisible until someone clones fresh.
+The group reads tracked files and nothing else, which is what makes it
+runnable on a CI runner with no container tooling — see §6.2.
+
+| ID | Test | Assertion |
+|---|---|---|
+| D-1 | Relative links resolve | Every markdown link in a tracked `.md` points at a path that exists, relative to the linking file. Code fences and inline code spans are excluded, and anchor fragments are not checked |
+| D-2 | Named skills are committed | Every backtick-quoted kebab-case token anywhere under `global-claude/` has a matching `skills/<name>/SKILL.md` — the broad form deliberately, since skills cite each other as "Pairs with \`name\`" rather than "\`name\` skill" |
+| D-3 | ADRs conform | Every file in `docs/adr/` carries an `# ADR NNN — Title` heading and a `Status` of `Proposed`, `Accepted`, `Deprecated`, or `Supersedes ADR NNN` |
+| D-4 | Skill directories have manifests | Every directory under `global-claude/skills/` contains a `SKILL.md` |
+| D-5 | Every test is taggable | Every `@test` has a `# bats test_tags=` comment on the preceding non-blank line — the regression guard for the defect that left eight tests invisible to `--filter-tags`, including S-1 and R-1 |
+| D-6 | `CLAUDE.md` within ceiling | At most 200 lines, the figure `docs/designs/global-layer-injection.md` §5.2 already treats as acceptable context cost |
+| D-7 | Global layer within ceiling | At most 3000 lines across every file under `global-claude/`, counted in lines because byte measurements of the same directory differ by 2.4× depending on method |
+
+### 4.8 Group 8 — Planning Artifact Contract
+
+The enforcement `docs/adr/002-planning-artifact-contract.md` decision 7 names
+by path. That ADR's rules 1–6 are prose; this group is what stops them from
+holding only while convenient.
+
+Coverage is partly latent by design. No planning artifact has been written
+yet, so P-2 and P-4 have nothing to iterate over and pass trivially today;
+they bind automatically the first time a skill writes to `docs/planning/`,
+with no edit to the test file. P-1, P-3, P-5 and P-6 assert against the four
+committed templates and carry weight now.
+
+| ID | Test | Assertion |
+|---|---|---|
+| P-1 | Templates are self-describing | Every template declares its artifact path, its owning skill, and its section ceilings in frontmatter |
+| P-2 | Artifacts carry a status | Every artifact's frontmatter `status` is one of the values ADR 002 decision 3 allows |
+| P-3 | Artifacts are indexed | Every artifact path has a row in `docs/planning/README.md` |
+| P-4 | Ceilings hold | No artifact section exceeds the line ceiling its template declares |
+| P-5 | Ownership is unambiguous | No artifact path is claimed by more than one template — the check ADR 002 decision 2's table goes stale without |
+| P-6 | Ceilings name real sections | Every declared `ceiling-<section>` key corresponds to a section the template actually contains |
 
 ---
 
@@ -255,14 +333,33 @@ These conventions are binding for every test group above; a test that doesn't fo
 
 | Tier | Groups | Trigger |
 |---|---|---|
-| Fast | 1, 2, 4 | Every change to `base/`, `start.sh`, `build.sh`, or `global-claude/` |
+| Fast | 1, 2, 4, 6, 7, 8 | Every change to `base/`, `start.sh`, `build.sh`, `global-claude/`, or `docs/` |
 | Slow | 3, 5 | Before merge / before the Podman migration cutover |
+
+Groups 6, 7 and 8 are additionally host-only: they need no engine and no image
+at all, which is a stronger property than being fast. See §6.2.
 
 Mirrors the Component Tests / Integration Tests split already present in `docs/claude_code_security_plan.md`'s own Testing Strategy section. Groups 3 and 5 are slow because they require either multi-container network setup (Squid) or full toolchain installation (LaTeX, CMake+GTest compilation) — not something you want gating every quick iteration.
 
 ### 6.2 bats Tagging
 
 Fast/slow separation is implemented via bats' native `# bats test_tags=` annotation, so both tiers live in the same files per test group rather than a parallel directory split — avoids duplicating the fixture and helper wiring across two trees.
+
+There are two independent axes, not one, and conflating them is what a reader
+of this section would otherwise do:
+
+| Tag | Means | Groups |
+|---|---|---|
+| `fast` | Completes in seconds | 1, 2, 4, 6, 7, 8 |
+| `slow` | Builds images or starts containers | 3, 5 |
+| `hostonly` | Needs no engine daemon and no image | 6, 7, 8 |
+
+`fast` does not imply `hostonly`. Group 4 is fast and still requires a built
+`claude-base`, because its `setup()` gates on one. **CI filters on `hostonly`,
+not on `fast`** — so groups 1 through 5 do not run in CI at all, and the
+`bats tests/` pre-merge gate is the only thing that exercises them. A test
+added to a group whose file gates on an engine cannot be made CI-visible by
+tagging it `hostonly`; it would be selected and then fail in `setup()`.
 
 ### 6.3 Local Execution
 
@@ -295,7 +392,7 @@ The harness runs with the same privileges as any other script the operator invok
 
 ### 7.3 Negative-Path Assertions as First-Class
 
-Per Goal 4, every test group includes at least one refusal/rejection case (R-4, R-5, S-2, G-3, G-6) rather than only proving the permitted path. This is the property that would have caught the Squid changelog's silent flag-drop regression had it existed at the time.
+Per Goal 4, every test group includes at least one refusal/rejection case (R-4, R-5, S-2, G-3, G-6, C-5, C-9, C-13, and the whole of Groups 7 and 8, which assert only on violations) rather than only proving the permitted path. This is the property that would have caught the Squid changelog's silent flag-drop regression had it existed at the time.
 
 ### 7.4 STRIDE Mapping — New Surfaces Introduced by the Harness
 
@@ -303,7 +400,7 @@ Per Goal 4, every test group includes at least one refusal/rejection case (R-4, 
 |---|---|---|
 | **Tampering (T)** | A test's teardown accidentally removes a real, non-test container or the shared network | `test-` prefix scoping (§5) enforced in every trap; `claude-net` explicitly exempted from deletion |
 | **Information Disclosure (I)** | A dummy credential or fixture leaks something sensitive via captured test output | No real credentials ever enter the suite (§7.2); fixtures are minimal, synthetic, and committed in the clear |
-| **Repudiation (R)** | A test failure isn't traceable to what it validated | Every test ID (B-*, R-*, S-*, G-*, T-*) maps to a specific line in this document and, transitively, to a specific claim in the source SDDs (§9) |
+| **Repudiation (R)** | A test failure isn't traceable to what it validated | Every test ID (B-*, R-*, S-*, G-*, T-*, C-*, D-*, P-*) maps to a specific line in this document and, transitively, to a specific claim in the source SDDs (§9) |
 | **Denial of Service (D)** | A stuck or crashed test leaves containers/images accumulating on the dev machine | `trap`-based cleanup (§5) on every test, not just on clean exit |
 | **Elevation of Privilege (E)** | N/A — harness introduces no new privilege boundary (§7.1) | — |
 | **Spoofing (S)** | N/A — no new identity or authentication surface | — |
@@ -343,6 +440,11 @@ Consistent with the fail-fast philosophy already established in `setup.sh` / `ru
 | `docs/designs/podman-migration.md` | §6.2, STRIDE analysis (Denial of Service) | R-6 |
 | `docs/claude_code_security_plan.md` | Changelog, Change 19 (SELinux mount relabeling) | R-7, R-8 |
 | `docs/designs/podman-migration.md` | §6.2, STRIDE analysis (Tampering, follow-up finding) | R-7, R-8 |
+| `docs/designs/sandbox-config-file.md` | Layered precedence model and `@name` registry | C-1 through C-13 |
+| `docs/adr/002-planning-artifact-contract.md` | Decision 7, "enforced by a test, not by a reviewer" | P-1 through P-6 |
+| `docs/adr/003-where-a-behavioural-rule-goes.md` | Decision 4, no restatement; the placement ladder | D-2, D-6, D-7 |
+| `docs/designs/global-layer-injection.md` | §5.2, Denial of Service — "Global layer size discipline" | D-6, D-7 |
+| `docs/designs/docs-as-code-workflow.md` | §3 Case D, ADR format and Status values | D-3 |
 
 This table is the single place to check for coverage gaps: any claim in the source documents without a corresponding test ID here is undocumented risk, not tested risk.
 

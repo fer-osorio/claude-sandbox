@@ -1176,6 +1176,53 @@ it introduces no new mount, no new privilege, and no new network surface.
   control for exactly the users who understood it.
 - Both the entrypoint and the setup skill assume hooks live at `.git/hooks/`. Git's
   `core.hooksPath` redirects them elsewhere, in which case the file being compared
-  is not the file git runs. Unset in this repository; undetected if set.
+  is not the file git runs. Unset in this repository; undetected if set. Closed by Change 21.
 - `git commit --no-verify` bypasses the hook entirely. This control governs the
   hook's contents, never its invocation.
+
+---
+
+### Change 21 — Hooks Directory Resolved Instead of Assumed
+**Affects:** `base/entrypoint.sh`, `global-claude/skills/commit-hook-setup/SKILL.md`. Date: 2026-09-02.
+
+**What changed:**
+Both the entrypoint check added in Change 20 and the setup skill's probes hardcoded
+`/workspace/.git/hooks`. They now resolve the directory git will actually use, via
+`git rev-parse --git-path hooks`, and fall back to reporting "not a git repository"
+only when that resolution fails. The entrypoint additionally logs the resolved path
+whenever it is not the default, so an operator who redirected hooks can see which
+file was inspected.
+
+**Why:** the hardcoded path missed two shapes, both silently, and the first was
+worse than a miss.
+
+With `core.hooksPath` set, the previous code installed a hook at
+`.git/hooks/commit-msg` — a file git never executes — and reported success, while
+the hook git does run was left unexamined. That is not a gap in coverage but a
+false assurance: the log said the control was in place.
+
+In a linked worktree or submodule, `.git` is a file holding a `gitdir:` pointer
+rather than a directory. The `[ -d /workspace/.git ]` test therefore concluded
+there was no repository and skipped the entire check, printing "No .git directory
+found" at an operator standing in one. This required no misconfiguration; any
+operator running the sandbox against a worktree got unenforced commits and a
+message explaining why that was expected.
+
+Both were verified against the previous implementation before the change and
+against the new one after.
+
+**STRIDE mapping (delta only):**
+
+| Threat (STRIDE) | Control added |
+|---|---|
+| **Repudiation (R)** | The drift check introduced in Change 20 now inspects the file git executes rather than a path assumed to be it, so its `OK` and `WARNING` records describe the enforcing artifact. Previously an `OK` could refer to a file with no bearing on any commit. |
+| **Tampering (T)** | Partially offsetting, and recorded rather than glossed: the install path now writes to a directory derived from repository configuration instead of a fixed literal. A repository whose `core.hooksPath` points outside itself will have the hook installed there. Bounded by the container's existing posture — non-root, `--cap-drop=ALL`, no writes outside what `claude-agent` can reach — and by the operator having chosen to mount that repository. |
+
+No other STRIDE category is affected.
+
+**Residual, not yet closed:**
+- `git commit --no-verify` still bypasses hooks entirely, whatever path they live
+  at. This governs which file is inspected, never whether git consults it.
+- The two remaining residuals from Change 20 stand: the check compares contents
+  and cannot judge correctness, and an operator with a deliberately customised
+  hook is warned every session.

@@ -111,17 +111,38 @@ echo "[entrypoint] Checking /workspace for commit-msg hook"
 
 HOOK_DIR="/workspace/.git/hooks"
 HOOK_PATH="${HOOK_DIR}/commit-msg"
+HOOK_SRC="${HOME}/.claude/hooks/commit-msg"
 
+# Installing only when absent meant a hook change reached repositories that
+# had never had one and nowhere else. Every project already using it kept
+# whatever version it was given, with no signal that a later fix existed —
+# rung 2 for a mechanism that is otherwise rung 5.
+#
+# This compares contents rather than a version marker: there is nothing to
+# remember to bump, and a marker that was not bumped is indistinguishable
+# from a hook that is current. It deliberately does not judge what the
+# difference means. A drifted hook may be stale or may be a local
+# customisation, and telling those apart requires running it, which is what
+# the commit-hook-setup skill's probes do.
 if [ ! -d "/workspace/.git" ]; then
     echo "[entrypoint] No .git directory found — commit-msg hook installation skipped"
-elif [ -f "$HOOK_PATH" ]; then
-    echo "[entrypoint] commit-msg hook already present at $HOOK_PATH — skipping"
-    echo "[entrypoint] Invoke the commit-hook-setup skill to inspect or update it"
-else
+elif [ ! -f "$HOOK_SRC" ]; then
+    echo "[entrypoint] WARNING: no commit-msg hook in the global layer"
+    echo "[entrypoint]   expected at $HOOK_SRC"
+    echo "[entrypoint]   Nothing to install or compare against; commits are unchecked."
+elif [ ! -f "$HOOK_PATH" ]; then
     mkdir -p "$HOOK_DIR"
-    cp "${HOME}/.claude/hooks/commit-msg" "$HOOK_PATH"
+    cp "$HOOK_SRC" "$HOOK_PATH"
     chmod +x "$HOOK_PATH"
     echo "[entrypoint] commit-msg hook installed at $HOOK_PATH"
+elif cmp -s "$HOOK_PATH" "$HOOK_SRC"; then
+    echo "[entrypoint] OK: commit-msg hook matches the shipped version"
+else
+    echo "[entrypoint] WARNING: installed commit-msg hook differs from the shipped one"
+    echo "[entrypoint]   $HOOK_PATH"
+    echo "[entrypoint]   It may predate a fix, or be a deliberate local customisation."
+    echo "[entrypoint]   Reading it will not tell you which — only running it will."
+    echo "[entrypoint]   Fix: invoke the commit-hook-setup skill to probe what it enforces"
 fi
 
 echo "[entrypoint] Commit-msg hook check complete"

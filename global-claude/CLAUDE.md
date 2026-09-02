@@ -7,10 +7,17 @@
 ## Git Workflow
 - Follow Angular commit convention (see `commit-convention` skill)
 - Never commit on `main`; create a branch first
-- Do not include "Co-Authored-By" lines in commits
+- Do not include tool-generated attribution trailers in commits
 - Avoid command substitution `$()` in commit messages
-- Prefer single-file atomic commits; use multi-file commits only when changes are tightly coupled
-- Always ask before staging and committing any change
+- One logical change per commit
+- Case A and B: commit without asking
+- Case C: commit without asking when that individual commit would qualify
+  as Case A or B on its own; confirm for the design-document commit and
+  the closing commit
+- Case D and E: always confirm, however small the change looks
+- Committing without asking never extends to pushing, opening PRs, or
+  creating issues
+- See docs/designs/docs-as-code-workflow.md §4 for case selection
 
 ## Interpreter discipline
 - Before creating a venv or any build artifact in /workspace, verify the

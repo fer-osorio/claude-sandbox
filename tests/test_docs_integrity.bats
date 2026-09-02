@@ -40,7 +40,16 @@ _unresolved_markdown_links() {
         cd "$SANDBOX_DIR" || exit 1
         git ls-files '*.md' | while IFS= read -r f; do
             dir="$(dirname "$f")"
-            grep -oE '\]\([^)]+\)' "$f" 2>/dev/null \
+            # Strip fenced code blocks and inline code spans before looking
+            # for links. Documentation about markdown quotes markdown: the
+            # auto-memory design doc shows a MEMORY.md index entry inside a
+            # ```markdown fence and the `- [Title](file.md) — hook` grammar
+            # in a code span, neither of which is a reference to anything.
+            # Flagging those is the false-positive class that gets a check
+            # switched off, so it has to be excluded at the source.
+            awk '/^[[:space:]]*```/ { fence = !fence; next } !fence { print }' "$f" 2>/dev/null \
+            | sed 's/`[^`]*`//g' \
+            | grep -oE '\]\([^)]+\)' 2>/dev/null \
             | sed -E 's/^\]\(//; s/\)$//' \
             | while IFS= read -r link; do
                 case "$link" in
@@ -121,6 +130,40 @@ _malformed_adrs() {
     )
 }
 
+# Regression guard for a bug that silently disabled one test in every file
+# in this suite for its entire history.
+#
+# bats associates a "# bats test_tags=" comment with the NEXT @test it
+# sees. Every file here originally placed that comment as the first line
+# *inside* the test body, so each test was tagged with the previous test's
+# comment and the first test of every file ended up with no tags at all —
+# invisible to any --filter-tags run. That silently excluded D-1 (link
+# resolution), S-1 (the core Squid allowlist assertion) and R-1 (container
+# runs as non-root) from both CI and the documented fast-tier loop, while
+# every run still reported green. Confirmed by counting: --filter-tags
+# hostonly selected 15 of 17 tests on main.
+#
+# The tag comment must sit on the line above @test, which is the form
+# bats-core documents.
+_untagged_tests() {
+    (
+        cd "$SANDBOX_DIR" || exit 1
+        for f in tests/*.bats; do
+            [ -f "$f" ] || continue
+            grep -q '^#[[:space:]]*bats[[:space:]]*file_tags=' "$f" && continue
+            awk -v file="$f" '
+                /^@test / {
+                    if (prev !~ /^#[[:space:]]*bats[[:space:]]+test_tags=/) {
+                        line = $0; sub(/[[:space:]]*\{[[:space:]]*$/, "", line)
+                        print file ": " line " -- no tag comment on the line above"
+                    }
+                }
+                $0 !~ /^[[:space:]]*$/ { prev = $0 }
+            ' "$f"
+        done
+    )
+}
+
 _skill_dirs_without_manifest() {
     (
         cd "$SANDBOX_DIR" || exit 1
@@ -131,8 +174,8 @@ _skill_dirs_without_manifest() {
     )
 }
 
+# bats test_tags=fast, hostonly
 @test "D-1: every relative markdown link in a tracked document resolves" {
-    # bats test_tags=fast, hostonly
     run _unresolved_markdown_links
     [ "$status" -eq 0 ]
     if [ -n "$output" ]; then
@@ -142,8 +185,8 @@ _skill_dirs_without_manifest() {
     [ -z "$output" ]
 }
 
+# bats test_tags=fast, hostonly
 @test "D-2: every skill named in the global layer is committed to global-claude/skills/" {
-    # bats test_tags=fast, hostonly
     run _unresolved_skill_refs
     [ "$status" -eq 0 ]
     if [ -n "$output" ]; then
@@ -153,8 +196,8 @@ _skill_dirs_without_manifest() {
     [ -z "$output" ]
 }
 
+# bats test_tags=fast, hostonly
 @test "D-3: every ADR has a conforming heading and a valid Status" {
-    # bats test_tags=fast, hostonly
     run _malformed_adrs
     [ "$status" -eq 0 ]
     if [ -n "$output" ]; then
@@ -164,12 +207,23 @@ _skill_dirs_without_manifest() {
     [ -z "$output" ]
 }
 
+# bats test_tags=fast, hostonly
 @test "D-4: every directory under global-claude/skills/ contains a SKILL.md" {
-    # bats test_tags=fast, hostonly
     run _skill_dirs_without_manifest
     [ "$status" -eq 0 ]
     if [ -n "$output" ]; then
         echo "--- skill directories missing a manifest ---" >&2
+        echo "$output" >&2
+    fi
+    [ -z "$output" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "D-5: every @test carries a tag comment on the line above it" {
+    run _untagged_tests
+    [ "$status" -eq 0 ]
+    if [ -n "$output" ]; then
+        echo "--- tests invisible to --filter-tags ---" >&2
         echo "$output" >&2
     fi
     [ -z "$output" ]

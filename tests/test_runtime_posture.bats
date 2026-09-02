@@ -34,8 +34,8 @@ teardown() {
     [ -n "${R8_TMPDIR:-}" ] && [ -d "$R8_TMPDIR" ] && rm -rf "$R8_TMPDIR" || true
 }
 
+# bats test_tags=fast
 @test "R-1: container runs as claude-agent, never root" {
-    # bats test_tags=fast
     register_container "$CONTAINER_NAME"
     run engine_run --rm --name "$CONTAINER_NAME" claude-base whoami
     [ "$status" -eq 0 ]
@@ -46,8 +46,8 @@ teardown() {
     [ "$whoami_output" = "claude-agent" ]
 }
 
+# bats test_tags=fast
 @test "R-2: all capabilities are dropped on a running container" {
-    # bats test_tags=fast
     #
     # Docker preserves the literal "ALL" token passed via --cap-drop in
     # .HostConfig.CapDrop, but Podman normalizes/expands it and does not
@@ -64,8 +64,8 @@ teardown() {
     [ "$cap_eff" = "0000000000000000" ]
 }
 
+# bats test_tags=fast
 @test "R-3: no-new-privileges security option is active" {
-    # bats test_tags=fast
     register_container "$CONTAINER_NAME"
     engine_run -d --rm --name "$CONTAINER_NAME" --security-opt=no-new-privileges claude-base sleep 30
 
@@ -74,8 +74,8 @@ teardown() {
     [[ "$output" == *"no-new-privileges"* ]]
 }
 
+# bats test_tags=fast
 @test "R-4: unknown image is rejected before any container starts" {
-    # bats test_tags=fast
     run bash "${SANDBOX_DIR}/start.sh" "$SCRATCH_FIXTURE" nonexistent-image
     [ "$status" -ne 0 ]
     [[ "$output" == *"unknown image"* ]]
@@ -83,8 +83,8 @@ teardown() {
     ! engine_ps -a --filter "name=claude-scratch-project-" --format '{{.Names}}' | grep -q .
 }
 
+# bats test_tags=fast
 @test "R-5: missing (unbuilt) image is rejected with build guidance, not a silent pull" {
-    # bats test_tags=fast
     target=""
     for candidate in crypto systems research; do
         if ! engine_inspect "claude-${candidate}" > /dev/null 2>&1; then
@@ -108,8 +108,8 @@ teardown() {
     ! engine_inspect "claude-${target}" > /dev/null 2>&1
 }
 
+# bats test_tags=fast
 @test "R-6: cgroups memory limit is actually enforced, not just accepted" {
-    # bats test_tags=fast
     #
     # Regression test for a real finding (podman-migration.md §6.2-D,
     # claude_code_security_plan.md Change 17): under a WSL2 host without
@@ -141,8 +141,8 @@ teardown() {
     [ "$status" -eq 137 ]
 }
 
+# bats test_tags=fast
 @test "R-7: /workspace bind mount is genuinely readable and writable under SELinux" {
-    # bats test_tags=fast
     #
     # Regression test for a real finding (claude_code_security_plan.md
     # Change 19, podman-migration.md §6.2 Tampering follow-up): a bind
@@ -187,8 +187,8 @@ teardown() {
     [ "$(cat "${R7_TMPDIR}/written.txt")" = "written-from-container" ]
 }
 
+# bats test_tags=fast
 @test "R-8: relabel=shared (not private) allows two concurrent sessions on the same host path" {
-    # bats test_tags=fast
     #
     # R-7 alone doesn't validate the shared-vs-private design decision in
     # Change 19 — a relabel=private (:Z) mount would also pass a

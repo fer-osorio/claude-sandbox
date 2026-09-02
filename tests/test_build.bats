@@ -24,8 +24,8 @@ teardown() {
     teardown_registered
 }
 
+# bats test_tags=fast
 @test "B-1: ./build.sh crypto builds base before crypto, both present" {
-    # bats test_tags=fast
     run bash "${SANDBOX_DIR}/build.sh" crypto
     [ "$status" -eq 0 ]
 
@@ -39,8 +39,8 @@ teardown() {
     engine_inspect claude-crypto > /dev/null 2>&1
 }
 
+# bats test_tags=fast
 @test "B-2: HOST_UID build-arg propagates to the resulting image's user" {
-    # bats test_tags=fast
     engine_build --build-arg HOST_UID=1234 -t claude-base:test "${SANDBOX_DIR}/base/"
     register_image "claude-base:test"
 
@@ -53,8 +53,8 @@ teardown() {
     [ "$id_output" = "1234" ]
 }
 
+# bats test_tags=slow
 @test "B-3: each Dockerfile builds cleanly standalone, without a prior full-build cache" {
-    # bats test_tags=slow
     engine_build --no-cache -t claude-base:test "${SANDBOX_DIR}/base/"
     register_image "claude-base:test"
 
@@ -75,8 +75,8 @@ teardown() {
     done
 }
 
+# bats test_tags=fast
 @test "B-4: build.sh does not pin any image reference to :latest" {
-    # bats test_tags=fast
     ! grep -q ":latest" "${SANDBOX_DIR}/build.sh"
     ! grep -q ":latest" "${SANDBOX_DIR}/start.sh"
 }

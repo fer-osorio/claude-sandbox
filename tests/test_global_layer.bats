@@ -108,3 +108,78 @@ teardown() {
     run grep -q '"Write(/run/\*)"' "${SANDBOX_DIR}/settings.json"
     [ "$status" -eq 0 ]
 }
+
+# Entrypoint commit-msg hook checks (issue #54).
+#
+# These are the first tests in the suite to assert on entrypoint stdout —
+# G-1 here, B-1 in test_build.bats and R-1 in test_runtime_posture.bats all
+# filter those lines out because they are noise for what those tests assert.
+# Here the log line is the assertion: the entrypoint's only output for a
+# drifted hook is what it prints.
+#
+# Tagged `fast` and not `hostonly`: this file's setup() requires a reachable
+# engine and a built claude-base, so CI (--filter-tags hostonly) does not run
+# them. The documented pre-merge gate `bats tests/` is what exercises these.
+
+# bats test_tags=fast
+@test "G-7: a commit-msg hook differing from the shipped one is reported as drift" {
+    register_container "$CONTAINER_NAME"
+
+    G7_TMPDIR="$(mktemp -d)"
+    mkdir -p "${G7_TMPDIR}/.git/hooks"
+    printf '#!/usr/bin/env bash\n# a hook predating the trailer widening\nexit 0\n' \
+        > "${G7_TMPDIR}/.git/hooks/commit-msg"
+    chmod +x "${G7_TMPDIR}/.git/hooks/commit-msg"
+
+    relabel_arg=""
+    userns_args=()
+    if [ "$ENGINE" = "podman" ]; then
+        relabel_arg=",relabel=shared"
+        userns_args=(--userns=keep-id:uid=1000,gid=1000)
+    fi
+
+    run engine_run --rm --name "$CONTAINER_NAME" \
+        --mount "type=bind,source=${GLOBAL_BASE},target=/run/claude-global,readonly${relabel_arg}" \
+        --mount "type=bind,source=${G7_TMPDIR},target=/workspace${relabel_arg}" \
+        "${userns_args[@]}" \
+        claude-base true
+
+    # Container must still start: the check is warn-only, never fatal.
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"WARNING: installed commit-msg hook differs from the shipped one"* ]]
+
+    # And the drifted hook must be left exactly as it was — the entrypoint
+    # reports, it does not resolve.
+    [ "$(sed -n '2p' "${G7_TMPDIR}/.git/hooks/commit-msg")" = "# a hook predating the trailer widening" ]
+
+    rm -rf "$G7_TMPDIR"
+}
+
+# bats test_tags=fast
+@test "G-8: a commit-msg hook matching the shipped one is reported as current" {
+    register_container "$CONTAINER_NAME"
+
+    G8_TMPDIR="$(mktemp -d)"
+    mkdir -p "${G8_TMPDIR}/.git/hooks"
+    cp "${GLOBAL_BASE}/hooks/commit-msg" "${G8_TMPDIR}/.git/hooks/commit-msg"
+    chmod +x "${G8_TMPDIR}/.git/hooks/commit-msg"
+
+    relabel_arg=""
+    userns_args=()
+    if [ "$ENGINE" = "podman" ]; then
+        relabel_arg=",relabel=shared"
+        userns_args=(--userns=keep-id:uid=1000,gid=1000)
+    fi
+
+    run engine_run --rm --name "$CONTAINER_NAME" \
+        --mount "type=bind,source=${GLOBAL_BASE},target=/run/claude-global,readonly${relabel_arg}" \
+        --mount "type=bind,source=${G8_TMPDIR},target=/workspace${relabel_arg}" \
+        "${userns_args[@]}" \
+        claude-base true
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"OK: commit-msg hook matches the shipped version"* ]]
+    [[ "$output" != *"WARNING: installed commit-msg hook differs"* ]]
+
+    rm -rf "$G8_TMPDIR"
+}

@@ -394,6 +394,9 @@ _Controls:_
 - Claude Code's context window cost is bounded by the total size of injected Markdown files.
   A 200-line `CLAUDE.md` and five skills of similar size costs roughly 8,000–10,000 tokens —
   significant but acceptable. Operators should keep the global layer lean.
+- D-6 and D-7 in `tests/test_docs_integrity.bats` hold that lean-ness to a number: 200
+  lines for `CLAUDE.md`, 3000 across the layer. Until they were added this control was
+  named here and enforced nowhere, so no growth was ever observed to breach it.
 
 ### 5.3 Updated STRIDE coverage map
 
@@ -403,7 +406,7 @@ _Controls:_
 | **Tampering (T)** | Container filesystem scope + `permissions.deny` | Readonly mounts at `/run/`; `Write(/run/*)` deny rule |
 | **Repudiation (R)** | Docker + Squid + Claude logs | Entrypoint stdout logs; git history of `global-claude/` |
 | **Information Disclosure (I)** | Network allowlist; secrets not mounted | Global layer contains no secrets by design |
-| **Denial of Service (D)** | `--memory` and `--cpus` limits | Global layer size discipline |
+| **Denial of Service (D)** | `--memory` and `--cpus` limits | Global layer size discipline, enforced by D-6 and D-7 |
 | **Elevation of Privilege (E)** | Non-root user; `--cap-drop=ALL`; `--no-new-privileges` | Entrypoint runs as `claude-agent`; no sudo in script |
 
 ---

@@ -15,11 +15,22 @@ description: >
 - First session on a new repository where an existing hook was found
 - Operator asks to install, verify, or update the commit-msg hook
 
-## Step 1 — Inspect
+## Step 1 — Find the hooks directory, then inspect
+
+Do not assume `.git/hooks`. `core.hooksPath` redirects hooks elsewhere, and in
+a linked worktree or submodule `.git` is a file holding a pointer rather than a
+directory. Inspecting the wrong path reports confidently on a file git never
+runs.
 
 ```bash
-cat /workspace/.git/hooks/commit-msg 2>/dev/null || echo "(no hook present)"
+HOOKS="$(cd /workspace && git rev-parse --git-path hooks)"
+case "$HOOKS" in /*) ;; *) HOOKS="/workspace/$HOOKS" ;; esac
+echo "hooks directory: $HOOKS"
+cat "$HOOKS/commit-msg" 2>/dev/null || echo "(no hook present)"
 ```
+
+Report the resolved path whenever it is not `/workspace/.git/hooks` — an
+operator who redirected hooks needs to see which file was examined.
 
 ## Step 2 — Decide
 
@@ -36,7 +47,7 @@ indistinguishable by eye. Run Step 2a and decide on what it does.
 ```bash
 probe() {
     printf 'test: probe\n\n%s\n' "$2" > /tmp/hook-probe
-    if bash /workspace/.git/hooks/commit-msg /tmp/hook-probe > /dev/null 2>&1; then
+    if bash "$HOOKS/commit-msg" /tmp/hook-probe > /dev/null 2>&1; then
         [ "$1" = accept ] && echo "ok:   accepted — $2" || echo "GAP: accepted — $2"
     else
         [ "$1" = reject ] && echo "ok:   rejected — $2" || echo "OVER-BROAD: rejected — $2"
@@ -69,9 +80,12 @@ Never overwrite silently.
 ## Step 3 — Install standard hook
 
 ```bash
-cp ~/.claude/hooks/commit-msg /workspace/.git/hooks/commit-msg
-chmod +x /workspace/.git/hooks/commit-msg
+cp ~/.claude/hooks/commit-msg "$HOOKS/commit-msg"
+chmod +x "$HOOKS/commit-msg"
 ```
+
+`$HOOKS` is the path resolved in Step 1. Re-resolve it if this step runs in a
+new shell.
 
 Verify by re-running Step 2a. `ls -la` and `cat` confirm the file arrived;
 only the probes confirm it enforces anything.

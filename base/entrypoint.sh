@@ -109,9 +109,29 @@ echo "[entrypoint] Node.js addon check complete"
 
 echo "[entrypoint] Checking /workspace for commit-msg hook"
 
-HOOK_DIR="/workspace/.git/hooks"
-HOOK_PATH="${HOOK_DIR}/commit-msg"
 HOOK_SRC="${HOME}/.claude/hooks/commit-msg"
+
+# Resolve the hooks directory git will actually use, rather than assuming
+# /workspace/.git/hooks. That literal missed two shapes, both silently:
+#
+#   - core.hooksPath redirects hooks elsewhere, so the file inspected here
+#     is not the file git runs — the check reports on the wrong artifact
+#     while looking healthy.
+#   - In a linked worktree or a submodule, .git is a FILE holding a
+#     "gitdir:" pointer, not a directory. A [ -d ] test therefore concluded
+#     "not a repository" and skipped the entire check, telling the operator
+#     there was no git repo while they stood in one.
+#
+# rev-parse --git-path resolves all three shapes. It returns a relative path
+# in the default case and an absolute one when redirected, so it has to be
+# resolved against /workspace rather than used raw.
+HOOK_DIR="$(cd /workspace 2>/dev/null && git rev-parse --git-path hooks 2>/dev/null)" || HOOK_DIR=""
+case "$HOOK_DIR" in
+    "") ;;
+    /*) ;;
+    *)  HOOK_DIR="/workspace/${HOOK_DIR}" ;;
+esac
+HOOK_PATH="${HOOK_DIR}/commit-msg"
 
 # Installing only when absent meant a hook change reached repositories that
 # had never had one and nowhere else. Every project already using it kept
@@ -124,8 +144,8 @@ HOOK_SRC="${HOME}/.claude/hooks/commit-msg"
 # difference means. A drifted hook may be stale or may be a local
 # customisation, and telling those apart requires running it, which is what
 # the commit-hook-setup skill's probes do.
-if [ ! -d "/workspace/.git" ]; then
-    echo "[entrypoint] No .git directory found — commit-msg hook installation skipped"
+if [ -z "$HOOK_DIR" ]; then
+    echo "[entrypoint] /workspace is not a git repository — commit-msg hook installation skipped"
 elif [ ! -f "$HOOK_SRC" ]; then
     echo "[entrypoint] WARNING: no commit-msg hook in the global layer"
     echo "[entrypoint]   expected at $HOOK_SRC"
@@ -137,6 +157,8 @@ elif [ ! -f "$HOOK_PATH" ]; then
     echo "[entrypoint] commit-msg hook installed at $HOOK_PATH"
 elif cmp -s "$HOOK_PATH" "$HOOK_SRC"; then
     echo "[entrypoint] OK: commit-msg hook matches the shipped version"
+    [ "$HOOK_DIR" = "/workspace/.git/hooks" ] \
+        || echo "[entrypoint]   (hooks directory is $HOOK_DIR, not the default)"
 else
     echo "[entrypoint] WARNING: installed commit-msg hook differs from the shipped one"
     echo "[entrypoint]   $HOOK_PATH"

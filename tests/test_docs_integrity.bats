@@ -212,6 +212,44 @@ _global_layer_over_ceiling() {
     )
 }
 
+# D-2 checks that a named skill is committed and D-4 that a skill directory
+# carries a manifest. Neither reads the frontmatter, so a manifest whose
+# description does not parse passed both while being, in the only sense that
+# matters, absent: a skill's description is the half loaded into every
+# session, and the body is deferred until something invokes it. A description
+# that does not resolve is a skill that never fires.
+#
+# This existed. global-claude/skills/design/SKILL.md carried
+#
+#     description:
+#     > Invoke at the beginning of any significant change ...
+#
+# with the block indicator unindented at column 0, so the key's value was
+# empty and the trigger the Design Workflow rule in CLAUDE.md depends on was
+# never in context. Fixed in #56; this is the guard.
+#
+# Two forms are accepted, matching what the committed skills actually use:
+# text on the same line as the key, or a `>`/`|` indicator followed by at
+# least one indented continuation line.
+_skills_without_loadable_description() {
+    (
+        cd "$SANDBOX_DIR" || exit 1
+        for f in global-claude/skills/*/SKILL.md; do
+            [ -f "$f" ] || continue
+            resolved="$(awk '
+                NR == 1                            { if ($0 != "---") exit; next }
+                $0 == "---"                        { exit }
+                /^description:[ \t]*[|>][ \t]*$/  { block = 1; next }
+                /^description:[ \t]*[^ \t]/       { print "ok"; exit }
+                block && /^[ \t]+[^ \t]/          { print "ok"; exit }
+                block                              { block = 0 }
+            ' "$f")"
+            [ "$resolved" = "ok" ] \
+                || echo "${f}: description does not resolve to text — absent, empty, or an unindented block indicator"
+        done
+    )
+}
+
 # bats test_tags=fast, hostonly
 @test "D-1: every relative markdown link in a tracked document resolves" {
     run _unresolved_markdown_links
@@ -284,6 +322,17 @@ _global_layer_over_ceiling() {
     [ "$status" -eq 0 ]
     if [ -n "$output" ]; then
         echo "--- every line here is context cost in every session ---" >&2
+        echo "$output" >&2
+    fi
+    [ -z "$output" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "D-8: every skill's description resolves to text" {
+    run _skills_without_loadable_description
+    [ "$status" -eq 0 ]
+    if [ -n "$output" ]; then
+        echo "--- skills whose trigger never reaches context ---" >&2
         echo "$output" >&2
     fi
     [ -z "$output" ]

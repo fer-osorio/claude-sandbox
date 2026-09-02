@@ -1,7 +1,63 @@
 #!/usr/bin/env bash
 # Installed by claude-sandbox global layer
-if grep -qi "^Co-Authored-By:" "$1"; then
-    echo "ERROR: Co-Authored-By lines are not allowed in this repository." >&2
-    echo "       Remove the trailer and commit again." >&2
+#
+# Rejects tool-generated attribution in commit messages.
+#
+# The rule is deliberately broad. The first version of this hook matched the
+# single literal "Co-Authored-By:" that was known when it was written, so a
+# "Generated with [Claude Code]" footer passed it unchallenged. A rule that
+# matches only the example it was written against is not a rule; the same
+# failure and the same fix are recorded for D-2 in
+# tests/test_docs_integrity.bats.
+#
+# Two shapes are rejected:
+#   1. Attribution trailers — <Word>-By: at the start of a line.
+#   2. Generation footers   — "generated with/by" at the start of a line,
+#      after any leading punctuation or emoji.
+#
+# Shape 2 is anchored at the line start on purpose. Attribution footers are
+# always line-leading; an unanchored match would reject body prose that
+# happens to mention a generated file.
+
+set -u
+
+MSG_FILE="$1"
+
+# Legitimate git trailers that match shape 1. Listed here rather than
+# narrowing the pattern: every entry is a deliberate exemption and shows up
+# as one in a diff, which is the point. Compared lowercased.
+ALLOWED_TRAILERS="signed-off-by reported-by reviewed-by tested-by acked-by suggested-by requested-by"
+
+reject() {
+    echo "ERROR: $1" >&2
+    echo "       Tool-generated attribution is not allowed in this repository." >&2
+    echo "       Remove the line and commit again." >&2
     exit 1
-fi
+}
+
+# git has not stripped comment lines yet when commit-msg runs, so a commented
+# example of a forbidden trailer would otherwise be rejected.
+BODY="$(grep -v '^#' "$MSG_FILE" || true)"
+
+while IFS= read -r line; do
+    [ -n "$line" ] || continue
+
+    trailer="$(printf '%s\n' "$line" \
+        | sed -n 's/^\([A-Za-z][A-Za-z]*\(-[A-Za-z][A-Za-z]*\)*-[Bb]y\):.*/\1/p' \
+        | tr '[:upper:]' '[:lower:]')"
+
+    if [ -n "$trailer" ]; then
+        case " ${ALLOWED_TRAILERS} " in
+            *" ${trailer} "*) : ;;
+            *) reject "attribution trailer '${trailer}:' is not allowed." ;;
+        esac
+    fi
+
+    if printf '%s\n' "$line" | grep -qiE '^[^[:alpha:]]*generated[[:space:]]+(with|by)[[:space:]]'; then
+        reject "generation footer is not allowed."
+    fi
+done <<EOF
+${BODY}
+EOF
+
+exit 0

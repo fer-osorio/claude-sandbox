@@ -1,0 +1,60 @@
+# ci.yml — the repository's first automated gate.
+#
+# Scope, stated explicitly so nobody mistakes it for more than it is:
+# this job runs ONLY the tests tagged `hostonly` — those that need no
+# container engine and no pre-built image. Today that is the layered-config
+# group (tests/test_config.bats) and the documentation-integrity group
+# (tests/test_docs_integrity.bats).
+#
+# NOT covered here, and still runnable only on a developer machine with
+# Podman and built images:
+#   - tests/test_squid_isolation.bats   (egress policy)
+#   - tests/test_toolchain_smoke.bats   (per-profile toolchains)
+#   - tests/test_global_layer.bats      (global layer injection)
+#   - tests/test_build.bats             (image builds)
+#   - tests/test_runtime_posture.bats   (container runtime flags)
+#
+# That is a deliberate trade, not an oversight: a gate whose scope is
+# documented is a tool, an undocumented one is a trap. Building four images
+# on every push would make this slow and flaky enough that it would end up
+# ignored or disabled, which is worse than a narrow gate that always runs.
+# Extending coverage to the slow tier is a separate decision.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  hostonly:
+    name: Host-only tests (no container engine)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install bats-core
+        # Upstream install rather than the distro package, matching the
+        # distro-independent instruction in BUILDING.md so CI and a local
+        # run exercise the same bats version semantics.
+        run: |
+          git clone --depth 1 https://github.com/bats-core/bats-core.git /tmp/bats-core
+          sudo /tmp/bats-core/install.sh /usr/local
+          bats --version
+
+      - name: Guard against an empty test selection
+        # A mistyped or renamed tag makes `--filter-tags` select zero tests
+        # and exit 0 — a green check that asserts nothing, which is exactly
+        # the failure mode this whole workflow exists to prevent elsewhere.
+        run: |
+          count=$(bats --filter-tags hostonly --count tests/)
+          echo "hostonly tests selected: ${count}"
+          if [ "${count}" -eq 0 ]; then
+            echo "::error::No tests matched --filter-tags hostonly; the gate would pass without asserting anything." >&2
+            exit 1
+          fi
+
+      - name: Run host-only tests
+        run: bats --filter-tags hostonly --print-output-on-failure tests/

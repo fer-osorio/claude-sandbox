@@ -244,7 +244,25 @@ bats tests/
 
 # Against the Docker fallback
 ENGINE=docker bats tests/
+
+# Everything that needs no container engine at all — what CI runs
+bats --filter-tags hostonly tests/
 ```
+
+### Tag axes
+
+`fast`/`slow` and `hostonly` are two independent axes, and it is worth not
+confusing them:
+
+| Tag | Means | Example |
+|---|---|---|
+| `fast` | Completes in seconds | `test_global_layer.bats` G-1 — but it still needs a built `claude-base` image |
+| `slow` | Builds images or starts containers | `test_squid_isolation.bats` S-1 |
+| `hostonly` | Needs **no** engine daemon and **no** image | `test_config.bats` C-1, `test_docs_integrity.bats` D-1 |
+
+`fast` does not imply `hostonly`. Several `fast` tests still require a
+running Podman and a pre-built image, which is why CI filters on `hostonly`
+rather than on `fast` — see `.github/workflows/ci.yml`.
 
 See `docs/designs/claude-sandbox-testing-module-sdd.md` for what each test
 group covers and why.

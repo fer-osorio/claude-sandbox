@@ -19,6 +19,14 @@
   creating issues
 - See docs/designs/docs-as-code-workflow.md §4 for case selection
 
+## Output discipline
+- Spend length only on what the diff or a linked document cannot carry;
+  restating a linked document is not earned length
+  (docs/engineering-principles-by-lifecycle-phase.md §Part I.4)
+- Default to Markdown for prose deliverables. A richer format — HTML, a
+  published page — is earned when Markdown cannot carry the content
+  (interaction, charts, layout), or when it was asked for
+
 ## Interpreter discipline
 - Before creating a venv or any build artifact in /workspace, verify the
   interpreter or toolchain version is already baked into the image

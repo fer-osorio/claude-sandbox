@@ -126,7 +126,7 @@ teardown() {
     register_container "$CONTAINER_NAME"
 
     G7_TMPDIR="$(mktemp -d)"
-    mkdir -p "${G7_TMPDIR}/.git/hooks"
+    git init -q "$G7_TMPDIR"
     printf '#!/usr/bin/env bash\n# a hook predating the trailer widening\nexit 0\n' \
         > "${G7_TMPDIR}/.git/hooks/commit-msg"
     chmod +x "${G7_TMPDIR}/.git/hooks/commit-msg"
@@ -160,7 +160,7 @@ teardown() {
     register_container "$CONTAINER_NAME"
 
     G8_TMPDIR="$(mktemp -d)"
-    mkdir -p "${G8_TMPDIR}/.git/hooks"
+    git init -q "$G8_TMPDIR"
     cp "${GLOBAL_BASE}/hooks/commit-msg" "${G8_TMPDIR}/.git/hooks/commit-msg"
     chmod +x "${G8_TMPDIR}/.git/hooks/commit-msg"
 
@@ -183,3 +183,48 @@ teardown() {
 
     rm -rf "$G8_TMPDIR"
 }
+
+# bats test_tags=fast
+@test "G-9: the hook check follows core.hooksPath rather than assuming .git/hooks" {
+    register_container "$CONTAINER_NAME"
+
+    G9_TMPDIR="$(mktemp -d)"
+    git init -q "$G9_TMPDIR"
+    mkdir -p "${G9_TMPDIR}/.githooks"
+    git -C "$G9_TMPDIR" config core.hooksPath .githooks
+    printf '#!/usr/bin/env bash\n# stale hook in a redirected directory\nexit 0\n' \
+        > "${G9_TMPDIR}/.githooks/commit-msg"
+    chmod +x "${G9_TMPDIR}/.githooks/commit-msg"
+
+    relabel_arg=""
+    userns_args=()
+    if [ "$ENGINE" = "podman" ]; then
+        relabel_arg=",relabel=shared"
+        userns_args=(--userns=keep-id:uid=1000,gid=1000)
+    fi
+
+    run engine_run --rm --name "$CONTAINER_NAME" \
+        --mount "type=bind,source=${GLOBAL_BASE},target=/run/claude-global,readonly${relabel_arg}" \
+        --mount "type=bind,source=${G9_TMPDIR},target=/workspace${relabel_arg}" \
+        "${userns_args[@]}" \
+        claude-base true
+
+    [ "$status" -eq 0 ]
+    # The redirected hook is the one reported on, by its resolved path.
+    [[ "$output" == *"WARNING: installed commit-msg hook differs from the shipped one"* ]]
+    [[ "$output" == *"/workspace/.githooks/commit-msg"* ]]
+
+    # And nothing was written to the directory git does not consult. Before the
+    # hooks path was resolved, the entrypoint installed a decoy here and
+    # reported success while the hook above went unexamined.
+    [ ! -e "${G9_TMPDIR}/.git/hooks/commit-msg" ]
+
+    rm -rf "$G9_TMPDIR"
+}
+
+# The linked-worktree shape is deliberately not covered here. A worktree's .git
+# file holds an absolute gitdir: pointer into the main repository, so testing it
+# in-container would need both trees bind-mounted at host-identical paths — more
+# fixture machinery than the assertion is worth. It is verified against the
+# extracted entrypoint block on the host instead, and recorded in
+# docs/claude_code_security_plan.md Change 21.

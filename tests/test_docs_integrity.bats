@@ -174,6 +174,44 @@ _skill_dirs_without_manifest() {
     )
 }
 
+# The global layer is copied into ~/.claude in every session, so its size is
+# a permanent context-window cost paid by every task. docs/designs/
+# global-layer-injection.md §5.2 names "Global layer size discipline" as the
+# Denial of Service control and puts a 200-line CLAUDE.md at "significant but
+# acceptable" — but named the control without giving it a mechanism, so
+# nothing has ever observed it fail. D-6 and D-7 are that mechanism.
+#
+# Ceilings are lines, not bytes. The same directory measures 66K, 123K or
+# 160K depending on whether you sum file contents, count directory entries,
+# or count allocated blocks; a ceiling whose unit is ambiguous either never
+# fires or fires when a subdirectory is added. docs/planning/README.md made
+# the same call for the artifact templates and for the same reason.
+#
+# The §5.2 illustration (a 200-line CLAUDE.md plus five skills of similar
+# size, so roughly 1200 lines) is already exceeded at 1566. D-7 is therefore
+# set above current usage deliberately: it is a bound on unnoticed growth,
+# not a target to shrink toward.
+_CLAUDE_MD_MAX_LINES=200
+_GLOBAL_LAYER_MAX_LINES=3000
+
+_claude_md_over_ceiling() {
+    (
+        cd "$SANDBOX_DIR" || exit 1
+        n=$(wc -l < global-claude/CLAUDE.md)
+        [ "$n" -le "$_CLAUDE_MD_MAX_LINES" ] \
+            || echo "global-claude/CLAUDE.md: ${n} lines exceeds the ${_CLAUDE_MD_MAX_LINES}-line ceiling"
+    )
+}
+
+_global_layer_over_ceiling() {
+    (
+        cd "$SANDBOX_DIR" || exit 1
+        n=$(find global-claude -type f -exec cat {} + | wc -l)
+        [ "$n" -le "$_GLOBAL_LAYER_MAX_LINES" ] \
+            || echo "global-claude/: ${n} lines across all files exceeds the ${_GLOBAL_LAYER_MAX_LINES}-line ceiling"
+    )
+}
+
 # bats test_tags=fast, hostonly
 @test "D-1: every relative markdown link in a tracked document resolves" {
     run _unresolved_markdown_links
@@ -224,6 +262,28 @@ _skill_dirs_without_manifest() {
     [ "$status" -eq 0 ]
     if [ -n "$output" ]; then
         echo "--- tests invisible to --filter-tags ---" >&2
+        echo "$output" >&2
+    fi
+    [ -z "$output" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "D-6: global-claude/CLAUDE.md stays within its line ceiling" {
+    run _claude_md_over_ceiling
+    [ "$status" -eq 0 ]
+    if [ -n "$output" ]; then
+        echo "--- injected into every session; see docs/adr/003 for what earns a line ---" >&2
+        echo "$output" >&2
+    fi
+    [ -z "$output" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "D-7: the global layer as a whole stays within its line ceiling" {
+    run _global_layer_over_ceiling
+    [ "$status" -eq 0 ]
+    if [ -n "$output" ]; then
+        echo "--- every line here is context cost in every session ---" >&2
         echo "$output" >&2
     fi
     [ -z "$output" ]

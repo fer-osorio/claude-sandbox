@@ -1125,3 +1125,57 @@ mount-construction mechanism per engine (e.g. switching Docker to the legacy `-v
 
 No other STRIDE category in §5 changes as a result of this work. The Docker-path
 residual noted above remains open.
+
+---
+
+### Change 20 — Commit-msg Hook Drift Detection at Session Start
+**Affects:** `base/entrypoint.sh`, `global-claude/skills/commit-hook-setup/SKILL.md`. Date: 2026-09-02.
+
+**What changed:**
+The commit-msg hook branch in `base/entrypoint.sh` no longer skips whenever a hook
+is already present. It now compares the installed `/workspace/.git/hooks/commit-msg`
+against the shipped copy in `~/.claude/hooks/` and logs one of three outcomes: `OK`
+when they match, a `WARNING` block when they differ, or an install when none exists.
+The check remains warn-only — a difference is never resolved automatically, and the
+existing hook is never replaced or deleted.
+
+A missing-source branch was added alongside it. The previous `cp` was unguarded, so
+with the global layer absent — a state the entrypoint warns about and continues past
+during injection — `set -euo pipefail` aborted the script before `exec "$@"` and the
+container failed to start. That path now warns and continues.
+
+Content comparison was chosen over a version marker in the hook. A marker has to be
+remembered on every edit, and one that was not bumped is indistinguishable from a
+hook that is current — the failure mode this change exists to close, reintroduced one
+level up. The entrypoint deliberately does not classify what a difference means:
+distinguishing a stale hook from a deliberate local customisation requires running it,
+which is what the probes in the commit-hook-setup skill do.
+
+**Why:** the hook shipped in the global layer was widened to reject tool-generated
+attribution as a class rather than one literal trailer (issue #45). Because the
+entrypoint installed only into repositories that had never had a hook, that fix
+reached none of the repositories already using one, and no signal existed that a
+copy was stale. This repository was itself an instance: its installed hook predated
+the change, accepted a `Generated with ...` footer, and nothing detected it.
+
+**STRIDE mapping (delta only):**
+
+| Threat (STRIDE) | Control added |
+|---|---|
+| **Repudiation (R)** | Divergence between the shipped and installed commit-msg hook is surfaced as a logged event at a deterministic point on every session start, at the same place as the global-layer merge log. Converts an indefinitely silent state into a one-line record. |
+| **Denial of Service (D)** | The unguarded `cp` on the install path could abort the entrypoint before `exec "$@"` when the global layer was absent, preventing container start. Guarded; the entrypoint's warn-only contract now holds across every branch of this check. |
+
+No other STRIDE category is affected. The check reads two files and writes nothing;
+it introduces no new mount, no new privilege, and no new network surface.
+
+**Residual, not yet closed:**
+- The entrypoint detects *difference*, not *correctness*. A hook identical to the
+  shipped one is reported `OK` regardless of what that shipped hook enforces.
+- An operator with a deliberately customised hook is warned on every session start.
+  A warning that is expected is a warning that gets ignored, which degrades the
+  control for exactly the users who understood it.
+- Both the entrypoint and the setup skill assume hooks live at `.git/hooks/`. Git's
+  `core.hooksPath` redirects them elsewhere, in which case the file being compared
+  is not the file git runs. Unset in this repository; undetected if set.
+- `git commit --no-verify` bypasses the hook entirely. This control governs the
+  hook's contents, never its invocation.

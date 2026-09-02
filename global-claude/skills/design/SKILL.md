@@ -1,7 +1,7 @@
 ---
 name: design
-description:
-> Invoke at the beginning of any significant change — new feature, major refactor, architectural decision, or multi-file modification. Also invoke explicitly to initialize the docs-as-code workflow for a new project. Classifies the change, selects the appropriate workflow, and guides artifact production before any code is written.
+description: >
+  Invoke at the beginning of any significant change — new feature, major refactor, architectural decision, or multi-file modification. Also invoke explicitly to initialize the docs-as-code workflow for a new project. Classifies the change, selects the appropriate workflow, and guides artifact production before any code is written.
 ---
 
 <!-- template-version: docs-as-code-workflow-template 1.0.0 -->

@@ -6,9 +6,12 @@ Draft — research pass completed 2026-08-31; round-trip pass completed
 2026-09-03 (Q-8, Q-7, Q-3, Q-9 resolved, run in Environment 2 — see
 "Environment caveat"). Q-10 also resolved 2026-09-03, confirmed directly
 by the operator against a real `start.sh`-launched container — the
-workspace-trust gate is live. All ten numbered questions from the research
-pass are now closed except Q-5, Q-6 (resolved as a recommendation rather
-than an empirical answer), and Q-11.
+workspace-trust gate is live — narrowed 2026-09-03 to interactive sessions
+only, see "Pre-existing exposure". All ten numbered questions from the
+research pass are now closed except Q-5, Q-6 (resolved as a recommendation
+rather than an empirical answer), and Q-11. Q-12 was added 2026-09-03 from
+the seeding SDD's verification gate and is closed; it also surfaced a
+defect in an existing control, tracked as issue #64.
 This document is the empirical groundwork for a future SDD, not the SDD
 itself. Findings are marked **Confirmed**, **Reported**, or **Inferred**;
 open questions carry their current state and what would resolve them.
@@ -346,6 +349,78 @@ both secondary and both of unclear vintage relative to the docs page.*
 
 *Source: `code.claude.com/docs/en/memory`, "Storage location".*
 
+### Q-12 — Does a user-scope `settings.json` weaken project-scope `permissions.deny`? — **Answered, round-trip confirmed 2026-09-03**
+
+**No.** This was item 3 on the informal proposal's step-zero list and had never
+been tested. It gates the seeding SDD's §4.2, which introduces a user-scope
+`settings.json` solely to carry `autoMemoryDirectory`.
+
+Method: four arms, run in Environment 2 via nested `claude -p` with an isolated
+`HOME`, so the live `~/.claude/settings.json` was never read or written. The
+probe asserts on the filesystem — the model is asked to `touch` a file, and the
+check is whether that file exists afterwards — because a refusal and a model
+that simply declines to try produce similar prose. `--allowedTools 'Bash(touch *)'`
+pre-allows the command so nothing prompts, making the deny rule the only thing
+that can stop it.
+
+| Arm | Project-scope deny | User-scope `settings.json` | Result |
+|---|---|---|---|
+| A | at `.claude/settings.json` | absent | **denied** |
+| B | at `.claude/settings.json` | `autoMemoryDirectory` only | **denied** |
+| C | none | `autoMemoryDirectory` only | **not denied** |
+| D | at `settings.json` (project root) | `autoMemoryDirectory` only | **not denied** |
+
+A vs B is the controlled comparison and answers the question: the deny rule
+fires identically with and without the user-scope file. Arm A's transcript reads
+"Permission denied for that command."; arm B's, "The command was denied by the
+permission system."
+
+**Arm C is why the result can be believed.** A and B denying is only a pass if
+the probe is *capable* of not denying — otherwise `--permission-prompts none`
+could be denying everything and the deny rule would be irrelevant to the
+outcome. C establishes the negative: with no project rule, the same command
+executes. Recorded because a two-arm version of this probe would have produced
+the same A/B output and licensed the same conclusion without having tested
+anything.
+
+**Consequence:** SDD §4.2's gate is cleared. Scopes stack per-key as the
+documentation implies; a user-scope file with no `permissions` key of its own
+removes nothing.
+
+**Arm D is a separate finding — see "Project-scope settings at the wrong path".**
+
+*Caveats: Environment 2, not a `start.sh` container; non-interactive, so the
+workspace-trust dialog was skipped (see below); one trial per arm, model
+`sonnet`.*
+
+## Project-scope settings at the wrong path — found 2026-09-03
+
+Arm D above is the same deny rule as arm A, moved from
+`<project>/.claude/settings.json` to `<project>/settings.json`. It did not fire.
+Identical rule, identical prompt, different path, opposite outcome.
+
+**This repository places its own `settings.json` at the repository root**, and
+`/workspace/.claude/` does not exist. `global-claude/` carries no `settings.json`
+either, so nothing injects those rules into a container by another route. The
+security plan's Phase 3 is explicit that the file belongs at
+`.claude/settings.json` "in each project directory".
+
+The consequence is that the app-layer `permissions.deny` list — Phase 3's third
+independent defense layer — **is not in force when a session mounts this
+repository**. G-6 in `test_global_layer.bats` greps the file and passes; its own
+comment concedes it verifies the control is *declared*, not enforced. Presence
+was mistaken for function, and the gap is invisible precisely because the
+assertion it fails to make is the one nobody wrote.
+
+Not fixed here. Moving the file is a container security control change (Case E)
+and needs its own STRIDE delta plus a test that asserts enforcement rather than
+declaration — otherwise the fix repeats the mistake that produced it. Tracked as
+issue #64. Recorded here because this is where the evidence is.
+
+Scope of the claim: this concerns *this repository's own* `settings.json`. Phase
+3 instructs operators to create `.claude/settings.json` per project, so an
+arbitrary mounted project that followed that instruction is unaffected.
+
 ## Still open
 
 ### Q-3 — What happens to malformed input? — **Answered, round-trip confirmed 2026-09-03**
@@ -500,6 +575,22 @@ specific surface, though it remains worth naming in the SDD's STRIDE
 section as a control that already exists and that seeding must not
 bypass.
 
+**Narrowed 2026-09-03 — the gate covers interactive sessions only.** `claude
+--help` states, for `-p`, that "the workspace trust dialog is skipped when
+Claude is run in non-interactive mode (via `-p`, or when stdout is not a TTY,
+e.g. piped or redirected output)", and that settings files failing validation
+are silently ignored in that mode with no error shown. The verification above
+exercised the interactive path, which is the path `start.sh` takes — it runs
+`-it` — so **the finding stands for production**. It does not generalise to
+every invocation inside the container: a `claude -p` run, or any run whose
+stdout is piped or redirected, skips the dialog, and a mounted repository's
+project-scope settings take effect with no human in the loop.
+
+This is a correction to the scope of the claim, not a reversal of it. It is
+also self-demonstrating: Q-12's probe drives non-interactive turns, so it ran
+on the ungated path by construction, and its project-scope deny rule was
+honored in arms A and B with no trust prompt anywhere.
+
 ## Standing risk — validating against a moving target
 
 `base/Dockerfile` installs Claude Code unpinned. The memory format is free
@@ -600,3 +691,11 @@ All five round-trip tests originally listed here are now resolved.
   artifacts; results are recorded inline above.
 - Q-10 trust-gate verification, 2026-09-03 — operator confirmation against
   a real `start.sh`-launched container, outside this session's own testing.
+- Q-12 settings-scope probe, 2026-09-03 — four arms via nested `claude -p`
+  under an isolated `HOME`, Environment 2, Claude Code v2.1.259. Arm C is
+  the negative control; arm D produced the finding tracked as issue #64.
+  Automated as `check-auto-memory.sh deny-scope`, all three arms including
+  the negative control.
+- `docs/designs/auto-memory-seeding.md` — the SDD this pass now feeds.
+- Issue #64 — this repository's `permissions.deny` rules sit at a path
+  Claude Code does not read.

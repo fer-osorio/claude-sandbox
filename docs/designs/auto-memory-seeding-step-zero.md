@@ -2,7 +2,13 @@
 
 ## Status
 
-Draft — research pass completed 2026-08-31, four questions still open.
+Draft — research pass completed 2026-08-31; round-trip pass completed
+2026-09-03 (Q-8, Q-7, Q-3, Q-9 resolved, run in Environment 2 — see
+"Environment caveat"). Q-10 also resolved 2026-09-03, confirmed directly
+by the operator against a real `start.sh`-launched container — the
+workspace-trust gate is live. All ten numbered questions from the research
+pass are now closed except Q-5, Q-6 (resolved as a recommendation rather
+than an empirical answer), and Q-11.
 This document is the empirical groundwork for a future SDD, not the SDD
 itself. Findings are marked **Confirmed**, **Reported**, or **Inferred**;
 open questions carry their current state and what would resolve them.
@@ -33,6 +39,36 @@ separates what has actually been established from what has been guessed,
 and enumerates the questions whose answers would change the design rather
 than merely confirm it. It exists so findings land next to the questions
 that motivated them, instead of in conversation scrollback.
+
+## Scope decision — 2026-09-03
+
+Option A's seeded content is scoped to **advisory content only**: project
+facts and operator preferences the model should be aware of. It is
+explicitly **not** a vehicle for rule enforcement — guardrails and
+behavioral constraints are handled by separate, more effective mechanisms
+already established elsewhere (e.g. `permissions.deny` in `settings.json`,
+`PreToolUse` hooks where needed), not by memory content the model reads
+and reasons over.
+
+This narrows what the no-write-back invariant needs to protect. The
+concern it exists for — a session silently corrupting curated content and
+then relying on the corrupted version for the rest of its own run, with no
+way to detect the change after Q-7 killed the provenance-marker approach —
+only matters for content meant to function as an enforced rule for the
+session's duration. Advisory content has no such property: a session
+drifting from a seeded project fact mid-run is a quality question, not a
+Tampering one, and is no different in kind from ordinary in-context
+reasoning drift that seeding didn't introduce.
+
+**Consequence:** given this scope, Option A does not need a write-block
+mechanism. The session can read and write its own memory freely for the
+container's lifetime, exactly matching Auto Memory's existing default
+behavior (F-1) — the only addition is the curated seed at session start.
+See Q-8's revised consequence below. If a future use case wants to seed
+policy-class content into memory, that content would need the write-block
+(or, more likely, shouldn't live in mutable memory at all — CLAUDE.md and
+`settings.json` already occupy that role and are already read-only-mounted
+for exactly this reason).
 
 ## Classification
 
@@ -295,36 +331,54 @@ both secondary and both of unclear vintage relative to the docs page.*
   value was not found — same open shape as Q-3.
 - **Scope:** any (see Q-10 — this turns out to be the same underlying fact
   the two questions approached separately).
-- **Migrate / shadow / duplicate:** **still open.** Nothing documents what
-  happens to content already at the default path when the setting is
-  pointed elsewhere. "Shadow" (old directory untouched, no longer
-  consulted) is consistent with everything documented and with the absence
-  of any migration language — but that is inference from silence. The
-  divergent-stores risk stands until checked directly.
+- **Migrate / shadow / duplicate:** **Answered, round-trip confirmed
+  2026-09-03 — shadow.** Method: a scratch project accumulated memory at
+  its default path (canary A). A second `claude -p` turn, same project,
+  same cwd, with `autoMemoryDirectory` pointed at a fresh absolute path via
+  `--settings`, wrote a second canary (B). Verified directly on disk
+  afterward: the default directory still contained only canary A (no
+  deletion, no addition); the new directory contained only canary B
+  (`grep` for each canary string against the other's directory tree came
+  back empty in both directions). Old content is neither migrated nor
+  duplicated — it is simply left in place and no longer consulted. This
+  upgrades the prior inference from silence to a direct observation, one
+  environment, not yet re-confirmed in a canonical `start.sh` session.
 
 *Source: `code.claude.com/docs/en/memory`, "Storage location".*
 
 ## Still open
 
-### Q-3 — What happens to malformed input? — **Open**
+### Q-3 — What happens to malformed input? — **Answered, round-trip confirmed 2026-09-03**
 
-Not documented for the memory subsystem. Two adjacent frontmatter-consuming
-subsystems in the same product show a consistent pattern:
+**Silent tolerance at the file-I/O level; silent skip at the parse/stamp
+level — never a hard error at either.** Method: a topic file was seeded
+with an unterminated quoted string in `description:`, then touched via the
+ordinary `Read`/`Edit` tools inside a `claude -p` turn (same mechanism as
+Q-7's test, run against invalid instead of valid YAML).
 
-- `.claude/rules/` path-scoped frontmatter: an open bug (#13905) shows
-  documented YAML examples that do not parse under a standard parser, and a
-  separate issue (#17204) reports malformed `paths:` frontmatter failing
-  **silently** — the rule never loads, no error surfaced.
-- Skills: third-party writeups describe malformed frontmatter as a **soft
-  failure** — body loads, metadata empty, so the skill exists but does not
-  route.
+- `Read` returned the raw text verbatim — no parser rejected it, the model
+  just noted in its own prose that the content looked malformed.
+- `Edit` appended a line and saved successfully, exit code 0, no warning
+  anywhere in the harness output or session transcript.
+- The frontmatter came back **byte-for-byte identical** to what was
+  seeded — no reserialization, and critically, **no `node_type`,
+  `originSessionId`, or `modified` stamping**, in direct contrast to Q-7's
+  result on valid frontmatter touched the same way.
 
-If memory follows its siblings, the answer is **silent skip or soft
-degradation, not hard error** — precisely the case that justifies
-validation. But this is pattern-matching across different code paths in one
-product, not evidence about memory. Not assertable even as Inferred.
+**Consequence:** the stamping mechanism (F-3, R-3) is a distinct code path
+from ordinary file I/O, and it silently no-ops when the YAML fails to
+parse rather than erroring or corrupting the file. This confirms the
+sibling-subsystem pattern this question originally reasoned from (silent
+skip / soft degradation, not hard error) — now **Confirmed (observed)**
+for memory specifically, not just inferred by analogy. It also means
+malformed frontmatter is not self-correcting: a bad seed stays bad
+indefinitely unless something else flags it, which is the strongest
+argument yet for the host-side YAML-validity check already marked
+"Warranted" below.
 
-**Cleanest remaining candidate for a round-trip test.**
+Not exercised: what a *first-ever* write of malformed frontmatter does
+(this test touched a pre-existing file). Low priority — the failure mode
+observed is already the conservative one a validator should guard against.
 
 ### Q-5 — Frontmatter field contract — **Not addressed this pass**
 
@@ -348,56 +402,62 @@ not omit stable schema fields by accident, F-3 shows it is stamped
 automatically anyway, and authoring an undocumented internal field couples
 seeds to an implementation detail for no gain. **Seeds should omit it.**
 
-### Q-7 — Are `originSessionId` and `modified` tolerated when absent? — **Partially answered**
+### Q-7 — Are `originSessionId` and `modified` tolerated when absent? — **Answered, round-trip confirmed 2026-09-03**
 
 `modified`: **yes**, tolerated when absent, and backfilled the next time
 Claude writes the file (R-3).
 
-`originSessionId`: **open, and this is the part that matters.** The
-documented backfill language is scoped specifically to `modified` and makes
-no equivalent claim for `originSessionId` or `node_type`. F-3's controlled
-test observed only a first-ever write, where all three appeared together;
-it never tested a file carrying author-supplied frontmatter that
-deliberately lacks `originSessionId`.
+`originSessionId`: **also backfilled on first touch — the provenance
+proposal does not hold.** Method: a topic file was seeded with valid
+frontmatter (`name`, `description`, `metadata.type`) and deliberately no
+`originSessionId`/`node_type`/`modified`. A `claude -p` turn opened the
+file and appended one line to the body via the `Edit` tool. The file on
+disk afterward (verified directly, not just via the session's self-report)
+carried all three fields:
 
-**Consequence:** the provenance proposal — that *absence of
-`originSessionId` marks a file as operator-authored rather than
-session-derived* — is plausible but **not yet safe to build on**. If
-`originSessionId` is backfilled the way `modified` is, the marker is
-destroyed on first touch and provenance needs a different carrier. This
-matters beyond Option A: that distinction is the trust boundary a future
-write-back design would need.
+```yaml
+metadata:
+  node_type: memory
+  type: reference
+  originSessionId: 9832e6dc-040d-4448-a971-8708a245d916
+  modified: 2026-09-03T03:51:33.432Z
+```
 
-### Q-8 — Can writes be disabled while reads remain? — **Open; higher priority than its tier suggests**
+**Consequence:** the provenance proposal — *absence of `originSessionId`
+marks a file as operator-authored rather than session-derived* — is
+**dead**. The marker is destroyed the instant Claude writes to the file at
+all, identically to `modified`, not just on files Claude itself
+originated. This matters beyond Option A: any future write-back or memory
+promotion design needs a different provenance carrier entirely, since this
+one does not survive first contact.
 
-One documented lever exists: `autoMemoryEnabled` (settings key, `/memory`
-toggle, or `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`). It is presented as a single
-on/off switch. Nothing in the primary docs or settings reference
-distinguishes a read-only mode, and no write-only-disable setting is
-documented.
+### Q-8 — Can writes be disabled while reads remain? — **Answered, round-trip confirmed 2026-09-03**
 
-Two secondary signals pull in different directions:
+**No — symmetric disablement confirmed, community guide (signal 1) was
+right.** Method: `MEMORY.md` was seeded in an isolated scratch project with
+a distinctive canary line. A `claude -p` baseline turn confirmed the canary
+loads into context with no tool calls (proving the seed mechanism itself
+works). A second turn, identical seed, with `autoMemoryEnabled: false`
+passed via `--settings` — the canary did **not** appear anywhere in
+context. Repeated with `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` as the env-var
+alternative lever — same result, canary absent.
 
-1. A community guide states that with `autoMemoryEnabled: false` Claude
-   "neither reads from nor writes to" the memory directory — clean
-   symmetric disablement. If accurate, **read-without-write is not
-   achievable by configuration**, and Option A's no-write-back invariant
-   stays conventional rather than enforced.
-2. An open upstream issue (#63903, restating #44829, which was auto-closed
-   stale without response) reports that with `autoMemoryEnabled: false`, a
-   hardcoded memory preamble — roughly 11–16k tokens — still loads into the
-   system prompt every session. This is a live bug, not documented
-   behavior, but it shows the memory subsystem's context injection is not
-   cleanly gated by that flag at the level of what reaches the system
-   prompt. It does not answer the reverse case the SDD cares about, but it
-   is a concrete reason not to assume clean gating.
+**Consequence:** read-without-write is **not achievable by configuration**
+— `autoMemoryEnabled` alone cannot give it. This was originally read as
+meaning the SDD must add a `PreToolUse` hook to enforce no-write-back.
+**Revised per the Scope decision above:** Option A's seeded content is
+advisory-only, and advisory content doesn't need that enforcement — a
+session overwriting or extending a project-fact seed mid-run is a quality
+concern, not a security one. So this finding is no longer load-bearing for
+the SDD as currently scoped. The `PreToolUse`/`permissions.deny` option
+remains documented here as a mechanism this pass identified, available if
+a future use case seeds policy-class content into memory instead.
 
-**Design lead this produces:** if read-without-write turns out not to be
-configurable, the fallback is a `PreToolUse` hook denying `Write`/`Edit`
-against the memory directory. That would make the invariant *enforced* by a
-mechanism this project already understands, rather than conventional — and
-it is a better answer than either documented option. Worth carrying into
-the SDD regardless of how the test comes out.
+Not exercised: whether upstream issue #63903's reported preamble-still-
+loads bug is present in this build (v2.1.259, newer than the 2.1.227 both
+issues were likely filed against). Moot for this design either way — the
+question this pass needed answered (can config alone give read-without-
+write) is settled in the negative regardless of that bug's current status.
 
 ### Q-11 — Format stability commitment — **Open**
 
@@ -428,12 +488,17 @@ beyond the bind mounts — so this is not an escape. But it is a Tampering
 surface that belongs in the STRIDE analysis, and it is **not introduced by
 seeding**; seeding merely makes it relevant enough to notice.
 
-**This should be verified before it is either acted on or dismissed.** The
-specific question: does a `start.sh`-launched container present, skip, or
-auto-accept the workspace-trust gate? If the gate is live, the existing
-mechanism already closes this. If it is auto-accepted, the SDD needs to say
-so and decide whether to pin `autoMemoryDirectory` from a scope that
-project settings cannot override.
+**Verified 2026-09-03 — the gate is live.** Confirmed directly by the
+operator against a real `start.sh`-launched container (this could not be
+produced from Environment 2, where the rest of this pass's tests ran — see
+"Environment caveat"). The workspace-trust dialog presents and requires a
+human decision; it is not auto-accepted. The existing mechanism already
+closes this exposure: an untrusted clone's project-scope
+`autoMemoryDirectory` entry does not take effect without that human
+accepting the trust prompt. No additional control is needed for this
+specific surface, though it remains worth naming in the SDD's STRIDE
+section as a control that already exists and that seeding must not
+bypass.
 
 ## Standing risk — validating against a moving target
 
@@ -463,41 +528,46 @@ this feature makes newly relevant rather than one it introduces.
 
 ## What the validator design now looks like
 
-Enough is settled to sketch it, though it should not be built until Q-3 is
-answered:
+Q-3, Q-7, Q-8, Q-9, and Q-10 are all now resolved by round-trip test, so
+this table is no longer provisional on any of them.
 
 | Check | Status | Basis |
 |---|---|---|
 | `MEMORY.md` ≤ 200 lines **and** ≤ 25KB | **Mandatory** | Q-4 — silent truncation on read |
-| Topic-file frontmatter is valid YAML | **Warranted** | F-3 — parsed and reserialized |
+| Topic-file frontmatter is valid YAML | **Mandatory** | F-3 + Q-3 — parsed/stamped when valid, silently un-stamped (not corrected) when not; malformed seeds do not self-heal |
 | `metadata.type` ∈ four known values | **Warranted** | R-2 |
 | Index links resolve to existing files | **Advisory only** | Q-1 — usefulness, not validity |
 | Index line grammar | **Do not assert** | Q-1 — not a contract |
 | Filename convention | **Do not assert** | F-5 — Inferred, n=2 |
 | Seeds omit `node_type` | **Warranted** | Q-6 — undocumented internal |
-| Seeds omit `originSessionId` | **Blocked** | Q-7 — provenance unproven |
+| Seeds omit `originSessionId` | **Warranted** (not merely blocked) | Q-7 — confirmed backfilled on first touch regardless; authoring it is pointless, not just unproven |
+| No-write-back enforcement | **Not required for this scope** | Scope decision — advisory content only; Q-8 confirms it isn't achievable via `autoMemoryEnabled` alone, but the Scope decision means nothing needs to enforce it |
 
-Whether this belongs in bats, the entrypoint, or a standalone script stays
-deferred — Q-3 determines whether host-side validation is load-bearing at
-all.
+Whether this belongs in bats, the entrypoint, or a standalone script is no
+longer blocked on an open question — it can be decided in the SDD.
 
 ## Remaining round-trip tests, in priority order
 
-1. **Q-8** — seed `MEMORY.md`, set `autoMemoryEnabled: false`, confirm via
-   `/context` whether seeded content still loads. Substantially simplifies
-   or complicates the SDD depending on the outcome.
-2. **Q-7** — write a seed with `type` and `description` but no
-   `originSessionId`; have Claude touch it during a session; check whether
-   the field appeared. Load-bearing for the provenance proposal.
-3. **Q-3** — write a topic file with deliberately broken frontmatter and
-   observe what surfaces.
-4. **Q-10 / trust posture** — in a `start.sh`-launched container,
-   determine whether the workspace-trust gate is live or auto-accepted.
-   See "Pre-existing exposure" — this one has standing value regardless of
-   seeding.
-5. **Q-9 remainder** — set `autoMemoryDirectory` in a project that already
-   has memory at the default path; observe migrate vs. shadow vs.
-   duplicate.
+Q-8, Q-7, Q-3, and Q-9 were run 2026-09-03 against Claude Code v2.1.259 in
+Environment 2 (see "Environment caveat") using isolated scratch projects
+under a sandbox's scratchpad directory, driven by nested non-interactive
+`claude -p` subprocesses — never against this project's own memory or
+settings. Results are folded into each question's section above.
+
+1. ~~**Q-8**~~ — **Done.** Symmetric disablement confirmed; read-without-
+   write is not configurable.
+2. ~~**Q-7**~~ — **Done.** `originSessionId` backfilled on first touch;
+   provenance proposal is dead.
+3. ~~**Q-3**~~ — **Done.** Silent tolerance (file I/O) / silent skip
+   (stamping), never a hard error.
+4. ~~**Q-10 / trust posture**~~ — **Done, 2026-09-03.** Could not be
+   produced from Environment 2, so verified separately by the operator
+   against a real `start.sh`-launched container. Gate is live, not
+   auto-accepted. See "Pre-existing exposure."
+5. ~~**Q-9 remainder**~~ — **Done.** Confirmed shadow: old content
+   untouched but no longer consulted; new writes do not duplicate back.
+
+All five round-trip tests originally listed here are now resolved.
 
 ## What this document does not decide
 
@@ -524,3 +594,9 @@ all.
   (adjacent frontmatter failure modes).
 - Issue #32 — Squid allowlist gap making the documentation unreachable
   from a session.
+- Round-trip test pass, 2026-09-03 — Q-8, Q-7, Q-3, Q-9, run against
+  Claude Code v2.1.259 in Environment 2 via nested `claude -p`
+  subprocesses in isolated scratch projects. Not preserved as durable
+  artifacts; results are recorded inline above.
+- Q-10 trust-gate verification, 2026-09-03 — operator confirmation against
+  a real `start.sh`-launched container, outside this session's own testing.

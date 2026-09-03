@@ -301,12 +301,17 @@ G-13/G-14/G-15 assert on entrypoint stdout, following G-7/G-8's precedent where
 the log line *is* the control's observable output. Fixtures go under
 `tests/fixtures/`, alongside `global-overlay-fixture`.
 
-**What these tests cannot cover.** SDD §7.2 forbids `ANTHROPIC_API_KEY` in the
-suite, so no bats test can drive a live turn. Everything here asserts delivery
-and detection; that the model *loads* and *uses* the seed is confirmed by
-round-trip observation (step-zero's method), recorded in the doc, not automated.
-This is the same documented residual G-6 already carries, and is stated rather
-than left implicit.
+**What these tests cannot cover.** No bats test can drive a live turn. The
+testing SDD's §7.2 forbids `ANTHROPIC_API_KEY` in the suite, and independently
+of that ban there is no key to forbid: nothing in this project's launch path
+carries credentials into a container — `start.sh` passes only `GH_TOKEN` — so a
+session is authenticated because a human logged into it. An automated test has
+no session to inherit that from.
+
+Everything here therefore asserts delivery and detection; that the model *loads*
+and *uses* the seed is confirmed by round-trip observation (step-zero's method),
+recorded in the doc, not automated. This is the same documented residual G-6
+already carries, and is stated rather than left implicit.
 
 ---
 
@@ -523,9 +528,12 @@ One logical change per commit, on a branch, referencing the issue.
 1. **`docs: design for curated auto-memory seeding (#65)`** — this document.
 2. **Verification gate — cleared 2026-09-03, re-confirmation owed.** The
    settings-scope question passed in Environment 2 (step-zero Q-12), so the work
-   below is unblocked. Re-run `./check-auto-memory.sh deny-scope` in a
-   `start.sh` container before step 3 lands, since the confirming run was
-   non-interactive and outside a canonical session. Two documentation commits
+   below is unblocked. Re-confirm before step 3 lands, since the confirming run
+   was non-interactive and outside a canonical session: start a session with
+   `./start.sh`, log into it, then run
+   `./check-auto-memory.sh deny-scope <container-name>` from the host. The probe
+   reuses that session's login — there is no API key in this project's launch
+   path to pass instead. Two documentation commits
    fall out of this step and may land independently of the rest:
    `docs: record the settings-scope probe result` and
    `docs: narrow the trust-gate finding to interactive sessions` — both already

@@ -22,15 +22,23 @@
 #   ./check-auto-memory.sh version    [image_tag]    (default: base)
 #   ./check-auto-memory.sh config     [image_tag]    (default: base)
 #   ./check-auto-memory.sh behavior   <container_name>
-#   ./check-auto-memory.sh deny-scope [image_tag]    (default: base)
+#   ./check-auto-memory.sh deny-scope <container_name>
 #
 # version/config each start a throwaway --rm container from the built
-# image. behavior inspects a container from a session you already started
-# — it does not start or stop anything, since Auto Memory content only
-# exists once a real session has run. deny-scope starts one throwaway
-# container and drives two real non-interactive turns in it, so it needs
-# ANTHROPIC_API_KEY in your environment; it is an operator-run diagnostic
-# and never part of `bats tests/`, which forbids credentials (SDD §7.2).
+# image. behavior and deny-scope both act on a session you already started
+# — neither starts or stops anything.
+#
+# deny-scope takes a running session for the same reason it cannot take an
+# image: it drives real Claude Code turns, and nothing in this project's
+# launch path carries credentials into a container. start.sh passes only
+# GH_TOKEN, so a session authenticates because you logged in inside it.
+# The probe reuses that login from within the container it already lives
+# in, under an isolated HOME so the live session's own ~/.claude is
+# neither read nor written. No API key, and no credential crosses a
+# boundary it had not already crossed.
+#
+# It is an operator-run diagnostic and never part of `bats tests/`, which
+# forbids credentials (SDD §7.2).
 
 set -euo pipefail
 
@@ -53,7 +61,7 @@ IMAGE_PREFIX="${_ENV_IMAGE_PREFIX:-$IMAGE_PREFIX}"
 MEMORY_VERSION_GATE="2.1.59"
 
 usage() {
-    sed -n '2,33p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '2,41p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
     exit 1
 }
 
@@ -177,53 +185,68 @@ cmd_behavior() {
 # Parsing a refusal out of natural-language output would conflate "the deny
 # rule blocked it" with "the model declined to try".
 #
-# Two limits, stated here rather than discovered later:
+# Three limits, stated here rather than discovered later:
 #
 #   1. This drives non-interactive turns, and `claude --help` is explicit
 #      that the workspace trust dialog is SKIPPED under -p (or whenever
 #      stdout is not a TTY), and that settings files failing validation are
 #      silently ignored in that mode with no error shown. start.sh runs
-#      interactively (-it), so production takes the other path. A pass here
-#      transfers to a real session by analogy, not by proof — the same
-#      caveat step-zero records for Environment 2.
+#      interactively (-it), so the session hosting this probe took the
+#      other path even though the probe itself does not. Running inside a
+#      real session removes step-zero's Environment 2 caveat; it does not
+#      remove this one.
 #   2. --allowedTools pre-allows the probe command so nothing prompts, which
 #      makes the deny rule the only thing that can stop it. That is the
 #      point of the probe, but it means this tests deny-beats-allow
 #      precedence, not the prompt path an operator would see interactively.
+#   3. It copies the session's credential to an isolated HOME inside the
+#      same container, for the length of the run. That adds no exposure —
+#      the file does not leave the container it already lives in — but it
+#      is a second copy while the probe runs, removed on exit including on
+#      failure.
 cmd_deny_scope() {
-    local image_tag="${1:-base}"
-    local image_name="${IMAGE_PREFIX}-${image_tag}"
+    local container_name="${1:?Usage: $(basename "${BASH_SOURCE[0]}") deny-scope <container_name>}"
 
-    if ! "$ENGINE" image inspect "$image_name" > /dev/null 2>&1; then
-        echo "Error: image '$image_name' does not exist. Build it first: ./build.sh $image_tag"
+    if ! "$ENGINE" ps --format '{{.Names}}' | grep -qx "$container_name"; then
+        echo "Error: no running container named '$container_name'."
+        echo "Start a session with ./start.sh, log in inside it, then pass its"
+        echo "name here. This probe reuses that session's login rather than"
+        echo "requiring an API key — see the header for why."
         exit 1
     fi
 
-    if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-        echo "Error: ANTHROPIC_API_KEY is not set in your environment."
-        echo "This check drives real Claude Code turns and cannot run without it."
-        echo "It is passed by name (--env ANTHROPIC_API_KEY), so the value never"
-        echo "appears in a command line or in this script's output."
-        exit 1
-    fi
-
-    echo "Probing settings-scope interaction in ${image_name}..."
+    echo "Probing settings-scope interaction inside ${container_name}..."
     echo "Arm A: project-scope deny only.  Arm B: same, plus user-scope settings.json."
     echo "Arm C: negative control — no deny rule at all."
     echo ""
 
     # sh -s reads the probe from stdin, so a quoted heredoc keeps every
     # expansion inside the container instead of the host shell.
-    "$ENGINE" run --rm -i \
-        --env ANTHROPIC_API_KEY \
-        --security-opt=no-new-privileges \
-        --cap-drop=ALL \
-        "$image_name" sh -s <<'PROBE'
+    "$ENGINE" exec -i "$container_name" sh -s <<'PROBE'
 set -eu
 
-PROBE_DIR=/tmp/deny-probe
-rm -rf "$PROBE_DIR"
-mkdir -p "$PROBE_DIR/.claude"
+PROBE_HOME=/tmp/deny-scope-home
+PROBE_DIR=/tmp/deny-scope-proj
+
+# The credential copy must not outlive the probe. The live session's own
+# ~/.claude is never touched: every arm runs under PROBE_HOME instead, so
+# the settings.json being varied is the probe's, not the operator's.
+cleanup() { rm -rf "$PROBE_HOME"; }
+trap cleanup EXIT
+
+if [ ! -f "$HOME/.claude/.credentials.json" ]; then
+    echo "ERROR: no credentials found in this container."
+    echo "       Expected \$HOME/.claude/.credentials.json — log in inside the"
+    echo "       session first. The probe drives real turns and reuses that"
+    echo "       login; it cannot synthesise one."
+    exit 1
+fi
+
+rm -rf "$PROBE_HOME" "$PROBE_DIR"
+mkdir -p "$PROBE_HOME/.claude" "$PROBE_DIR/.claude"
+chmod 700 "$PROBE_HOME/.claude"
+cp "$HOME/.claude/.credentials.json" "$PROBE_HOME/.claude/.credentials.json"
+chmod 600 "$PROBE_HOME/.claude/.credentials.json"
 
 # Mirrors the shape of this repo's own settings.json: a deny rule on a Bash
 # command, project scope, nothing else.
@@ -245,8 +268,8 @@ run_arm() {
     # wise hang. "none" denies whatever would prompt, which is why the probe
     # command is pre-allowed below — otherwise every arm would "pass" for
     # the wrong reason.
-    timeout 180 claude -p \
-        'Run exactly this command, then stop: touch /tmp/deny-probe/RAN' \
+    HOME="$PROBE_HOME" timeout 180 claude -p \
+        "Run exactly this command, then stop: touch ${PROBE_DIR}/RAN" \
         --allowedTools 'Bash(touch *)' \
         --permission-prompts none \
         > "/tmp/arm-${arm}.out" 2>&1 || true
@@ -259,13 +282,12 @@ run_arm() {
 }
 
 # Arm A — control. No user-scope settings file at all.
-rm -f "$HOME/.claude/settings.json"
+rm -f "$PROBE_HOME/.claude/settings.json"
 run_arm A
 
 # Arm B — the seeding design's addition: user scope, autoMemoryDirectory only,
 # no permissions key of its own.
-mkdir -p "$HOME/.claude"
-cat > "$HOME/.claude/settings.json" <<'JSON'
+cat > "$PROBE_HOME/.claude/settings.json" <<'JSON'
 {
   "autoMemoryDirectory": "~/.claude/memory"
 }

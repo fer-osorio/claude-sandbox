@@ -1,7 +1,9 @@
 # Curated Auto-Memory Seeding — Software Design Document
 
 > **Document type:** Software Design Document (SDD)
-> **Status:** Accepted — approved for implementation 2026-09-03
+> **Status:** Accepted, implementation parked 2026-09-03 — the design and its
+> verification gate stand; steps 3–8 are deliberately not executed, for want of
+> content that fits the mechanism. See §9, "Why this is parked."
 > **Classification:** Case E (container security control) + Case C (multi-component feature)
 > **Relates to:** `auto-memory-seeding-step-zero.md` (evidence base),
 > `global-layer-injection.md` (the mechanism this extends),
@@ -510,6 +512,12 @@ exists to serve.
 
 ## 8. Implementation Plan
 
+**Executed: steps 1 and 2 only.** Steps 3–8 are parked, not cancelled — see §9,
+"Why this is parked." They remain accurate as written and can be picked up
+unchanged if seed content appears, though the placement question in §9 should be
+settled first, since it may redirect the work to a per-project layer rather than
+this one.
+
 One logical change per commit, on a branch, referencing the issue.
 
 1. **`docs: design for curated auto-memory seeding (#65)`** — this document.
@@ -553,6 +561,79 @@ would inflate a trivial change with process it does not need.
 
 ## 9. Open Questions and Non-Decisions
 
+### Why this is parked
+
+Steps 1 and 2 landed. Steps 3–8 are not executed, because no content was found
+that the mechanism is actually good at carrying. Recorded in full, because the
+reasoning is the useful part and the next person will otherwise rediscover it.
+
+**Two independent attempts at a seed both landed somewhere else.** The first
+candidate — operator profile, communication, critical-thinking and
+decision-framing preferences — turned out to be `CLAUDE.md` content by this
+document's own §2 test: it must apply on every turn, and topic files load on
+demand (Q-2). It shipped to `global-claude/CLAUDE.md` instead (#66). The second
+candidate was this project's accumulated claude.ai memory, which the operator
+reported as out of sync with the repository's current state.
+
+**Stale content is the failure mode this design cannot absorb.** §6.2 already
+says stale memory is worse than none. The compounding reason is that it is
+unfalsifiable in place: memory is read selectively, so wrong content surfaces on
+some turns and not others, and #46050 means an absent effect is equally
+consistent with the file never being read. "The seed was wrong" and "the seed
+was ignored" produce the same observation. A seed corpus whose failures cannot
+be told apart from its successes is not worth carrying.
+
+**The outcome was predicted.** The informal proposal's answer on claude.ai
+memory held that the exercise would surface documentation *gaps* rather than
+net-new content, because the project's SDD and `CLAUDE.md` practice already
+captures what is durable in reviewed form. Two attempts later, that is what
+happened. This is evidence about the content, not about the search for it.
+
+**What is not lost.** The design record stands with its alternatives and STRIDE
+analysis; Q-12 closed a real question; `check-auto-memory.sh deny-scope` is a
+reusable instrument; and the probe that cleared the gate found #64, a live gap
+in an existing control. None of that depends on seeding shipping.
+
+**What would unpark it:** seed content that is genuinely looked up rather than
+always applicable, and that is not already in the documentation. The gap audit
+in the next entry is the cheapest way to find out whether any exists.
+
+### The seed's placement and memory's natural unit do not match
+
+Named here because it went unnoticed while the design was written, and it
+explains the empty corpus better than any shortage of effort does.
+
+Memory's natural content is **per-project** facts. This design places the seed
+in `global-claude/`, which `start.sh` mounts for *every* project. So the
+mechanism can only carry cross-project content — and cross-project content that
+is always applicable belongs in `CLAUDE.md`, as #66 demonstrated, while
+cross-project content that is genuinely on-demand is a thin category. The design
+has nowhere to put the content type memory is best at.
+
+This is not an error in the design as scoped: §1.1 scoped it to the global
+layer, and within that scope every decision here holds. It is a limit of the
+scope itself, and it bounds the feature's value more tightly than §6.1 states.
+
+`config.sh` already carries the `@name` project registry
+(`named-project-registry.md`), so a per-project seed layer has an obvious key
+and an obvious precedent. If seeding is worth building at all, that is likely
+the version worth building — designed deliberately, with its own collision and
+trust questions answered, not bolted onto this one.
+
+### The claude.ai memory dump is a documentation audit, not a seed source
+
+There is no export bridge in either direction, so any such content arrives by
+the operator reading and transcribing it. Given the staleness above, the
+transcription is worth doing for a different purpose: diff each remembered item
+against the repository. An item matching a document is already captured and gets
+discarded; an item contradicting one is stale, and the check is which of the two
+is wrong; an item genuinely absent from the documentation is a gap, and the fix
+is the **document**, not the seed.
+
+Whatever survives all three is by construction the only legitimate seed
+candidate. If nothing survives, that is the answer, and it cost one session plus
+a documentation pass that was worth doing anyway.
+
 **Q: Should per-image memory overlays exist (`global-crypto/memory/`, …)?**
 
 Deferred, same posture as the per-image overlays themselves: empty until a real
@@ -583,6 +664,14 @@ in this design creates or forecloses one.
 ---
 
 ## Changelog
+
+### Version 1.2 — 2026-09-03
+Parked implementation at step 2. Two attempts at seed content both landed
+outside the mechanism — the first in `CLAUDE.md` (#66), the second stale — and
+§9 now records why, along with the placement mismatch that explains it: the seed
+rides the global layer while memory's natural unit is per-project. Steps 3–8 are
+retained as written rather than deleted, since the design holds; what is in
+question is whether this scope is the right home for the feature.
 
 ### Version 1.1 — 2026-09-03
 Downgraded the `autoMemoryDirectory`-preservation question from a blocking gate

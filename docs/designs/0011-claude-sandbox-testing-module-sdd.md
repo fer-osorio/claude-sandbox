@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | **Document Type** | Software Design Document (SDD) |
-| **Status** | Draft |
+| **Status** | Accepted |
 | **Version** | 1.2 |
 | **Date** | 2026-09-04 |
 | **Author** | Fernando |

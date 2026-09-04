@@ -98,25 +98,11 @@ teardown() {
     [ "$status" -ne 0 ]
 }
 
-# bats test_tags=fast
-@test "G-6: the app-layer deny list is at the path Claude Code loads" {
-    # Project scope is <project>/.claude/settings.json. Until issue #64 this
-    # file sat at the repository root, and the declaration-only assertion
-    # below — pointed at SANDBOX_DIR — passed anyway, because "is the rule
-    # written down" is a question an unread path cannot fail. Hence the
-    # first two assertions: the location is now part of what is checked,
-    # and a reintroduced root-level copy fails rather than shadowing.
-    [ -f "${SANDBOX_DIR}/.claude/settings.json" ]
-    [ ! -e "${SANDBOX_DIR}/settings.json" ]
-
-    # Enforcement still needs a live turn, and therefore credentials that
-    # SDD §7.2 forbids here. `./check-auto-memory.sh deny-path` covers that
-    # half — it establishes which path is enforced, this establishes that
-    # the repository uses it. Neither is sufficient on its own; the defect
-    # survived because only the weaker half of the pair existed.
-    run grep -q '"Write(/run/\*)"' "${SANDBOX_DIR}/.claude/settings.json"
-    [ "$status" -eq 0 ]
-}
+# G-6 lives in tests/test_control_declarations.bats (Group 9). It asserts only
+# on tracked files, and this file's setup() gates on a reachable engine and a
+# built claude-base — so here it was selected by no CI run at all, including
+# the one on the pull request that introduced it to catch a regression of #64.
+# See SDD §6.2 for the placement rule and §4.9 for what moved.
 
 # bats test_tags=fast
 @test "G-10: every file in the global layer arrives in ~/.claude with its content intact" {

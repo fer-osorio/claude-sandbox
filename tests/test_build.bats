@@ -75,8 +75,6 @@ teardown() {
     done
 }
 
-# bats test_tags=fast
-@test "B-4: build.sh does not pin any image reference to :latest" {
-    ! grep -q ":latest" "${SANDBOX_DIR}/build.sh"
-    ! grep -q ":latest" "${SANDBOX_DIR}/start.sh"
-}
+# B-4 lives in tests/test_control_declarations.bats (Group 9). It greps two
+# tracked scripts and starts no container, so it does not belong behind this
+# file's engine gate — see SDD §6.2.

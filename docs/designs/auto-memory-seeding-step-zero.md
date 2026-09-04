@@ -699,8 +699,12 @@ All five round-trip tests originally listed here are now resolved.
 
 ## References
 
-- `injecting_memories_into_containers.md` (repo root, gitignored) — the
-  informal proposal this supports, exported from an earlier session.
+- `injecting_memories_into_containers.md` — the informal proposal this
+  supports, exported from an earlier claude.ai session. Kept untracked in the
+  repository root, and deleted 2026-09-04 once superseded; it is not
+  recoverable from this repository. What survives of it is secondhand: the
+  three points `auto-memory-seeding.md`'s v1.0 changelog entry records itself
+  as overturning, and whatever of the proposal this document quotes directly.
 - `docs/designs/global-layer-injection.md` §9 — the standing decision
   against write-back persistence.
 - `docs/designs/docs-as-code-workflow.md` §3 — Case E obligations.

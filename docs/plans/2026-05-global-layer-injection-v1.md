@@ -478,6 +478,13 @@ Note: `settings.json` at the project level is copied into `/workspace/.claude/se
 when you start a session. Place this updated file in your project directories, or maintain a
 template in `~/.claude-sandbox/` and copy it when starting a new project.
 
+> **Correction, 2026-09-04 (issue #64):** the note above is wrong and was the
+> origin of the defect. Nothing copies a root-level `settings.json` into
+> `.claude/` — not `start.sh`, not `base/entrypoint.sh`. The file has to be at
+> `<project>/.claude/settings.json` to be read at all. Left in place because
+> this plan is a record of what was executed; see `docs/claude_code_security_plan.md`
+> Change 22 for the fix.
+
 ---
 
 ## Phase 6 — Smoke Test

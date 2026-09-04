@@ -313,6 +313,8 @@ Create a `.claude/settings.json` in each project directory:
 
 Adjust the deny list per project. The key principle: deny by default, grant explicitly.
 
+The path is load-bearing and is not interchangeable with `settings.json` at the project root — a rule declared there is never read. See Change 22; this repository had it in the wrong place from the start, and the layer was inert until 2026-09-04. `./check-auto-memory.sh deny-path` is the check that tells the two apart.
+
 **Threat model note:** Even if someone crafts a prompt injection that tricks Claude into trying to exfiltrate data via `curl`, this layer rejects the tool call before it reaches the network. This is defense in depth — the network layer would also block it, but you want two gates, not one. This primarily mitigates **Information Disclosure (I)** and **Tampering (T)**.
 
 ---
@@ -1226,3 +1228,71 @@ No other STRIDE category is affected.
 - The two remaining residuals from Change 20 stand: the check compares contents
   and cannot judge correctness, and an operator with a deliberately customised
   hook is warned every session.
+
+---
+
+### Change 22 — Deny List Moved to the Path Claude Code Actually Reads
+**Affects:** `settings.json` → `.claude/settings.json`, `tests/test_global_layer.bats`,
+`check-auto-memory.sh`. Date: 2026-09-04.
+
+**What changed:**
+This repository's `permissions.deny` list lived at `settings.json` in the repository
+root. Claude Code reads project-scope settings from `<project>/.claude/settings.json`;
+`/workspace/.claude/` did not exist, and no other mechanism injected those rules. The
+file has been moved to `.claude/settings.json`. Its contents are unchanged.
+
+Phase 3 above already gave the correct location, so this was a placement defect in this
+repository rather than a wrong instruction. It affects only this repository: a mounted
+project that followed Phase 3 was always enforced.
+
+**Why:** the third layer of the defense architecture was inert, and the coverage map in
+§5 counted it as present. Found while running the settings-scope gate for the auto-memory
+seeding design, where two probe arms carrying an identical rule at the two paths produced
+opposite outcomes — denied at `.claude/settings.json`, not denied at the repository root.
+
+**Why the existing checks did not catch it:**
+G-6 asserted that `Write(/run/*)` appeared in the file. That assertion cannot fail when
+the file is somewhere nothing loads it, because it never asks whether anything does. The
+smoke test in `docs/plans/2026-05-global-layer-injection-v1.md` §Phase 6 Test 6 would
+have caught it, but a write to `/run/claude-global` also fails at the OS level against
+the readonly mount, so a pass there did not distinguish the application gate from the
+mount. Presence was read as function, twice.
+
+G-6 now asserts the location as well as the content, and fails if a root-level copy
+reappears. `./check-auto-memory.sh deny-path` covers the half G-6 structurally cannot:
+it drives real turns to establish which path is enforced. The two are a pair, and the
+defect survived because only the weaker one existed.
+
+**STRIDE mapping (delta only):**
+
+| Threat (STRIDE) | Control restored |
+|---|---|
+| **Information Disclosure (I)** | `Bash(curl *)`, `Bash(wget *)`, `Bash(nc *)`, `Bash(ssh *)` and `Bash(scp *)` are now refused at the application layer for sessions mounting this repository. Previously the Squid allowlist was the only gate on egress from this project — one layer where §5 recorded two. |
+| **Tampering (T)** | `Write(../*)`, `Write(/run/*)`, `Bash(rm -rf *)`, `Bash(git remote *)` and `Bash(git push *)` likewise. The mount scope and the readonly bind on `/run/claude-*` were carrying this alone. |
+
+No category is newly exposed: this restores a layer rather than adding one, and no
+control was removed. The interval during which it was inert is bounded by the layers
+that were in force throughout — Squid's egress allowlist, `--cap-drop=ALL`, non-root,
+`no-new-privileges`, and the mount scope. Defense in depth did its job; the accounting
+of it did not.
+
+**Operational consequence, stated because it is new behaviour:**
+these rules have never actually applied to a session in this repository. From this
+change on they do, and `Bash(git push *)` and `Bash(git remote *)` are among them —
+pushing and remote manipulation are operator actions taken outside the container. This
+is the list working as written, not a regression to be worked around.
+
+The contents were kept byte-for-byte rather than revised in the same change, deliberately.
+The list was authored in May against a mechanism that never ran it, so there is no
+operating experience behind any individual rule yet. What stays, what goes and what is
+missing is to be decided from observed friction once the rules actually bite — an
+evidenced change later, not a pre-emptive one now.
+
+**Residual, not yet closed:**
+- `deny-path` needs credentials, so it cannot run in `bats tests/` or in CI. It is an
+  operator-run diagnostic, and nothing forces it to be re-run after a Claude Code
+  upgrade changes which paths are loaded.
+- G-6 still checks one rule (`Write(/run/*)`) as a proxy for the whole list. A rule
+  deleted from the file individually would not fail it.
+- No check confirms that the rules are enforced for the *mounted project* in a live
+  session; `deny-path` establishes the property in a scratch directory instead.

@@ -63,6 +63,9 @@ premature builds. The output isn't a landscape — it's an answer to
 7. **Follow-ups (optional, max 3).** Only if they'd meaningfully extend
    the work. When in doubt, suggest none.
 
+Steps 5 and 6 produce the content; where that content goes depends on the
+project. See **Planning-phase output** below before writing it up.
+
 ## Source hierarchy
 
 - **Primary/technical**: papers (arXiv, ACM/IEEE), RFCs/specs, standards
@@ -92,6 +95,35 @@ premature builds. The output isn't a landscape — it's an answer to
 - State confidence explicitly where evidence is thin — don't let a
   single blog post read as consensus.
 
+## Planning-phase output
+
+**Applies only when `docs/planning/` exists in the current project.** Its
+presence is the opt-in signal — a project without it gets the default
+behaviour above and nothing is written to disk. Never create the directory
+to satisfy this section.
+
+When it does exist, the findings are an artifact rather than a reply:
+
+1. Read `~/.claude/templates/planning/prior-art.md` and follow it. Its
+   sections and their order are the contract, and the `ceiling-<section>:`
+   keys in its frontmatter are hard line limits per section — what does not
+   fit does not belong in this artifact.
+2. Write to `docs/planning/prior-art.md`. Frontmatter carries `status`
+   (`Draft`, `Approved`, or `Superseded by <path>`), `date`, `phase` and
+   `owner`; the `ceiling-*` and `artifact` keys stay in the template.
+   Delete the template's authoring comments from the output.
+3. Read `docs/planning/scope.md` if present and cite it as
+   `docs/planning/scope.md §Problem statement`. Do not restate the problem
+   — a citation names a path and a section; "see the planning documents"
+   does not.
+4. Update the `prior-art.md` row in `docs/planning/README.md`: set the
+   status cell, and change the artifact name from a code span to a markdown
+   link now that the file exists. **That row only.** Every other row and
+   every other path under `docs/planning/` belongs to a different skill.
+
+`tests/test_planning_artifacts.bats` enforces 1, 2 and 4 where the project
+carries that suite.
+
 ## Notes
 
 - Pairs with `softwarecs-explanation-style` / `pl-explanation-style` when
@@ -116,6 +148,11 @@ premature builds. The output isn't a landscape — it's an answer to
 
 ## Changelog
 
+- **0.4 (draft)** — Added the Planning-phase output section: in a project
+  carrying `docs/planning/`, findings become `docs/planning/prior-art.md`
+  under the ADR 002 contract rather than a reply. Gated on the directory
+  existing, because this skill is injected into every project and only
+  some of them run that contract. Reasoning steps unchanged.
 - **0.3 (draft)** — Re-tested the mutual-exclusion boundary with a
   compound buy-vs-build query ("has anyone built X... worth building
   our own?"). Old keyword-based clause failed — both halves of the

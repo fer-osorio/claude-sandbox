@@ -4,7 +4,11 @@
 > **Companion documents:** `docs/adr/001-agentic-sdlc-scope.md`,
 > `docs/adr/002-planning-artifact-contract.md`,
 > `docs/designs/planning-skill-output-routing.md`,
-> `docs/designs/project-feasibility-skill.md`
+> `docs/designs/project-feasibility-skill.md` — the last of these is a code
+> span rather than a link because it lands with PR #73; D-1 fails on a link
+> to a file that does not exist yet, the same reason
+> `docs/planning/README.md` holds its artifact names as code spans. Turn it
+> into a link once #73 merges.
 > **Tracking:** #69 (phases), #70 (handoff decision), #71 (injection coverage)
 > **Audience:** Whoever picks up Phase 4. Written 2026-09-04, at the point
 > where Phases 1–3 are done and Phase 4 is blocked on decisions rather than
@@ -40,7 +44,7 @@ Read in this order if you are cold:
 | [ADR 002](../adr/002-planning-artifact-contract.md) | The artifact contract: paths, owners, frontmatter, ceilings, enforcement |
 | [ADR 003](../adr/003-where-a-behavioural-rule-goes.md) | Where a rule lives: template / skill / `CLAUDE.md`, ranked by precision |
 | [planning-skill-output-routing.md](../designs/planning-skill-output-routing.md) | Templates global, artifacts per-project, routing gated on `docs/planning/` |
-| [project-feasibility-skill.md](../designs/project-feasibility-skill.md) | How the feasibility owner behaves, and the trigger collision |
+| `docs/designs/project-feasibility-skill.md` | How the feasibility owner behaves, and the trigger collision |
 | [docs/planning/README.md](../planning/README.md) | The artifact index and the choices ADR 002 left open |
 
 ## 3. What is built
@@ -228,10 +232,9 @@ Smaller, and answerable with a proposal rather than a decision from cold:
   Phase 2. ADRs are never rewritten, so they stay wrong. D-1 does not catch
   it — every one is a code span, not a link.
 
-  Note: `planning-skill-output-routing.md` §Consequences records this as
-  two citations on lines 30 and 77. That count was taken before line 126
-  was found and is an undercount; the design document is a Draft SDD rather
-  than an ADR, so it can be corrected.
+  `planning-skill-output-routing.md` §Consequences originally recorded two,
+  a count taken before line 126 was found. Corrected in the same branch as
+  this document — it is a Draft SDD rather than an ADR, so it could be.
 - **The Financial ruling is local; the skill is global.** ADR 001 scopes
   budget exclusion to a single-operator project, but `project-feasibility`
   is injected everywhere. A project with a real spend line gets a document

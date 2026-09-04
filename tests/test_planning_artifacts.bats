@@ -18,6 +18,18 @@
 # docs/planning/ — no edit to this file required, which is the property
 # worth having.
 #
+# All six were negative-controlled on 2026-09-04, each observed reporting
+# against a deliberately broken fixture, before the templates moved to the
+# global layer. Two of them had never been seen to fail before that.
+#
+# P-0 exists because the other five degrade to silence rather than to
+# failure. Every one of them iterates over a set, and an empty set is
+# reported as a pass — so a mistyped TEMPLATE_DIR turns the whole group
+# green while asserting nothing. This was not hypothetical: moving the
+# templates without moving the pointer produced exactly that, six passes
+# over zero templates. ci.yml guards --filter-tags the same way and for the
+# same reason.
+#
 # What this suite deliberately does NOT catch:
 #   - Whether an owner named in a template is a skill that actually
 #     exists. project-feasibility and project-planning are specified by
@@ -38,7 +50,13 @@
 
 SANDBOX_DIR="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
 PLANNING_DIR="${SANDBOX_DIR}/docs/planning"
-TEMPLATE_DIR="${PLANNING_DIR}/templates"
+# Templates live in the injected global layer, not beside the artifacts they
+# govern: the skills that follow them are global and reach every project,
+# while docs/planning/ is per-project. See
+# docs/designs/planning-skill-output-routing.md §Decision 1. This path is
+# load-bearing — an empty TEMPLATE_DIR makes P-1, P-3, P-5 and P-6 pass over
+# nothing rather than fail, so P-0 asserts the set is non-empty.
+TEMPLATE_DIR="${SANDBOX_DIR}/global-claude/templates/planning"
 
 # Heading text to ceiling-key slug: lowercase, drop anything that is not a
 # letter, digit or space, then spaces to hyphens. "TL;DR" -> tldr,
@@ -58,8 +76,8 @@ _fm_value() {
     _frontmatter "$1" | sed -n "s/^$2:[[:space:]]*//p" | head -1
 }
 
-# Artifacts are docs/planning/*.md excluding the index. Templates live one
-# level down and are never artifacts.
+# Artifacts are docs/planning/*.md excluding the index. Templates live in
+# the global layer (see TEMPLATE_DIR above) and are never artifacts.
 _artifacts() {
     find "$PLANNING_DIR" -maxdepth 1 -name '*.md' ! -name 'README.md' 2>/dev/null | sort
 }
@@ -163,6 +181,19 @@ _report() {
         echo "--- $2 ---" >&2
         echo "$1" >&2
     fi
+}
+
+# bats test_tags=fast, hostonly
+@test "P-0: the template set is not empty" {
+    run _templates
+    [ "$status" -eq 0 ]
+    if [ -z "$output" ]; then
+        echo "--- no templates under ${TEMPLATE_DIR} ---" >&2
+        echo "P-1, P-3, P-5 and P-6 iterate over this set. An empty set makes" >&2
+        echo "all four pass while asserting nothing, so the contract would" >&2
+        echo "report green with no templates behind it. Check TEMPLATE_DIR." >&2
+    fi
+    [ -n "$output" ]
 }
 
 # bats test_tags=fast, hostonly

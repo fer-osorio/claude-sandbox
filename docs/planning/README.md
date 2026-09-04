@@ -30,11 +30,18 @@ status.
 
 ## Two choices ADR 002 left open
 
-**Templates live in `templates/`, artifacts live here.** ADR 002 decision 5
-requires templates to be files rather than advice inside a SKILL.md, but
-does not say where they go. Putting them in a subdirectory keeps the
-artifact paths exactly as decision 2 specifies, and keeps the index free of
-rows for files that are not artifacts.
+**Templates live in the global layer, artifacts live here.** ADR 002
+decision 5 requires templates to be files rather than advice inside a
+SKILL.md, but does not say where they go. They are at
+`global-claude/templates/planning/`, reaching a session as
+`~/.claude/templates/planning/<artifact>.md`, because the skills that
+follow them are injected into every project while this directory is
+per-project. See
+[`planning-skill-output-routing.md`](../designs/planning-skill-output-routing.md)
+§Decision 1 for why, and §Consequences for what that costs.
+
+Artifact paths are unchanged — decision 2 specifies them and only the
+authoring inputs moved.
 
 **Ceilings are counted in lines, not sentences.** ADR 002 decision 4 asks
 for a TL;DR of at most three sentences. The check counts lines instead,

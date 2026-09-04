@@ -25,6 +25,13 @@
 # since a count does not tell a later reader which results rest on the
 # thinnest evidence.
 #
+# P-7 was negative-controlled separately, after the move: emptying
+# _UNBUILT_OWNERS makes it report exactly the two project-planning
+# templates. That is what shows the exemption list is load-bearing rather
+# than decorative — the check widens to all four owners the moment the list
+# empties, so it has to be the list doing the work and not the absence of a
+# skill. Repeat that control when Phase 4 empties it for real.
+#
 # What that verification proves is bounded by how it was performed. bats is
 # not in the sandbox image (BUILDING.md, "Running the test suite"), so from
 # inside a session the helper functions below can be extracted and called
@@ -33,13 +40,13 @@
 # actually fires comes from a host run or from CI on a pushed branch, never
 # from a session alone.
 #
-# P-0 exists because the other five degrade to silence rather than to
-# failure. Every one of them iterates over a set, and an empty set is
-# reported as a pass — so a mistyped TEMPLATE_DIR turns the whole group
-# green while asserting nothing. This was not hypothetical: moving the
-# templates without moving the pointer produced exactly that, six passes
-# over zero templates. ci.yml guards --filter-tags the same way and for the
-# same reason.
+# P-0 exists because every check that reads the template set — P-1, P-3,
+# P-5, P-6 and P-7 — degrades to silence rather than to failure. Every one
+# of them iterates over that set, and an empty set is reported as a pass —
+# so a mistyped TEMPLATE_DIR turns the whole group green while asserting
+# nothing. This was not hypothetical: moving the templates without moving
+# the pointer produced exactly that, six passes over zero templates.
+# ci.yml guards --filter-tags the same way and for the same reason.
 #
 # What this suite deliberately does NOT catch:
 #   - Whether an owner that is still exempt exists. P-7 resolves every

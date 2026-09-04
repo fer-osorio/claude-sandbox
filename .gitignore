@@ -9,3 +9,6 @@ config.local.sh
 # whatever a live session happened to record). Findings worth keeping are
 # transcribed into docs/designs/auto-memory-seeding-step-zero.md instead.
 check-auto-memory*.sh.out
+
+# Locat setting for claude code
+.claude/settings.local.json

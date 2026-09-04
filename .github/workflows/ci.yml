@@ -2,9 +2,13 @@
 #
 # Scope, stated explicitly so nobody mistakes it for more than it is:
 # this job runs ONLY the tests tagged `hostonly` — those that need no
-# container engine and no pre-built image. Today that is the layered-config
-# group (tests/test_config.bats) and the documentation-integrity group
-# (tests/test_docs_integrity.bats).
+# container engine and no pre-built image. Today that is:
+#   - tests/test_config.bats              (layered config precedence)
+#   - tests/test_docs_integrity.bats      (documentation integrity)
+#   - tests/test_planning_artifacts.bats  (ADR 002 artifact contract)
+#   - tests/test_control_declarations.bats (security controls declared
+#                                           where the thing that reads
+#                                           them looks — SDD §4.9)
 #
 # NOT covered here, and still runnable only on a developer machine with
 # Podman and built images:
@@ -19,6 +23,14 @@
 # on every push would make this slow and flaky enough that it would end up
 # ignored or disabled, which is worse than a narrow gate that always runs.
 # Extending coverage to the slow tier is a separate decision.
+#
+# One distinction this list must not be read as erasing. The
+# control-declarations group asserts that a security control is *declared*
+# at the path that reads it. It does not assert that the control is *in
+# force* — no test in this job starts a container, so none of them can.
+# Every control in the security plan's §5 STRIDE map is still enforced only
+# as far as the tests above, which do not run here, establish. A green check
+# on this job means the declarations survived; it has never meant more.
 
 name: CI
 

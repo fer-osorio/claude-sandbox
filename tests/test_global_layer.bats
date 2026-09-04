@@ -118,6 +118,56 @@ teardown() {
     [ "$status" -eq 0 ]
 }
 
+# bats test_tags=fast
+@test "G-10: every file in the global layer arrives in ~/.claude with its content intact" {
+    # G-1 diffs one file. entrypoint.sh copies the tree wholesale, and every
+    # consumer of the layer — ten skills, five templates, the commit-msg hook —
+    # depends on that being true for the specific file it needs. The design
+    # skill reads ~/.claude/templates/docs-as-code-workflow-template.md, a
+    # runtime path D-1 is exempted from resolving; before this test, that
+    # template could stop arriving and nothing in the repository would fail.
+    #
+    # One-directional deliberately: it walks the source tree, so the files the
+    # entrypoint legitimately adds to ~/.claude that the source has no copy of
+    # do not fail it. Coverage is the property worth asserting here; exact
+    # equality would fail on correct behaviour.
+    register_container "$CONTAINER_NAME"
+
+    # Vacuity guard, same shape as P-0 in test_planning_artifacts.bats: a mount
+    # that failed or resolved empty makes the loop below iterate zero times and
+    # report success. The count has to match what the host actually holds.
+    host_count=$(find "$GLOBAL_BASE" -type f | wc -l)
+    [ "$host_count" -gt 0 ]
+
+    # The source is already mounted readonly at /run/claude-global for every
+    # test in this file, so the comparison needs no manifest passed in — the
+    # original and the copy are both visible from inside the container.
+    run engine_run --rm --name "$CONTAINER_NAME" \
+        --mount "type=bind,source=${GLOBAL_BASE},target=/run/claude-global,readonly" \
+        claude-base bash -c '
+            cd /run/claude-global || exit 1
+            n=0
+            while IFS= read -r -d "" f; do
+                n=$((n + 1))
+                cmp -s "$f" "${HOME}/.claude/${f#./}" || echo "ABSENT-OR-DIFFERENT ${f#./}"
+            done < <(find . -type f -print0)
+            echo "CHECKED ${n}"
+        '
+    [ "$status" -eq 0 ]
+
+    # Both assertions are anchored, so the entrypoint's own "[entrypoint]   ..."
+    # listing of ~/.claude needs no filtering here (contrast G-1, which diffs
+    # raw output and must strip those lines).
+    checked=$(echo "$output" | sed -n 's/^CHECKED //p')
+    [ "$checked" -eq "$host_count" ]
+
+    if echo "$output" | grep -q '^ABSENT-OR-DIFFERENT'; then
+        echo "--- files that did not arrive intact ---" >&2
+        echo "$output" | grep '^ABSENT-OR-DIFFERENT' >&2
+        return 1
+    fi
+}
+
 # Entrypoint commit-msg hook checks (issue #54).
 #
 # These are the first tests in the suite to assert on entrypoint stdout —

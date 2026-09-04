@@ -221,7 +221,7 @@ Mirrors `docs/squid_proxy_guide.md` Part 3 Step 5 exactly, wrapped as assertions
 
 ### 4.4 Group 4 — Global Layer Injection
 
-G-1 through G-6 reproduce the six Phase 6 tests from `docs/plans/2026-05-global-layer-injection-v1.md`, restated as assertions rather than manual procedures. G-7 and G-8 were added later, for the entrypoint's commit-msg hook drift check (issue #54), and are the only tests in the suite that assert on entrypoint stdout — elsewhere those lines are filtered out as noise.
+G-1 through G-6 reproduce the six Phase 6 tests from `docs/plans/2026-05-global-layer-injection-v1.md`, restated as assertions rather than manual procedures. G-7 through G-9 were added later, for the entrypoint's commit-msg hook drift check (issue #54), and are the only tests in the suite that assert on entrypoint stdout — elsewhere those lines are filtered out as noise. G-10 was added last (issue #71) and is the only test that asserts on the layer as a whole rather than on a named file within it.
 
 | ID | Test | Assertion |
 |---|---|---|
@@ -233,6 +233,8 @@ G-1 through G-6 reproduce the six Phase 6 tests from `docs/plans/2026-05-global-
 | G-6 | Application-layer deny rule active | An attempted write to `/run/claude-global/` from inside a Claude Code session is blocked by `permissions.deny`, independent of the OS-level readonly mount (proves the two layers are independently effective, not just one carrying the other) |
 | G-7 | Hook drift reported | A `/workspace` whose `.git/hooks/commit-msg` differs from the shipped copy produces the entrypoint's WARNING line, the container still starts, and the drifted hook is left unmodified — the check reports, it does not resolve |
 | G-8 | Matching hook reported current | An identical installed hook produces the `OK` line and no warning. Pairs with G-7: a one-directional check cannot distinguish a working comparison from one that never fires |
+| G-9 | Hook check follows `core.hooksPath` | A repository redirecting hooks to `.githooks/` has *that* hook examined and named in the warning, and nothing is written to the `.git/hooks/` directory git does not consult |
+| G-10 | Whole layer arrives intact | For every file under `global-claude/`, a file with identical content exists at the corresponding path under `~/.claude/`, and the number compared matches the number the host holds. One-directional: files the entrypoint adds that the source lacks do not fail it |
 
 ### 4.5 Group 5 — Profile-Specific Toolchain Smoke Tests
 

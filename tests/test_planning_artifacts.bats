@@ -31,12 +31,16 @@
 # same reason.
 #
 # What this suite deliberately does NOT catch:
-#   - Whether an owner named in a template is a skill that actually
-#     exists. project-feasibility and project-planning are specified by
-#     ADR 002 and not yet built, so asserting existence today would fail
-#     on purpose-built absence. Tighten this once Phase 3 and 4 land;
-#     tests/test_docs_integrity.bats D-2 already does the equivalent for
-#     the global layer.
+#   - Whether an owner that is still exempt exists. P-7 resolves every
+#     template owner to a committed skill except those in
+#     _UNBUILT_OWNERS, which today is project-planning alone — Phase 4 of
+#     #69. When that list empties the check covers all four owners with
+#     no edit to it.
+#   - Whether an owner that does exist is the skill that actually fires.
+#     P-7 resolves a path; nothing asserts that a feasibility question
+#     routes to project-feasibility rather than to
+#     swe-prior-art-research. That exclusion is prose in two
+#     descriptions, and its failure mode is silent.
 #   - Whether a skill honours path ownership at write time. P-5 checks
 #     that the ownership table is unambiguous, not that anyone obeys it.
 #   - Whether a citation points at a section that exists. D-1 in
@@ -163,6 +167,27 @@ _p5_duplicate_owners() {
     done
 }
 
+# Owners ADR 002 specifies that are not built yet. Asserting their
+# existence would fail on purpose-built absence, so they are exempt — but
+# as data rather than as a sentence in a comment, so the exemption shrinks
+# visibly and P-7 covers every owner the moment the list empties, with no
+# edit to the check itself.
+_UNBUILT_OWNERS="project-planning"
+
+_p7_missing_owner_skills() {
+    for t in $(_templates); do
+        rel="${t#${SANDBOX_DIR}/}"
+        owner="$(_fm_value "$t" owner)"
+        # A missing owner: key is P-1's finding, not this one's.
+        [ -n "$owner" ] || continue
+        case " ${_UNBUILT_OWNERS} " in
+            *" ${owner} "*) continue ;;
+        esac
+        [ -f "${SANDBOX_DIR}/global-claude/skills/${owner}/SKILL.md" ] \
+            || echo "${rel}: owner '${owner}' names no skill at global-claude/skills/${owner}/SKILL.md"
+    done
+}
+
 _p6_dead_ceiling_keys() {
     for t in $(_templates); do
         rel="${t#${SANDBOX_DIR}/}"
@@ -241,5 +266,13 @@ _report() {
     run _p6_dead_ceiling_keys
     [ "$status" -eq 0 ]
     _report "$output" "ceiling keys naming no section"
+    [ -z "$output" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "P-7: every template owner outside the exemption list resolves to a skill" {
+    run _p7_missing_owner_skills
+    [ "$status" -eq 0 ]
+    _report "$output" "owners naming no committed skill"
     [ -z "$output" ]
 }

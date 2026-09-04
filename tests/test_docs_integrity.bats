@@ -29,6 +29,12 @@
 #     is a breakage. D-2 scans only the latter.
 #   - Absolute or ~-relative paths (the design skill's
 #     ~/.claude/templates/... reference resolves only at container runtime).
+#     That reference is not unchecked, only uncheckable from here: G-10 in
+#     tests/test_global_layer.bats asserts every file under global-claude/
+#     arrives at the matching ~/.claude/ path, which is what makes the
+#     citation resolve in a live session. The split is engine access, not
+#     coverage — G-10 needs a running container, so it cannot live in this
+#     file (see the SDD §6.2 note on engine-gated setup()).
 
 SANDBOX_DIR="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
 

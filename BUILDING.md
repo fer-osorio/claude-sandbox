@@ -258,11 +258,19 @@ confusing them:
 |---|---|---|
 | `fast` | Completes in seconds | `test_global_layer.bats` G-1 — but it still needs a built `claude-base` image |
 | `slow` | Builds images or starts containers | `test_squid_isolation.bats` S-1 |
-| `hostonly` | Needs **no** engine daemon and **no** image | `test_config.bats` C-1, `test_docs_integrity.bats` D-1 |
+| `hostonly` | Needs **no** engine daemon and **no** image | `test_config.bats` C-1, `test_docs_integrity.bats` D-1, `test_control_declarations.bats` G-6 |
 
 `fast` does not imply `hostonly`. Several `fast` tests still require a
 running Podman and a pre-built image, which is why CI filters on `hostonly`
 rather than on `fast` — see `.github/workflows/ci.yml`.
+
+Which axis a test lands on is a property of the *file*, not of the test:
+`setup()` runs for every selected test in a file, so one engine-gated
+`setup()` puts every test in that file outside CI. Adding a `hostonly` tag
+does not rescue it — the test gets selected and then fails in `setup()`.
+An assertion that reads only tracked files therefore belongs in
+`test_control_declarations.bats`, which gates on nothing. The placement
+rule is in the SDD, §6.2.
 
 See `docs/designs/claude-sandbox-testing-module-sdd.md` for what each test
 group covers and why.

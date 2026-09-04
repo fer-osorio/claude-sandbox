@@ -123,9 +123,9 @@ Each layer maps to specific STRIDE threats:
 
 ## 4. Implementation Plan
 
-### Phase 1 — Authenticate Claude Code on the Host
+### Phase 1 — Install Claude Code on the Host (optional)
 
-The host installation serves **one specific purpose**: running the one-time OAuth authentication flow to obtain your Anthropic credentials. It is not used for day-to-day work — the container built in Phase 2 is what actually runs Claude Code.
+The host installation is not used for day-to-day work — the container built in Phase 2 is what actually runs Claude Code — and it is not how a session authenticates either. See Change 23: an earlier version of this phase said the host's credentials are injected into containers, and nothing has ever done that. Keep the host install if you want a Claude Code to compare versions against or to use outside the sandbox; skip it otherwise. Authentication is covered at the end of Phase 4.
 
 Install using the current recommended native installer (the npm method is deprecated for host installations):
 
@@ -148,9 +148,9 @@ claude --version
 claude   # follow the OAuth prompts to authenticate
 ```
 
-Once authenticated, your credentials are stored in `~/.claude/` on the host. These will be injected into containers as environment variables (see Phase 4), so you never need to re-authenticate per session.
+Credentials obtained this way are stored in `~/.claude/` on the host, and stay there. `start.sh` does not mount `~/.claude` and does not pass an API key, so a host login has no effect on any session.
 
-**Threat model note:** The host installation is a minimal footprint — you are not using it to process any project files. The container in Phase 2 is what constrains Claude's reach over your actual work.
+**Threat model note:** The host installation is a minimal footprint — you are not using it to process any project files. The container in Phase 2 is what constrains Claude's reach over your actual work. That the host credential never reaches a container is a property worth keeping: it is one fewer place the sandbox can leak from, not an inconvenience to be engineered away.
 
 ---
 
@@ -313,6 +313,8 @@ Create a `.claude/settings.json` in each project directory:
 
 Adjust the deny list per project. The key principle: deny by default, grant explicitly.
 
+The path is load-bearing and is not interchangeable with `settings.json` at the project root — a rule declared there is never read. See Change 22; this repository had it in the wrong place from the start, and the layer was inert until 2026-09-04. `./check-auto-memory.sh deny-path` is the check that tells the two apart.
+
 **Threat model note:** Even if someone crafts a prompt injection that tricks Claude into trying to exfiltrate data via `curl`, this layer rejects the tool call before it reaches the network. This is defense in depth — the network layer would also block it, but you want two gates, not one. This primarily mitigates **Information Disclosure (I)** and **Tampering (T)**.
 
 ---
@@ -321,15 +323,20 @@ Adjust the deny list per project. The key principle: deny by default, grant expl
 
 Never place key material or credentials as plaintext files in a project directory that Claude can read. Instead:
 
-**For API keys Claude Code itself needs** (your Anthropic API key), inject them as environment variables at container start, not as files:
+**How a session authenticates, in this project:** interactively, from inside the container. You run `./start.sh`, and the first thing you do in the session is log in through Claude Code's own OAuth flow. `start.sh` passes exactly one credential into a container, `GH_TOKEN`, and only when it is already set in your shell.
+
+Two consequences follow, and neither is a defect:
+
+- **A login does not survive the session.** Containers run with `--rm` and `~/.claude` inside them is not persisted anywhere, so every session begins with a login. This is the cost of ephemerality, paid knowingly.
+- **The host's credential is never in the container.** There is no API key in the container's environment, no credential file mounted from the host, and nothing in `start.sh` that could put one there.
+
+**On the API-key alternative:** Claude Code also accepts `ANTHROPIC_API_KEY` from the environment, and an earlier version of this document presented that as the mechanism:
 
 ```bash
-docker run ... \
-  --env ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
-  claude-sandbox
+docker run ... --env ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" claude-sandbox
 ```
 
-Your shell reads `ANTHROPIC_API_KEY` from your host environment (where you set it once, securely), and passes it into the container. The key never touches the filesystem inside the container.
+This project does not do that, and never did. It is recorded here as a road not taken rather than deleted, because it is a genuine option with a different trade: it removes the per-session login, and in exchange puts a long-lived credential into container environment state, readable by any process in the container and visible in the engine's inspect output. Adopting it would be a change to the launch path and would need its own STRIDE analysis. It is also a different billing and trust model — API-key access is not the subscription the interactive flow uses.
 
 **For your research key material**, the rule is simpler: *never mount the directory containing it*. Your `~/.gnupg`, your HSM interface directory, your private key store — these directories are not in `$PROJECT_DIR` and therefore not mounted. The container literally cannot see them. This is the strongest possible control: not a permission check that could be misconfigured, but a physical absence of the data from the container's filesystem namespace.
 
@@ -1226,3 +1233,112 @@ No other STRIDE category is affected.
 - The two remaining residuals from Change 20 stand: the check compares contents
   and cannot judge correctness, and an operator with a deliberately customised
   hook is warned every session.
+
+---
+
+### Change 22 — Deny List Moved to the Path Claude Code Actually Reads
+**Affects:** `settings.json` → `.claude/settings.json`, `tests/test_global_layer.bats`,
+`check-auto-memory.sh`. Date: 2026-09-04.
+
+**What changed:**
+This repository's `permissions.deny` list lived at `settings.json` in the repository
+root. Claude Code reads project-scope settings from `<project>/.claude/settings.json`;
+`/workspace/.claude/` did not exist, and no other mechanism injected those rules. The
+file has been moved to `.claude/settings.json`. Its contents are unchanged.
+
+Phase 3 above already gave the correct location, so this was a placement defect in this
+repository rather than a wrong instruction. It affects only this repository: a mounted
+project that followed Phase 3 was always enforced.
+
+**Why:** the third layer of the defense architecture was inert, and the coverage map in
+§5 counted it as present. Found while running the settings-scope gate for the auto-memory
+seeding design, where two probe arms carrying an identical rule at the two paths produced
+opposite outcomes — denied at `.claude/settings.json`, not denied at the repository root.
+Reproduced 2026-09-04 from the shipped `deny-path` probe in a `start.sh` session, so the
+finding does not rest on the one-off run that surfaced it.
+
+**Why the existing checks did not catch it:**
+G-6 asserted that `Write(/run/*)` appeared in the file. That assertion cannot fail when
+the file is somewhere nothing loads it, because it never asks whether anything does. The
+smoke test in `docs/plans/2026-05-global-layer-injection-v1.md` §Phase 6 Test 6 would
+have caught it, but a write to `/run/claude-global` also fails at the OS level against
+the readonly mount, so a pass there did not distinguish the application gate from the
+mount. Presence was read as function, twice.
+
+G-6 now asserts the location as well as the content, and fails if a root-level copy
+reappears. `./check-auto-memory.sh deny-path` covers the half G-6 structurally cannot:
+it drives real turns to establish which path is enforced. The two are a pair, and the
+defect survived because only the weaker one existed.
+
+**STRIDE mapping (delta only):**
+
+| Threat (STRIDE) | Control restored |
+|---|---|
+| **Information Disclosure (I)** | `Bash(curl *)`, `Bash(wget *)`, `Bash(nc *)`, `Bash(ssh *)` and `Bash(scp *)` are now refused at the application layer for sessions mounting this repository. Previously the Squid allowlist was the only gate on egress from this project — one layer where §5 recorded two. |
+| **Tampering (T)** | `Write(../*)`, `Write(/run/*)`, `Bash(rm -rf *)`, `Bash(git remote *)` and `Bash(git push *)` likewise. The mount scope and the readonly bind on `/run/claude-*` were carrying this alone. |
+
+No category is newly exposed: this restores a layer rather than adding one, and no
+control was removed. The interval during which it was inert is bounded by the layers
+that were in force throughout — Squid's egress allowlist, `--cap-drop=ALL`, non-root,
+`no-new-privileges`, and the mount scope. Defense in depth did its job; the accounting
+of it did not.
+
+**Operational consequence, stated because it is new behaviour:**
+these rules have never actually applied to a session in this repository. From this
+change on they do, and `Bash(git push *)` and `Bash(git remote *)` are among them —
+pushing and remote manipulation are operator actions taken outside the container. This
+is the list working as written, not a regression to be worked around.
+
+The contents were kept byte-for-byte rather than revised in the same change, deliberately.
+The list was authored in May against a mechanism that never ran it, so there is no
+operating experience behind any individual rule yet. What stays, what goes and what is
+missing is to be decided from observed friction once the rules actually bite — an
+evidenced change later, not a pre-emptive one now.
+
+**Residual, not yet closed:**
+- `deny-path` needs credentials, so it cannot run in `bats tests/` or in CI. It is an
+  operator-run diagnostic, and nothing forces it to be re-run after a Claude Code
+  upgrade changes which paths are loaded.
+- G-6 still checks one rule (`Write(/run/*)`) as a proxy for the whole list. A rule
+  deleted from the file individually would not fail it.
+- No check confirms that the rules are enforced for the *mounted project* in a live
+  session; `deny-path` establishes the property in a scratch directory instead.
+
+---
+
+### Change 23 — Documented Credential Flow Replaced With the Real One
+**Affects:** this document (Phases 1 and 4), `docs/user_guide.md`. Date: 2026-09-04.
+
+**What changed:**
+Phase 1 said host credentials "will be injected into containers as environment
+variables (see Phase 4), so you never need to re-authenticate per session", and
+Phase 4 gave `--env ANTHROPIC_API_KEY` as the mechanism. Neither describes this
+project. `start.sh` passes only `GH_TOKEN`; `~/.claude` is not mounted; containers
+run `--rm`. A session is authenticated because a human logged into it from inside
+the container, and that login does not survive the session.
+
+Phase 4 now says so, and keeps the API-key path as an explicitly-not-taken option
+with its trade recorded. Phase 1 is retitled optional, since obtaining a host
+credential was its stated purpose and that credential reaches nothing. The user
+guide gains an "Authenticating a session" section, which it had no equivalent of.
+
+**Why:** the documented flow read as implemented, so work built against it failed
+at the point of use — `check-auto-memory.sh deny-scope` was written to require
+`ANTHROPIC_API_KEY` and turned out to be unrunnable (issue #75, fixed in 358c5b0
+by reusing a live session's login). Documentation that describes a mechanism the
+project does not have is not merely stale; it is actively load-bearing for anyone
+building on it.
+
+**STRIDE mapping (delta only):**
+
+No control changed, so no category moves. Recording what is true does alter one
+line of the §5 map's reading: **Information Disclosure (I)** is better than the old
+text implied, not worse — no long-lived Anthropic credential exists in container
+environment state, because the flow that would have put it there was never built.
+
+**Residual, not yet closed:**
+- Per-session login is friction with no mitigation offered here. Removing it means
+  adopting the API-key path, which is a Case E change to the launch path.
+- Nothing tests these claims. That `start.sh` passes only `GH_TOKEN` is asserted by
+  reading it, and a future change adding a credential to the launch path would not
+  fail anything. Compare Change 22: the same shape of gap, one layer up.

@@ -19,8 +19,11 @@
 
 Seeding operator-authored Auto Memory content into every sandbox session:
 curated, git-tracked, delivered read-only at session start, destroyed with the
-container. This is "Option A" from `injecting_memories_into_containers.md` — the
-one-way seed, not round-trip persistence.
+container. This was "Option A" in `injecting_memories_into_containers.md`, an
+untracked session export deleted 2026-09-04 — the one-way seed, not round-trip
+persistence. That naming is provenance only: the scope this document defines is
+the sentence above it, not a pointer into a document no longer in the
+repository. See the References entry in `auto-memory-seeding-step-zero.md`.
 
 The empirical groundwork is `auto-memory-seeding-step-zero.md`. Findings are
 cited here by their identifiers (F-1, Q-4, R-2, …) and **not restated**; that

@@ -166,16 +166,18 @@ Enforcement coverage does not regress, because decision 4 moves the test
 pointer with the files and asserts the template count rather than the exit
 status.
 
-Two citations in [ADR 003](../adr/003-where-a-behavioural-rule-goes.md) go
-stale: line 30 cites `docs/planning/templates/scope.md:36-40` as the existing
-carrier for "name anti-goals", and line 77 cites `templates/scope.md` again
-in the placement table. ADRs are never rewritten, so both paths stay wrong
+Four citations in [ADR 003](../adr/003-where-a-behavioural-rule-goes.md) go
+stale, across three lines: line 30 cites both
+`docs/planning/templates/scope.md:36-40` and `templates/charter.md:20` as
+existing carriers for "name anti-goals", line 77 cites `templates/scope.md`
+again in the placement table, and line 126 cites it once more in the
+alternatives. ADRs are never rewritten, so all four paths stay wrong
 permanently. This is accepted rather than mitigated — ADR 003's decision, the
 three-rung ladder, is untouched; only the evidence for one row moved, and the
 alternative is either forking the rule into two locations or leaving the
 templates where a global skill cannot reach them. Nothing catches this
-automatically: D-1 resolves markdown links, and both citations are code
-spans.
+automatically: D-1 resolves markdown links, and every one of the four is a
+code span.
 
 Against that: the templates now live further from the artifacts they govern.
 A reader of `docs/planning/scope.md` who wants to know its ceilings must

@@ -433,6 +433,17 @@ and needs its own STRIDE delta plus a test that asserts enforcement rather than
 declaration — otherwise the fix repeats the mistake that produced it. Tracked as
 issue #64. Recorded here because this is where the evidence is.
 
+**Re-confirmed and fixed 2026-09-04.** The two arms were promoted out of the
+ad-hoc arm-A/arm-D run into `check-auto-memory.sh deny-path`, which the operator
+ran against `claude-claude-sandbox-1788455273`: P (rule at `.claude/settings.json`)
+denied — "The command was denied by permission settings" — and R (same rule at the
+project root) executed the command. The finding reproduces from a shipped probe
+rather than from a one-off, and the rule at the wrong path remains
+indistinguishable from no rule at all.
+
+The move itself, its STRIDE delta, and the G-6 rewrite that now asserts the
+location are recorded as Change 22 in `docs/claude_code_security_plan.md`.
+
 Scope of the claim: this concerns *this repository's own* `settings.json`. Phase
 3 instructs operators to create `.claude/settings.json` per project, so an
 arbitrary mounted project that followed that instruction is unaffected.

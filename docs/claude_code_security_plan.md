@@ -1254,6 +1254,8 @@ project that followed Phase 3 was always enforced.
 §5 counted it as present. Found while running the settings-scope gate for the auto-memory
 seeding design, where two probe arms carrying an identical rule at the two paths produced
 opposite outcomes — denied at `.claude/settings.json`, not denied at the repository root.
+Reproduced 2026-09-04 from the shipped `deny-path` probe in a `start.sh` session, so the
+finding does not rest on the one-off run that surfaced it.
 
 **Why the existing checks did not catch it:**
 G-6 asserted that `Write(/run/*)` appeared in the file. That assertion cannot fail when

@@ -20,7 +20,18 @@
 #
 # All six were negative-controlled on 2026-09-04, each observed reporting
 # against a deliberately broken fixture, before the templates moved to the
-# global layer. Two of them had never been seen to fail before that.
+# global layer. P-2 and P-4 are the two that had never been seen to fail
+# before that date; naming them rather than counting them is the point,
+# since a count does not tell a later reader which results rest on the
+# thinnest evidence.
+#
+# What that verification proves is bounded by how it was performed. bats is
+# not in the sandbox image (BUILDING.md, "Running the test suite"), so from
+# inside a session the helper functions below can be extracted and called
+# directly. That exercises the awk and sed logic and nothing else — not the
+# bats wiring, not the tags, not the reporting. Any claim that a check
+# actually fires comes from a host run or from CI on a pushed branch, never
+# from a session alone.
 #
 # P-0 exists because the other five degrade to silence rather than to
 # failure. Every one of them iterates over a set, and an empty set is

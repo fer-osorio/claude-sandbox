@@ -1,6 +1,6 @@
 ---
 name: swe-prior-art-research
-description: "Research prior art and evaluate technical feasibility for a software engineering problem or idea — has this been solved, built, or attempted before, and is it viable given real constraints. Trigger on requests to check whether an approach/idea/problem has precedent, existing solutions, or prior attempts, or whether something is technically feasible/worth building. Mutually exclusive with industry-research-analyst — resolve by what the answer needs to conclude, not by keyword: a personal build-vs-buy decision (even phrased as \"has anyone built X\") routes here, since surveying what exists is only an input to that decision; a market/competitive landscape report routes to industry-research-analyst instead. Also distinct from technical-explanation-structure (explaining an already-identified system)."
+description: "Research prior art and evaluate technical feasibility for a software engineering problem or idea — has this been solved, built, or attempted before, and is it viable given real constraints. Trigger on requests to check whether an approach/idea/problem has precedent, existing solutions, or prior attempts, or whether something is technically feasible/worth building. Mutually exclusive with industry-research-analyst — resolve by what the answer needs to conclude, not by keyword: a personal build-vs-buy decision (even phrased as \"has anyone built X\") routes here, since surveying what exists is only an input to that decision; a market/competitive landscape report routes to industry-research-analyst instead. Also distinct from technical-explanation-structure (explaining an already-identified system). Also mutually exclusive with project-feasibility, on the same test: whether a scoped project should start, ending in a committed docs/planning/feasibility.md, routes there — whether a solution already exists and an approach is viable routes here, and is an input to that judgment."
 ---
 
 # Software Engineering Prior-Art & Feasibility Research
@@ -145,9 +145,24 @@ carries that suite.
   exists — the survey is an input, not the deliverable. If the
   deliverable itself is a landscape/competitive report, that's
   `industry-research-analyst`.
+- **Mutual exclusion with `project-feasibility`**: same tie-breaker, and
+  the keyword test fails harder here — both skills legitimately say
+  "feasible", and this one's own description claims technical feasibility.
+  Resolve on what the answer must conclude. A go/no-go judgment about a
+  scoped project, ending in a committed artifact, is `project-feasibility`.
+  Whether something exists and whether the approach is viable is this
+  skill, and the finding is an input to that judgment rather than a rival
+  to it. In a Planning run both fire, at different steps, in the order
+  ADR 002 lays out — that is intended, not a collision.
 
 ## Changelog
 
+- **0.5 (draft)** — Reciprocal mutual-exclusion clause against the new
+  `project-feasibility` skill, in the description and the notes. This
+  skill's own feasibility claim is deliberately not narrowed: it is
+  correct for standalone use, and narrowing it would trade a live
+  collision for a skill that stops firing. The tie-breaker is the same one
+  0.3 established — what the answer must conclude, not which words appear.
 - **0.4 (draft)** — Added the Planning-phase output section: in a project
   carrying `docs/planning/`, findings become `docs/planning/prior-art.md`
   under the ADR 002 contract rather than a reply. Gated on the directory

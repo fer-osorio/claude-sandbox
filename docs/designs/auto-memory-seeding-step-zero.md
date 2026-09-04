@@ -389,9 +389,25 @@ removes nothing.
 
 **Arm D is a separate finding — see "Project-scope settings at the wrong path".**
 
-*Caveats: Environment 2, not a `start.sh` container; non-interactive, so the
-workspace-trust dialog was skipped (see below); one trial per arm, model
-`sonnet`.*
+**Re-confirmed in a canonical session, 2026-09-04.** Re-run by the operator via
+`check-auto-memory.sh deny-scope` against a `start.sh`-launched container
+(`claude-claude-sandbox-1788455273`), using that session's own login rather than
+an API key. Same outcome — C not denied, A and B denied — and both transcripts
+attribute the block to the permission system rather than reading as a model
+that declined to try ("The command was denied by permission settings";
+"Permission to run that command was denied"). **The Environment 2 caveat is
+lifted for Q-12.**
+
+That run also corroborates the trust narrowing below, as a byproduct nobody
+designed for: the probe's scratch project at `/tmp/deny-scope-proj` was created
+inside the container and never trusted by anyone, yet its project-scope deny
+rule fired in arms A and B. Settings from an untrusted directory took effect
+under `-p`, which is what "the workspace trust dialog is skipped in
+non-interactive mode" predicts.
+
+*Caveats remaining: the probe's own turns are non-interactive, so the
+workspace-trust dialog was skipped even though the host session is interactive;
+one trial per arm; model `sonnet` in the Environment 2 run.*
 
 ## Project-scope settings at the wrong path — found 2026-09-03
 

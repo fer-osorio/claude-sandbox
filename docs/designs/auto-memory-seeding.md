@@ -195,9 +195,10 @@ round-trip test, recorded as Q-12 in step-zero: with the deny rule at
 user-scope file carrying only `autoMemoryDirectory`, and a negative-control arm
 established that the probe was capable of *not* denying — without which the two
 matching results would have licensed the conclusion while testing nothing.
-`check-auto-memory.sh deny-scope` is the instrument, and re-running it in a
-`start.sh` container remains owed: the confirming run was Environment 2 and
-non-interactive.
+`check-auto-memory.sh deny-scope` is the instrument. **Re-confirmed in a
+`start.sh` container 2026-09-04**, so the Environment 2 caveat no longer
+applies; the probe's turns remain non-interactive, which is recorded in
+step-zero and in the script.
 
 **Second interaction, deliberately not gated.** Claude Code may itself write
 `~/.claude/settings.json` during a session (theme, model). Whether such a write
@@ -388,9 +389,11 @@ Consequences, in order of importance:
   `start.sh` starts*, not for arbitrary in-container use. Anyone scripting
   `claude -p` against an untrusted mounted repository is outside the control.
 - `check-auto-memory.sh deny-scope` drives non-interactive turns and therefore
-  runs on the ungated path by construction. Its result transfers to a real
-  session by analogy, not proof — the same standing as step-zero's Environment 2
-  findings, and stated in the script itself.
+  runs on the ungated path by construction, even when hosted inside an
+  interactive session. The 2026-09-04 run demonstrated the exposure rather than
+  merely describing it: the probe's scratch project was never trusted by anyone,
+  and its project-scope deny rule took effect anyway. Stated in the script
+  itself, so the limit travels with the instrument.
 - This qualification belongs in step-zero's "Pre-existing exposure" section as a
   correction, since that is where the original conclusion is recorded. §8 step 2
   carries it.
@@ -526,10 +529,10 @@ this one.
 One logical change per commit, on a branch, referencing the issue.
 
 1. **`docs: design for curated auto-memory seeding (#65)`** — this document.
-2. **Verification gate — cleared 2026-09-03, re-confirmation owed.** The
-   settings-scope question passed in Environment 2 (step-zero Q-12), so the work
-   below is unblocked. Re-confirm before step 3 lands, since the confirming run
-   was non-interactive and outside a canonical session: start a session with
+2. **Verification gate — cleared and re-confirmed 2026-09-04.** The
+   settings-scope question passed in Environment 2 and again in a
+   `start.sh`-launched container (step-zero Q-12), so nothing below is blocked
+   on it. To re-run after a Claude Code upgrade: start a session with
    `./start.sh`, log into it, then run
    `./check-auto-memory.sh deny-scope <container-name>` from the host. The probe
    reuses that session's login — there is no API key in this project's launch

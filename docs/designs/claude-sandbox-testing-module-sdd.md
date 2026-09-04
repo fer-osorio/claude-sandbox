@@ -5,9 +5,9 @@
 | Field | Value |
 |---|---|
 | **Document Type** | Software Design Document (SDD) |
-| **Status** | Accepted |
-| **Version** | 1.1 |
-| **Date** | 2026-09-02 |
+| **Status** | Draft |
+| **Version** | 1.2 |
+| **Date** | 2026-09-04 |
 | **Author** | Fernando |
 | **Reviewers** | Security Team |
 | **Supersedes** | — (no prior testing SDD exists for claude-sandbox) |
@@ -22,6 +22,7 @@
 | 1.0 | 2026-07-09 | Fernando | Initial design: bats-core harness, five test groups, `$ENGINE` abstraction, naming/fixture conventions |
 | 1.0 | 2026-07-13 | Fernando | Accepted; moved to `docs/designs/` per docs-as-code Case C convention; tracked under issue #11 |
 | 1.1 | 2026-09-02 | Fernando | Reconciled with the suite as built: Groups 6–8 added, Group 3 extended to S-6, `hostonly` tag axis documented, §9 traceability extended. Covers the drift that accumulated through R-6…R-8, S-4…S-6 and three test files added without revision entries (issue #51) |
+| 1.2 | 2026-09-04 | Fernando | Group 9 added: the engine-free assertions G-6 and B-4 move out of engine-gated files so CI selects them. §6.2 now states the placement rule its own trap implies. G-10 recorded. §4.4's G-6 row corrected — it described an enforcement assertion the test has never made (issue #81) |
 
 ---
 
@@ -156,8 +157,12 @@ Each `.bats` file corresponds to one test group from §4 and runs independently 
 | 6 | `test_config.bats` | Config-layer precedence, `@name` registry resolution | Fast, host-only |
 | 7 | `test_docs_integrity.bats` | Link/skill/ADR/tag conformance, global layer size ceilings | Fast, host-only |
 | 8 | `test_planning_artifacts.bats` | ADR 002 planning-artifact contract | Fast, host-only |
+| 9 | `test_control_declarations.bats` | Security controls are declared at the paths that read them | Fast, host-only |
 
 The fast/slow split feeds directly into the two-tier execution model in §6.1.
+
+Group 9 is not organised by subject the way Groups 1–8 are; it is organised by
+what an assertion *needs*. See §4.9 and the placement rule in §6.2.
 
 ### 3.3 Directory Layout
 
@@ -191,7 +196,10 @@ Test bodies call `engine_run`, `engine_build`, etc. Migrating the suite to valid
 | B-1 | Dependency ordering | `./build.sh crypto` results in both `claude-base` and `claude-crypto` present; base predates crypto in build log ordering |
 | B-2 | `HOST_UID` propagation | Build with `--build-arg HOST_UID=1234`; `engine_run claude-base id -u` returns `1234`, not the default `1000` — direct regression test for the documented ARG-non-inheritance failure mode |
 | B-3 | Isolated build success | Each of `base/crypto/systems/research` Dockerfiles builds cleanly on its own, without relying on layer cache from a prior full build |
-| B-4 | No `latest` tag reliance | Confirms images are referenced by explicit tag in `build.sh`, not implicit `latest` |
+
+B-4 was part of this group and now lives in Group 9 (§4.9). It greps two tracked
+scripts and starts no container, so it does not belong behind this file's engine
+gate. Its ID is unchanged.
 
 ### 4.2 Group 2 — Runtime Security Posture
 
@@ -230,11 +238,19 @@ G-1 through G-6 reproduce the six Phase 6 tests from `docs/plans/2026-05-global-
 | G-3 | Readonly mount enforcement | `touch` inside `/run/claude-global/` fails with a read-only filesystem error |
 | G-4 | Working copy isolation from host | A file written to `~/.claude/memory/` inside a session does not appear in the host `global-claude/` source directory after the container exits |
 | G-5 | Session-to-session isolation | A file written to `~/.claude/` in one running container is not visible from a second, concurrently running container |
-| G-6 | Application-layer deny rule active | An attempted write to `/run/claude-global/` from inside a Claude Code session is blocked by `permissions.deny`, independent of the OS-level readonly mount (proves the two layers are independently effective, not just one carrying the other) |
 | G-7 | Hook drift reported | A `/workspace` whose `.git/hooks/commit-msg` differs from the shipped copy produces the entrypoint's WARNING line, the container still starts, and the drifted hook is left unmodified — the check reports, it does not resolve |
 | G-8 | Matching hook reported current | An identical installed hook produces the `OK` line and no warning. Pairs with G-7: a one-directional check cannot distinguish a working comparison from one that never fires |
 | G-9 | Hook check follows `core.hooksPath` | A repository redirecting hooks to `.githooks/` has *that* hook examined and named in the warning, and nothing is written to the `.git/hooks/` directory git does not consult |
 | G-10 | Whole layer arrives intact | For every file under `global-claude/`, a file with identical content exists at the corresponding path under `~/.claude/`, and the number compared matches the number the host holds. One-directional: files the entrypoint adds that the source lacks do not fail it |
+
+G-6 was part of this group and now lives in Group 9 (§4.9), with its ID unchanged.
+The row that stood here described it as asserting that a write to
+`/run/claude-global/` from inside a live Claude Code session is blocked by
+`permissions.deny` — an enforcement assertion the test has never made. What it
+asserts, and all it has ever asserted, is that the deny list is declared at the
+path Claude Code loads. That gap between the description and the test is the
+same one issue #64 turned up in the control itself, and is the reason Group 9
+exists rather than the tests simply being retagged.
 
 ### 4.5 Group 5 — Profile-Specific Toolchain Smoke Tests
 
@@ -310,6 +326,43 @@ committed templates and carry weight now.
 | P-5 | Ownership is unambiguous | No artifact path is claimed by more than one template — the check ADR 002 decision 2's table goes stale without |
 | P-6 | Ceilings name real sections | Every declared `ceiling-<section>` key corresponds to a section the template actually contains |
 
+### 4.9 Group 9 — Control Declarations
+
+Groups 1–8 are each organised around a subject. This one is organised around a
+requirement: every assertion in it reads tracked files and nothing else, so the
+file carries no `setup()` gate and CI selects it. That is the entire reason the
+group exists, and it is stated here rather than inferred so nobody adds a
+container to it later on subject-matter grounds.
+
+The group is a consequence of the trap in §6.2. CI filters on `hostonly`, and a
+test in a file whose `setup()` gates on an engine cannot be made CI-visible by
+tagging it — it would be selected and then fail in `setup()`. Two tests were in
+that position: G-6, whose whole purpose is to catch a regression of issue #64,
+and B-4. Both are pure filesystem assertions, and neither ran in CI. The #64 fix
+merged with its own regression test unrun and the check green.
+
+**What this group can and cannot show.** It asserts that a control is *declared*
+at the path that reads it. It cannot assert that the control is *in force* — and
+the distinction is not academic here, because collapsing it is precisely how #64
+survived. The pre-#64 version of G-6 asserted the deny list's content against a
+path Claude Code never loaded, and passed, because "is the rule written down" is
+a question an unread path cannot fail. Every test in this group therefore names
+the behavioural check covering its other half, and neither half is sufficient
+alone:
+
+| ID | Test | Declaration asserted | Behavioural half |
+|---|---|---|---|
+| G-6 | Deny list is where Claude Code reads it | `.claude/settings.json` exists at project scope, no root-level copy shadows it, and it carries the `Write(/run/*)` rule | `./check-auto-memory.sh deny-path` — establishes which path is actually enforced |
+| B-4 | No `latest` tag reliance | Neither `build.sh` nor `start.sh` references `:latest` | B-1, B-3 — build against explicit tags and would fail if resolution changed |
+
+IDs are deliberately not renumbered. G-6 and B-4 are cited from
+`docs/claude_code_security_plan.md` Changes 22 and 23, from §7.3 below, and from
+the commit messages of the #64 fix. Renumbering would make every one of those
+citations wrong in exchange for making a prefix match a filename. The cost is
+that this file holds two prefixes matching neither its name nor each other;
+that is recorded in the file's own header rather than left for a reader to trip
+over.
+
 ---
 
 ## 5. Naming and Fixture Conventions
@@ -335,10 +388,10 @@ These conventions are binding for every test group above; a test that doesn't fo
 
 | Tier | Groups | Trigger |
 |---|---|---|
-| Fast | 1, 2, 4, 6, 7, 8 | Every change to `base/`, `start.sh`, `build.sh`, `global-claude/`, or `docs/` |
+| Fast | 1, 2, 4, 6, 7, 8, 9 | Every change to `base/`, `start.sh`, `build.sh`, `global-claude/`, or `docs/` |
 | Slow | 3, 5 | Before merge / before the Podman migration cutover |
 
-Groups 6, 7 and 8 are additionally host-only: they need no engine and no image
+Groups 6, 7, 8 and 9 are additionally host-only: they need no engine and no image
 at all, which is a stronger property than being fast. See §6.2.
 
 Mirrors the Component Tests / Integration Tests split already present in `docs/claude_code_security_plan.md`'s own Testing Strategy section. Groups 3 and 5 are slow because they require either multi-container network setup (Squid) or full toolchain installation (LaTeX, CMake+GTest compilation) — not something you want gating every quick iteration.
@@ -352,9 +405,9 @@ of this section would otherwise do:
 
 | Tag | Means | Groups |
 |---|---|---|
-| `fast` | Completes in seconds | 1, 2, 4, 6, 7, 8 |
+| `fast` | Completes in seconds | 1, 2, 4, 6, 7, 8, 9 |
 | `slow` | Builds images or starts containers | 3, 5 |
-| `hostonly` | Needs no engine daemon and no image | 6, 7, 8 |
+| `hostonly` | Needs no engine daemon and no image | 6, 7, 8, 9 |
 
 `fast` does not imply `hostonly`. Group 4 is fast and still requires a built
 `claude-base`, because its `setup()` gates on one. **CI filters on `hostonly`,
@@ -362,6 +415,23 @@ not on `fast`** — so groups 1 through 5 do not run in CI at all, and the
 `bats tests/` pre-merge gate is the only thing that exercises them. A test
 added to a group whose file gates on an engine cannot be made CI-visible by
 tagging it `hostonly`; it would be selected and then fail in `setup()`.
+
+**The placement rule that follows from this.** Because `setup()` runs for every
+selected test in a file, engine access is a property of the *file*, not of the
+test — so it decides placement before subject matter does:
+
+> A test that asserts what a tracked file declares belongs in a file with no
+> engine gate. A test that asserts what a running container does belongs in a
+> gated one. Where a group's subject would put a test on the wrong side of that
+> line, the line wins.
+
+Group 9 is what the rule produced when applied to the suite as it stood
+(§4.9). The rule is stated because the trap above is otherwise only discoverable
+by falling into it: tagging looks like the fix, and it fails at run time rather
+than at review time. Two consequences worth naming — a group's tests need not
+share a prefix or a file with the rest of their subject, and the gain is
+narrower than it looks, since an engine-free file can only ever assert
+declarations. §4.9 records what that does and does not buy.
 
 ### 6.3 Local Execution
 
@@ -394,7 +464,7 @@ The harness runs with the same privileges as any other script the operator invok
 
 ### 7.3 Negative-Path Assertions as First-Class
 
-Per Goal 4, every test group includes at least one refusal/rejection case (R-4, R-5, S-2, G-3, G-6, C-5, C-9, C-13, and the whole of Groups 7 and 8, which assert only on violations) rather than only proving the permitted path. This is the property that would have caught the Squid changelog's silent flag-drop regression had it existed at the time.
+Per Goal 4, every test group includes at least one refusal/rejection case (R-4, R-5, S-2, G-3, C-5, C-9, C-13, G-6 and B-4 in Group 9, and the whole of Groups 7 and 8, which assert only on violations) rather than only proving the permitted path. This is the property that would have caught the Squid changelog's silent flag-drop regression had it existed at the time.
 
 ### 7.4 STRIDE Mapping — New Surfaces Introduced by the Harness
 
@@ -443,6 +513,7 @@ Consistent with the fail-fast philosophy already established in `setup.sh` / `ru
 | `docs/claude_code_security_plan.md` | Changelog, Change 19 (SELinux mount relabeling) | R-7, R-8 |
 | `docs/designs/podman-migration.md` | §6.2, STRIDE analysis (Tampering, follow-up finding) | R-7, R-8 |
 | `docs/designs/sandbox-config-file.md` | Layered precedence model and `@name` registry | C-1 through C-13 |
+| `docs/claude_code_security_plan.md` | Changelog, Change 22 (deny list at an unread path) | G-6, paired with `./check-auto-memory.sh deny-path` |
 | `docs/adr/002-planning-artifact-contract.md` | Decision 7, "enforced by a test, not by a reviewer" | P-1 through P-6 |
 | `docs/adr/003-where-a-behavioural-rule-goes.md` | Decision 4, no restatement; the placement ladder | D-2, D-6, D-7 |
 | `docs/designs/global-layer-injection.md` | §5.2, Denial of Service — "Global layer size discipline" | D-6, D-7 |

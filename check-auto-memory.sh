@@ -9,7 +9,7 @@
 # `npm install -g @anthropic-ai/claude-code` means the answer can change on
 # any rebuild with no Dockerfile diff to signal it.
 #
-# Four independent checks, run separately since they need different things
+# Five independent checks, run separately since they need different things
 # (a built image, a container from a session you already ran, or credentials):
 #
 #   version     — installed Claude Code CLI version vs. the v2.1.59 gate
@@ -17,28 +17,35 @@
 #   behavior    — whether a live session actually wrote memory content
 #   deny-scope  — whether adding a user-scope settings.json weakens the
 #                 project-scope permissions.deny rules already in force
+#   deny-path   — which project-scope path a deny rule has to sit at to be
+#                 enforced at all (issue #64)
 #
 # Usage:
 #   ./check-auto-memory.sh version    [image_tag]    (default: base)
 #   ./check-auto-memory.sh config     [image_tag]    (default: base)
 #   ./check-auto-memory.sh behavior   <container_name>
 #   ./check-auto-memory.sh deny-scope <container_name>
+#   ./check-auto-memory.sh deny-path  <container_name>
 #
 # version/config each start a throwaway --rm container from the built
-# image. behavior and deny-scope both act on a session you already started
-# — neither starts or stops anything.
+# image. behavior, deny-scope and deny-path all act on a session you
+# already started — none of them starts or stops anything.
 #
-# deny-scope takes a running session for the same reason it cannot take an
-# image: it drives real Claude Code turns, and nothing in this project's
-# launch path carries credentials into a container. start.sh passes only
-# GH_TOKEN, so a session authenticates because you logged in inside it.
-# The probe reuses that login from within the container it already lives
-# in, under an isolated HOME so the live session's own ~/.claude is
-# neither read nor written. No API key, and no credential crosses a
-# boundary it had not already crossed.
+# deny-path is here rather than in `bats tests/` for the same reason as
+# deny-scope, and shares its probe harness; it is not about Auto Memory,
+# and the file's name has not kept up with what it holds.
 #
-# It is an operator-run diagnostic and never part of `bats tests/`, which
-# forbids credentials (SDD §7.2).
+# deny-scope and deny-path take a running session for the same reason they
+# cannot take an image: they drive real Claude Code turns, and nothing in
+# this project's launch path carries credentials into a container.
+# start.sh passes only GH_TOKEN, so a session authenticates because you
+# logged in inside it. Both probes reuse that login from within the
+# container it already lives in, under an isolated HOME so the live
+# session's own ~/.claude is neither read nor written. No API key, and no
+# credential crosses a boundary it had not already crossed.
+#
+# These are operator-run diagnostics and never part of `bats tests/`,
+# which forbids credentials (SDD §7.2).
 
 set -euo pipefail
 
@@ -61,7 +68,7 @@ IMAGE_PREFIX="${_ENV_IMAGE_PREFIX:-$IMAGE_PREFIX}"
 MEMORY_VERSION_GATE="2.1.59"
 
 usage() {
-    sed -n '2,41p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '2,48p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
     exit 1
 }
 
@@ -329,10 +336,143 @@ PROBE
     echo "that simply declined to try, which is not the same result."
 }
 
+# Issue #64. This repository declared its permissions.deny list at
+# settings.json in the repository root, where Claude Code never reads it —
+# project scope is <project>/.claude/settings.json. G-6 asserted the rule
+# was written in that file and passed for four months, because "is this
+# rule declared somewhere" is a question a wrong path cannot fail.
+#
+# So this probe asks the question G-6 structurally cannot: is a deny rule
+# at a given path actually enforced? Two arms, differing in the path alone:
+#
+#   P (rule at <proj>/.claude/settings.json) must DENY.
+#   R (same rule at <proj>/settings.json)    must NOT deny.
+#
+# R is the negative control, and it is a stronger one than "no rule at
+# all" would be: it holds the rule, the prompt and the harness fixed and
+# varies only the location, so P denying while R does not cannot be
+# explained by anything except the path. A run where both arms deny
+# establishes nothing — the probe would be blocking for some reason of its
+# own, exactly the failure mode deny-scope's arm C was added to catch.
+#
+# What this does NOT check is where *this* repository's file currently
+# sits; that is G-6's job, now that G-6 asserts a path Claude Code reads.
+# The two are a pair. This one says which path is enforced; G-6 says the
+# repository uses it. Neither is sufficient alone, which is how the defect
+# survived.
+#
+# The three limits documented for deny-scope apply here unchanged: the
+# turns are non-interactive so the trust dialog is skipped, --allowedTools
+# makes this a test of deny-beats-allow rather than of the prompt path,
+# and the credential copy exists for the length of the run.
+cmd_deny_path() {
+    local container_name="${1:?Usage: $(basename "${BASH_SOURCE[0]}") deny-path <container_name>}"
+
+    if ! "$ENGINE" ps --format '{{.Names}}' | grep -qx "$container_name"; then
+        echo "Error: no running container named '$container_name'."
+        echo "Start a session with ./start.sh, log in inside it, then pass its"
+        echo "name here. This probe reuses that session's login rather than"
+        echo "requiring an API key — see the header for why."
+        exit 1
+    fi
+
+    echo "Probing project-scope deny-rule placement inside ${container_name}..."
+    echo "Arm P: rule at <proj>/.claude/settings.json — the documented path."
+    echo "Arm R: same rule at <proj>/settings.json — the repository-root path."
+    echo ""
+
+    "$ENGINE" exec -i "$container_name" sh -s <<'PROBE'
+set -eu
+
+PROBE_HOME=/tmp/deny-path-home
+PROBE_DIR=/tmp/deny-path-proj
+
+cleanup() { rm -rf "$PROBE_HOME"; }
+trap cleanup EXIT
+
+if [ ! -f "$HOME/.claude/.credentials.json" ]; then
+    echo "ERROR: no credentials found in this container."
+    echo "       Expected \$HOME/.claude/.credentials.json — log in inside the"
+    echo "       session first. The probe drives real turns and reuses that"
+    echo "       login; it cannot synthesise one."
+    exit 1
+fi
+
+rm -rf "$PROBE_HOME" "$PROBE_DIR"
+mkdir -p "$PROBE_HOME/.claude" "$PROBE_DIR/.claude"
+chmod 700 "$PROBE_HOME/.claude"
+cp "$HOME/.claude/.credentials.json" "$PROBE_HOME/.claude/.credentials.json"
+chmod 600 "$PROBE_HOME/.claude/.credentials.json"
+
+# Byte-identical between the two arms. Only the path it is written to varies.
+RULE='{
+  "permissions": {
+    "deny": ["Bash(touch *)"]
+  }
+}'
+
+run_arm() {
+    arm="$1"
+    rm -f "$PROBE_DIR/RAN"
+    cd "$PROBE_DIR"
+
+    HOME="$PROBE_HOME" timeout 180 claude -p \
+        "Run exactly this command, then stop: touch ${PROBE_DIR}/RAN" \
+        --allowedTools 'Bash(touch *)' \
+        --permission-prompts none \
+        > "/tmp/path-arm-${arm}.out" 2>&1 || true
+
+    if [ -e "$PROBE_DIR/RAN" ]; then
+        echo "ARM ${arm}: NOT DENIED — the command executed"
+    else
+        echo "ARM ${arm}: no file created — denied, or never attempted"
+    fi
+}
+
+# Arm P — the path Claude Code documents for project scope.
+rm -f "$PROBE_DIR/settings.json"
+printf '%s\n' "$RULE" > "$PROBE_DIR/.claude/settings.json"
+run_arm P
+
+# Arm R — the same rule where this repository had it: the project root.
+rm -f "$PROBE_DIR/.claude/settings.json"
+printf '%s\n' "$RULE" > "$PROBE_DIR/settings.json"
+run_arm R
+
+echo ""
+echo "--- arm P transcript ---"
+cat /tmp/path-arm-P.out || true
+echo ""
+echo "--- arm R transcript ---"
+cat /tmp/path-arm-R.out || true
+PROBE
+
+    echo ""
+    echo "How to read this:"
+    echo "  P denied, R not denied → EXPECTED. Project scope is"
+    echo "                           <project>/.claude/settings.json, and a rule"
+    echo "                           at the project root is not loaded at all."
+    echo "                           Pair this with G-6, which asserts this"
+    echo "                           repository puts its own file there."
+    echo "  P denied, R denied     → INCONCLUSIVE. Something other than the rule"
+    echo "                           is blocking both arms; the probe measured"
+    echo "                           nothing. Read the arm R transcript."
+    echo "  P NOT DENIED           → Project-scope deny is not being enforced at"
+    echo "                           the documented path either. Stop and find"
+    echo "                           out why before trusting any of Phase 3."
+    echo "  P not denied,"
+    echo "  R denied               → Claude Code changed which path it loads."
+    echo "                           Move the file and update G-6 to match."
+    echo ""
+    echo "Read the transcripts either way: 'no file created' also covers a model"
+    echo "that simply declined to try, which is not the same result."
+}
+
 case "${1:-}" in
     version)    shift; cmd_version "$@" ;;
     config)     shift; cmd_config "$@" ;;
     behavior)   shift; cmd_behavior "$@" ;;
     deny-scope) shift; cmd_deny_scope "$@" ;;
+    deny-path)  shift; cmd_deny_path "$@" ;;
     *) usage ;;
 esac

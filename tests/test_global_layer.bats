@@ -99,13 +99,22 @@ teardown() {
 }
 
 # bats test_tags=fast
-@test "G-6: settings.json declares Write(/run/*) as an app-layer deny rule" {
-    # Full dynamic enforcement (an actual Claude Code turn attempting the
-    # write and getting denied) would require driving a live agent turn,
-    # which needs ANTHROPIC_API_KEY — forbidden by SDD §7.2. This test
-    # verifies the control is declared and present; end-to-end enforcement
-    # is a documented residual gap, not silently assumed to be covered.
-    run grep -q '"Write(/run/\*)"' "${SANDBOX_DIR}/settings.json"
+@test "G-6: the app-layer deny list is at the path Claude Code loads" {
+    # Project scope is <project>/.claude/settings.json. Until issue #64 this
+    # file sat at the repository root, and the declaration-only assertion
+    # below — pointed at SANDBOX_DIR — passed anyway, because "is the rule
+    # written down" is a question an unread path cannot fail. Hence the
+    # first two assertions: the location is now part of what is checked,
+    # and a reintroduced root-level copy fails rather than shadowing.
+    [ -f "${SANDBOX_DIR}/.claude/settings.json" ]
+    [ ! -e "${SANDBOX_DIR}/settings.json" ]
+
+    # Enforcement still needs a live turn, and therefore credentials that
+    # SDD §7.2 forbids here. `./check-auto-memory.sh deny-path` covers that
+    # half — it establishes which path is enforced, this establishes that
+    # the repository uses it. Neither is sufficient on its own; the defect
+    # survived because only the weaker half of the pair existed.
+    run grep -q '"Write(/run/\*)"' "${SANDBOX_DIR}/.claude/settings.json"
     [ "$status" -eq 0 ]
 }
 

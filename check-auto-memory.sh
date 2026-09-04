@@ -1,30 +1,44 @@
 #!/usr/bin/env bash
 # check-auto-memory.sh — step-zero diagnostic for Claude Code's Auto Memory
-# feature. See injecting_memories_into_containers.md for the design
-# discussion this supports (curated memory seeding, still informal/
-# pre-SDD as of this script).
+# feature. See docs/designs/auto-memory-seeding-step-zero.md for the research
+# pass this supports, and docs/designs/auto-memory-seeding.md §4.2 for the
+# verification gate deny-scope exists to close.
 #
 # Confirms, empirically, whether Auto Memory is actually active rather than
 # assuming from the CLI's changelog — base/Dockerfile's unpinned
 # `npm install -g @anthropic-ai/claude-code` means the answer can change on
 # any rebuild with no Dockerfile diff to signal it.
 #
-# Three independent checks, run separately since they need different
-# things (a built image vs. a container from a session you already ran):
+# Four independent checks, run separately since they need different things
+# (a built image, a container from a session you already ran, or credentials):
 #
-#   version   — installed Claude Code CLI version vs. the v2.1.59 gate
-#   config    — whether the CLI recognizes autoMemoryDirectory as a key
-#   behavior  — whether a live session actually wrote memory content
+#   version     — installed Claude Code CLI version vs. the v2.1.59 gate
+#   config      — whether the CLI recognizes autoMemoryDirectory as a key
+#   behavior    — whether a live session actually wrote memory content
+#   deny-scope  — whether adding a user-scope settings.json weakens the
+#                 project-scope permissions.deny rules already in force
 #
 # Usage:
-#   ./check-auto-memory.sh version  [image_tag]      (default: base)
-#   ./check-auto-memory.sh config   [image_tag]      (default: base)
-#   ./check-auto-memory.sh behavior <container_name>
+#   ./check-auto-memory.sh version    [image_tag]    (default: base)
+#   ./check-auto-memory.sh config     [image_tag]    (default: base)
+#   ./check-auto-memory.sh behavior   <container_name>
+#   ./check-auto-memory.sh deny-scope <container_name>
 #
 # version/config each start a throwaway --rm container from the built
-# image. behavior inspects a container from a session you already started
-# — it does not start or stop anything, since Auto Memory content only
-# exists once a real session has run.
+# image. behavior and deny-scope both act on a session you already started
+# — neither starts or stops anything.
+#
+# deny-scope takes a running session for the same reason it cannot take an
+# image: it drives real Claude Code turns, and nothing in this project's
+# launch path carries credentials into a container. start.sh passes only
+# GH_TOKEN, so a session authenticates because you logged in inside it.
+# The probe reuses that login from within the container it already lives
+# in, under an isolated HOME so the live session's own ~/.claude is
+# neither read nor written. No API key, and no credential crosses a
+# boundary it had not already crossed.
+#
+# It is an operator-run diagnostic and never part of `bats tests/`, which
+# forbids credentials (SDD §7.2).
 
 set -euo pipefail
 
@@ -47,7 +61,7 @@ IMAGE_PREFIX="${_ENV_IMAGE_PREFIX:-$IMAGE_PREFIX}"
 MEMORY_VERSION_GATE="2.1.59"
 
 usage() {
-    sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '2,41p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
     exit 1
 }
 
@@ -141,9 +155,184 @@ cmd_behavior() {
     fi
 }
 
+# Closes the gate in auto-memory-seeding.md §4.2: does introducing a
+# user-scope ~/.claude/settings.json — which the seeding design adds, purely
+# to carry autoMemoryDirectory — weaken the project-scope permissions.deny
+# rules a mounted repository supplies?
+#
+# Three arms. A and B differ in exactly one thing — whether the user-scope
+# file exists — and C is the negative control.
+#
+# Neither control arm is optional decoration, and they fail differently:
+#
+#   A (deny rule, no user-scope file) must DENY. If it does not, the rule
+#     never fired even without the file under test, so the run exercised
+#     nothing and B's result means nothing either.
+#   C (no deny rule at all) must NOT DENY. If it denies, something other
+#     than the deny rule is stopping the command — a prompt reaching
+#     --permission-prompts none, say — and then A and B deny for a reason
+#     that has nothing to do with the rule, while looking exactly like a
+#     pass.
+#
+# C exists because the first run of this probe was written with two arms,
+# returned "A denied, B denied", and would have licensed the conclusion
+# without having established that the probe could produce any other result.
+# Reading that as a pass is the false-confidence failure the project's
+# mechanism-verification discipline exists to prevent.
+#
+# The probe asserts on the filesystem, not on prose: the model is asked to
+# create a file, and the check is whether that file exists afterwards.
+# Parsing a refusal out of natural-language output would conflate "the deny
+# rule blocked it" with "the model declined to try".
+#
+# Three limits, stated here rather than discovered later:
+#
+#   1. This drives non-interactive turns, and `claude --help` is explicit
+#      that the workspace trust dialog is SKIPPED under -p (or whenever
+#      stdout is not a TTY), and that settings files failing validation are
+#      silently ignored in that mode with no error shown. start.sh runs
+#      interactively (-it), so the session hosting this probe took the
+#      other path even though the probe itself does not. Running inside a
+#      real session removes step-zero's Environment 2 caveat; it does not
+#      remove this one.
+#   2. --allowedTools pre-allows the probe command so nothing prompts, which
+#      makes the deny rule the only thing that can stop it. That is the
+#      point of the probe, but it means this tests deny-beats-allow
+#      precedence, not the prompt path an operator would see interactively.
+#   3. It copies the session's credential to an isolated HOME inside the
+#      same container, for the length of the run. That adds no exposure —
+#      the file does not leave the container it already lives in — but it
+#      is a second copy while the probe runs, removed on exit including on
+#      failure.
+cmd_deny_scope() {
+    local container_name="${1:?Usage: $(basename "${BASH_SOURCE[0]}") deny-scope <container_name>}"
+
+    if ! "$ENGINE" ps --format '{{.Names}}' | grep -qx "$container_name"; then
+        echo "Error: no running container named '$container_name'."
+        echo "Start a session with ./start.sh, log in inside it, then pass its"
+        echo "name here. This probe reuses that session's login rather than"
+        echo "requiring an API key — see the header for why."
+        exit 1
+    fi
+
+    echo "Probing settings-scope interaction inside ${container_name}..."
+    echo "Arm A: project-scope deny only.  Arm B: same, plus user-scope settings.json."
+    echo "Arm C: negative control — no deny rule at all."
+    echo ""
+
+    # sh -s reads the probe from stdin, so a quoted heredoc keeps every
+    # expansion inside the container instead of the host shell.
+    "$ENGINE" exec -i "$container_name" sh -s <<'PROBE'
+set -eu
+
+PROBE_HOME=/tmp/deny-scope-home
+PROBE_DIR=/tmp/deny-scope-proj
+
+# The credential copy must not outlive the probe. The live session's own
+# ~/.claude is never touched: every arm runs under PROBE_HOME instead, so
+# the settings.json being varied is the probe's, not the operator's.
+cleanup() { rm -rf "$PROBE_HOME"; }
+trap cleanup EXIT
+
+if [ ! -f "$HOME/.claude/.credentials.json" ]; then
+    echo "ERROR: no credentials found in this container."
+    echo "       Expected \$HOME/.claude/.credentials.json — log in inside the"
+    echo "       session first. The probe drives real turns and reuses that"
+    echo "       login; it cannot synthesise one."
+    exit 1
+fi
+
+rm -rf "$PROBE_HOME" "$PROBE_DIR"
+mkdir -p "$PROBE_HOME/.claude" "$PROBE_DIR/.claude"
+chmod 700 "$PROBE_HOME/.claude"
+cp "$HOME/.claude/.credentials.json" "$PROBE_HOME/.claude/.credentials.json"
+chmod 600 "$PROBE_HOME/.claude/.credentials.json"
+
+# Mirrors the shape of this repo's own settings.json: a deny rule on a Bash
+# command, project scope, nothing else.
+cat > "$PROBE_DIR/.claude/settings.json" <<'JSON'
+{
+  "permissions": {
+    "deny": ["Bash(touch *)"]
+  }
+}
+JSON
+
+run_arm() {
+    arm="$1"
+    rm -f "$PROBE_DIR/RAN"
+    cd "$PROBE_DIR"
+
+    # --permission-prompts none: under -p the default target is an SDK host
+    # that is not present here, and anything that would prompt would other-
+    # wise hang. "none" denies whatever would prompt, which is why the probe
+    # command is pre-allowed below — otherwise every arm would "pass" for
+    # the wrong reason.
+    HOME="$PROBE_HOME" timeout 180 claude -p \
+        "Run exactly this command, then stop: touch ${PROBE_DIR}/RAN" \
+        --allowedTools 'Bash(touch *)' \
+        --permission-prompts none \
+        > "/tmp/arm-${arm}.out" 2>&1 || true
+
+    if [ -e "$PROBE_DIR/RAN" ]; then
+        echo "ARM ${arm}: NOT DENIED — the command executed"
+    else
+        echo "ARM ${arm}: no file created — denied, or never attempted"
+    fi
+}
+
+# Arm A — control. No user-scope settings file at all.
+rm -f "$PROBE_HOME/.claude/settings.json"
+run_arm A
+
+# Arm B — the seeding design's addition: user scope, autoMemoryDirectory only,
+# no permissions key of its own.
+cat > "$PROBE_HOME/.claude/settings.json" <<'JSON'
+{
+  "autoMemoryDirectory": "~/.claude/memory"
+}
+JSON
+run_arm B
+
+# Arm C — negative control. User-scope file stays; the project-scope deny
+# rule is removed, so the only thing that could block the command is gone.
+rm -f "$PROBE_DIR/.claude/settings.json"
+run_arm C
+
+echo ""
+echo "--- arm A transcript ---"
+cat /tmp/arm-A.out || true
+echo ""
+echo "--- arm B transcript ---"
+cat /tmp/arm-B.out || true
+echo ""
+echo "--- arm C transcript ---"
+cat /tmp/arm-C.out || true
+PROBE
+
+    echo ""
+    echo "How to read this — check C first, then A, then B:"
+    echo "  C DENIED           → INCONCLUSIVE. Something other than the deny rule"
+    echo "                       is blocking the command, so A and B tell you"
+    echo "                       nothing. Read the arm C transcript."
+    echo "  A NOT DENIED       → INCONCLUSIVE. The rule never fired even without"
+    echo "                       the user-scope file; this run tested nothing."
+    echo "  C not denied,"
+    echo "  A denied, B denied → PASS. The deny rule fires, and still fires with"
+    echo "                       the user-scope file present."
+    echo "  C not denied,"
+    echo "  A denied,"
+    echo "  B NOT DENIED       → REGRESSION. The user-scope file weakened"
+    echo "                       project-scope deny. Stop; SDD §4.2 reopens."
+    echo ""
+    echo "Read the transcripts either way: 'no file created' also covers a model"
+    echo "that simply declined to try, which is not the same result."
+}
+
 case "${1:-}" in
-    version)  shift; cmd_version "$@" ;;
-    config)   shift; cmd_config "$@" ;;
-    behavior) shift; cmd_behavior "$@" ;;
+    version)    shift; cmd_version "$@" ;;
+    config)     shift; cmd_config "$@" ;;
+    behavior)   shift; cmd_behavior "$@" ;;
+    deny-scope) shift; cmd_deny_scope "$@" ;;
     *) usage ;;
 esac

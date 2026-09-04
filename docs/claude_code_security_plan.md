@@ -123,9 +123,9 @@ Each layer maps to specific STRIDE threats:
 
 ## 4. Implementation Plan
 
-### Phase 1 — Authenticate Claude Code on the Host
+### Phase 1 — Install Claude Code on the Host (optional)
 
-The host installation serves **one specific purpose**: running the one-time OAuth authentication flow to obtain your Anthropic credentials. It is not used for day-to-day work — the container built in Phase 2 is what actually runs Claude Code.
+The host installation is not used for day-to-day work — the container built in Phase 2 is what actually runs Claude Code — and it is not how a session authenticates either. See Change 23: an earlier version of this phase said the host's credentials are injected into containers, and nothing has ever done that. Keep the host install if you want a Claude Code to compare versions against or to use outside the sandbox; skip it otherwise. Authentication is covered at the end of Phase 4.
 
 Install using the current recommended native installer (the npm method is deprecated for host installations):
 
@@ -148,9 +148,9 @@ claude --version
 claude   # follow the OAuth prompts to authenticate
 ```
 
-Once authenticated, your credentials are stored in `~/.claude/` on the host. These will be injected into containers as environment variables (see Phase 4), so you never need to re-authenticate per session.
+Credentials obtained this way are stored in `~/.claude/` on the host, and stay there. `start.sh` does not mount `~/.claude` and does not pass an API key, so a host login has no effect on any session.
 
-**Threat model note:** The host installation is a minimal footprint — you are not using it to process any project files. The container in Phase 2 is what constrains Claude's reach over your actual work.
+**Threat model note:** The host installation is a minimal footprint — you are not using it to process any project files. The container in Phase 2 is what constrains Claude's reach over your actual work. That the host credential never reaches a container is a property worth keeping: it is one fewer place the sandbox can leak from, not an inconvenience to be engineered away.
 
 ---
 
@@ -323,15 +323,20 @@ The path is load-bearing and is not interchangeable with `settings.json` at the 
 
 Never place key material or credentials as plaintext files in a project directory that Claude can read. Instead:
 
-**For API keys Claude Code itself needs** (your Anthropic API key), inject them as environment variables at container start, not as files:
+**How a session authenticates, in this project:** interactively, from inside the container. You run `./start.sh`, and the first thing you do in the session is log in through Claude Code's own OAuth flow. `start.sh` passes exactly one credential into a container, `GH_TOKEN`, and only when it is already set in your shell.
+
+Two consequences follow, and neither is a defect:
+
+- **A login does not survive the session.** Containers run with `--rm` and `~/.claude` inside them is not persisted anywhere, so every session begins with a login. This is the cost of ephemerality, paid knowingly.
+- **The host's credential is never in the container.** There is no API key in the container's environment, no credential file mounted from the host, and nothing in `start.sh` that could put one there.
+
+**On the API-key alternative:** Claude Code also accepts `ANTHROPIC_API_KEY` from the environment, and an earlier version of this document presented that as the mechanism:
 
 ```bash
-docker run ... \
-  --env ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
-  claude-sandbox
+docker run ... --env ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" claude-sandbox
 ```
 
-Your shell reads `ANTHROPIC_API_KEY` from your host environment (where you set it once, securely), and passes it into the container. The key never touches the filesystem inside the container.
+This project does not do that, and never did. It is recorded here as a road not taken rather than deleted, because it is a genuine option with a different trade: it removes the per-session login, and in exchange puts a long-lived credential into container environment state, readable by any process in the container and visible in the engine's inspect output. Adopting it would be a change to the launch path and would need its own STRIDE analysis. It is also a different billing and trust model — API-key access is not the subscription the interactive flow uses.
 
 **For your research key material**, the rule is simpler: *never mount the directory containing it*. Your `~/.gnupg`, your HSM interface directory, your private key store — these directories are not in `$PROJECT_DIR` and therefore not mounted. The container literally cannot see them. This is the strongest possible control: not a permission check that could be misconfigured, but a physical absence of the data from the container's filesystem namespace.
 
@@ -1296,3 +1301,42 @@ evidenced change later, not a pre-emptive one now.
   deleted from the file individually would not fail it.
 - No check confirms that the rules are enforced for the *mounted project* in a live
   session; `deny-path` establishes the property in a scratch directory instead.
+
+---
+
+### Change 23 — Documented Credential Flow Replaced With the Real One
+**Affects:** this document (Phases 1 and 4), `docs/user_guide.md`. Date: 2026-09-04.
+
+**What changed:**
+Phase 1 said host credentials "will be injected into containers as environment
+variables (see Phase 4), so you never need to re-authenticate per session", and
+Phase 4 gave `--env ANTHROPIC_API_KEY` as the mechanism. Neither describes this
+project. `start.sh` passes only `GH_TOKEN`; `~/.claude` is not mounted; containers
+run `--rm`. A session is authenticated because a human logged into it from inside
+the container, and that login does not survive the session.
+
+Phase 4 now says so, and keeps the API-key path as an explicitly-not-taken option
+with its trade recorded. Phase 1 is retitled optional, since obtaining a host
+credential was its stated purpose and that credential reaches nothing. The user
+guide gains an "Authenticating a session" section, which it had no equivalent of.
+
+**Why:** the documented flow read as implemented, so work built against it failed
+at the point of use — `check-auto-memory.sh deny-scope` was written to require
+`ANTHROPIC_API_KEY` and turned out to be unrunnable (issue #75, fixed in 358c5b0
+by reusing a live session's login). Documentation that describes a mechanism the
+project does not have is not merely stale; it is actively load-bearing for anyone
+building on it.
+
+**STRIDE mapping (delta only):**
+
+No control changed, so no category moves. Recording what is true does alter one
+line of the §5 map's reading: **Information Disclosure (I)** is better than the old
+text implied, not worse — no long-lived Anthropic credential exists in container
+environment state, because the flow that would have put it there was never built.
+
+**Residual, not yet closed:**
+- Per-session login is friction with no mitigation offered here. Removing it means
+  adopting the API-key path, which is a Case E change to the launch path.
+- Nothing tests these claims. That `start.sh` passes only `GH_TOKEN` is asserted by
+  reading it, and a future change adding a credential to the launch path would not
+  fail anything. Compare Change 22: the same shape of gap, one layer up.

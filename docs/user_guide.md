@@ -42,6 +42,22 @@ project directory does. See
 full threat model and [`docs/squid_proxy_guide.md`](squid_proxy_guide.md)
 for the network allowlist mechanics.
 
+## Authenticating a session
+
+Log in from inside the session, through Claude Code's own OAuth flow, the
+first time you use it after `./start.sh`. There is no host-side step that
+avoids this: `start.sh` passes no Anthropic credential into the container
+and does not mount your host `~/.claude`, and the container is removed on
+exit, so the login does not carry over to the next session either.
+
+`GH_TOKEN` is the one credential that does cross the boundary, and only if
+it is already set in your shell when you run `start.sh` — that is what lets
+`gh` work inside a session.
+
+If you have read Phase 4 of the security plan and are looking for the
+`ANTHROPIC_API_KEY` flow: it is described there as an option this project
+deliberately does not use. See Change 23.
+
 ## The global instruction layer
 
 Every session gets `global-claude/CLAUDE.md` (and skills) copied into

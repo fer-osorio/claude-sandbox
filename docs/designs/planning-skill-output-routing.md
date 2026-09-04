@@ -113,10 +113,19 @@ whose stated purpose is to make the contract more enforceable.
 
 `TEMPLATE_DIR` is therefore repointed to
 `${SANDBOX_DIR}/global-claude/templates/planning` in the same commit that
-moves the files, and the move is verified by observing the tests fail first.
-A negative control is run for P-2 and P-4 at the same time, since Phase 2 is
-the change that makes them non-vacuous and neither has ever been seen to
-fail.
+moves the files.
+
+The verification cannot be "observe the tests fail first", because they do
+not fail — that is the whole hazard. With `_templates()` empty, P-1, P-5 and
+P-6 emit nothing and pass, and P-3 has no template-declared path left to
+check. A broken pointer is indistinguishable from a clean run by exit status
+alone. The observable that does discriminate is the size of the set: the
+checks must see four templates after the move, as they do before it, and
+that count is what gets asserted rather than inferred.
+
+A negative control is run for all six checks separately, since P-2 and P-4
+have never been observed failing and the other four are about to be moved
+out from under their own pointer.
 
 ### 5. What Phases 3 and 4 inherit
 
@@ -154,7 +163,19 @@ The failure mode changes shape usefully. Under decision 2 a project without
 the skill's output goes to the conversation, as it does now.
 
 Enforcement coverage does not regress, because decision 4 moves the test
-pointer with the files and requires the move be observed failing first.
+pointer with the files and asserts the template count rather than the exit
+status.
+
+Two citations in [ADR 003](../adr/003-where-a-behavioural-rule-goes.md) go
+stale: line 30 cites `docs/planning/templates/scope.md:36-40` as the existing
+carrier for "name anti-goals", and line 77 cites `templates/scope.md` again
+in the placement table. ADRs are never rewritten, so both paths stay wrong
+permanently. This is accepted rather than mitigated — ADR 003's decision, the
+three-rung ladder, is untouched; only the evidence for one row moved, and the
+alternative is either forking the rule into two locations or leaving the
+templates where a global skill cannot reach them. Nothing catches this
+automatically: D-1 resolves markdown links, and both citations are code
+spans.
 
 Against that: the templates now live further from the artifacts they govern.
 A reader of `docs/planning/scope.md` who wants to know its ceilings must
@@ -219,20 +240,24 @@ side effect on the working tree. The opt-in costs one existence check.
 
 ## Implementation plan
 
-1. Move `docs/planning/templates/` to `global-claude/templates/planning/`
-   and repoint `TEMPLATE_DIR` in `tests/test_planning_artifacts.bats`.
-   Verify by running the suite with the move applied and the pointer not,
-   confirming P-1/P-3/P-5/P-6 fail, before applying the pointer change.
-2. Update `docs/planning/README.md:33-37` — the recorded location choice
+1. Negative-control all six checks against the current layout, before
+   anything moves: a template with `owner:` removed (P-1), an artifact with
+   an invalid `status` (P-2), an artifact absent from the index (P-3), a
+   section over its ceiling (P-4), two templates claiming one path (P-5), a
+   `ceiling-` key naming no section (P-6). Each must be seen reporting.
+   Discard the fixtures; the point is the observation, not a committed test.
+2. Move `docs/planning/templates/` to `global-claude/templates/planning/`
+   and repoint `TEMPLATE_DIR` in `tests/test_planning_artifacts.bats` in the
+   same commit. Confirm the checks still see four templates afterwards — an
+   empty set passes silently, so the count is the assertion, not the exit
+   status.
+3. Update `docs/planning/README.md:33-37` — the recorded location choice
    changes, and the paragraph should cite this document rather than restate
    it.
-3. Add the output-routing section to
+4. Add the output-routing section to
    `global-claude/skills/swe-prior-art-research/SKILL.md`: the opt-in
    condition, the template path, the artifact path, the index-row update.
    No change to the skill's reasoning steps.
-4. Run the P-2/P-4 negative control — an artifact with an invalid `status`,
-   and one with a section over its template ceiling — and confirm both fail.
-   Discard the fixtures; the point is the observation, not a committed test.
 5. Update the #69 checklist: Phase 2 done, owner-existence tightening still
    pending Phases 3 and 4.
 

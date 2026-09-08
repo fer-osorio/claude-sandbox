@@ -16,12 +16,28 @@
 # just "*.mintcdn.com") as required for img-src/connect-src, confirming
 # it's a directly-addressable host and not merely a wildcard zone.
 #
+# S-7/S-8/S-9 cover the planning-research tier from issue #91 —
+# arxiv.org, datatracker.ietf.org and www.rfc-editor.org, the
+# primary/technical sources swe-prior-art-research retrieves from. They
+# assert reachability only. Nothing here asserts that the deliberately
+# excluded UGC and paywalled domains stay excluded; S-2 covers that
+# generically via the default-deny policy, so a future entry added to
+# squid.conf by mistake would not fail this suite.
+#
 # Requires a squid/ directory (Dockerfile + squid.conf) as a sibling of
-# base/crypto/systems/research, per docs/squid_proxy_guide.md Part 3 Steps
-# 1-2. That directory is not part of this repo — it's created locally by
-# the operator — so this suite cannot build or commit it (out of scope per
-# SDD §2.3); if it's missing, setup fails loudly rather than silently
-# skipping (SDD §8).
+# base/crypto/systems/research. That directory is committed: it landed in
+# 9269ddb, the commit Change 15 of docs/claude_code_security_plan.md
+# records as closing the gap where Layer 4 of the five-layer defense was
+# documentation only. So this suite builds claude-squid:test from the
+# tracked config — the same file a real session's proxy runs on, which is
+# what makes S-1..S-9 assertions about the shipped policy rather than
+# about a local copy of it.
+#
+# The existence check in setup_file() stays, and its job is narrower than
+# it looks: if squid/ is missing or incomplete, setup fails loudly instead
+# of letting the whole group skip and report green. SDD §8 step 6 records
+# the transition — before squid/ was committed, failing at setup_file()
+# was the designed behaviour rather than a defect.
 #
 # The curl helper image is pinned to docker.io/curlimages/curl:latest,
 # fully qualified — an unqualified curlimages/curl:latest depends on
@@ -78,6 +94,13 @@ setup_file() {
     engine_run --rm --network claude-net \
         --env HTTPS_PROXY="http://${proxy_name}:3128" \
         docker.io/curlimages/curl:latest curl -s -o /dev/null https://mintcdn.com >&2 || true
+
+    # Planning-research tier — issue #91. S-7/S-8/S-9 assert on these.
+    for research_host in arxiv.org datatracker.ietf.org www.rfc-editor.org; do
+        engine_run --rm --network claude-net \
+            --env HTTPS_PROXY="http://${proxy_name}:3128" \
+            docker.io/curlimages/curl:latest curl -s -o /dev/null "https://${research_host}" >&2 || true
+    done
 }
 
 teardown_file() {
@@ -112,7 +135,12 @@ proxy_logs() {
     run proxy_logs
     [ "$status" -eq 0 ]
     line_count=$(echo "$output" | grep -cE '^[0-9]+\.[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9.]+[[:space:]]+\S+/[0-9]+')
-    [ "$line_count" -ge 5 ]
+    # One line per request issued in setup_file: 5 from issue #32's era plus
+    # the 3 planning-research hosts from issue #91. Kept equal to the number
+    # of requests rather than a loose floor — a floor below the real count
+    # stops detecting a request that silently produced no log line at all,
+    # which is the failure this test exists to catch.
+    [ "$line_count" -ge 8 ]
 }
 
 # bats test_tags=slow
@@ -131,4 +159,22 @@ proxy_logs() {
 @test "S-6: request to mintcdn.com (issue #32 dstdom_regex CDN exception) succeeds" {
     run proxy_logs
     [[ "$output" =~ TCP_TUNNEL/200[[:space:]]+[0-9]+[[:space:]]+CONNECT[[:space:]]+mintcdn\.com:443 ]]
+}
+
+# bats test_tags=slow
+@test "S-7: request to arxiv.org (issue #91 planning-research tier) succeeds" {
+    run proxy_logs
+    [[ "$output" =~ TCP_TUNNEL/200[[:space:]]+[0-9]+[[:space:]]+CONNECT[[:space:]]+arxiv\.org:443 ]]
+}
+
+# bats test_tags=slow
+@test "S-8: request to datatracker.ietf.org (issue #91 planning-research tier) succeeds" {
+    run proxy_logs
+    [[ "$output" =~ TCP_TUNNEL/200[[:space:]]+[0-9]+[[:space:]]+CONNECT[[:space:]]+datatracker\.ietf\.org:443 ]]
+}
+
+# bats test_tags=slow
+@test "S-9: request to www.rfc-editor.org (issue #91 planning-research tier) succeeds" {
+    run proxy_logs
+    [[ "$output" =~ TCP_TUNNEL/200[[:space:]]+[0-9]+[[:space:]]+CONNECT[[:space:]]+www\.rfc-editor\.org:443 ]]
 }

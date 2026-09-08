@@ -1342,3 +1342,80 @@ environment state, because the flow that would have put it there was never built
 - Nothing tests these claims. That `start.sh` passes only `GH_TOKEN` is asserted by
   reading it, and a future change adding a credential to the launch path would not
   fail anything. Compare Change 22: the same shape of gap, one layer up.
+
+---
+
+### Change 24 — Planning-Research Tier Added to the Squid Allowlist
+**Affects:** §3 (Layer 4), §5 (STRIDE Coverage Map, delta only), `squid/squid.conf`,
+`tests/test_squid_isolation.bats`. Date: 2026-09-07. Issue #91.
+
+**What changed:**
+Three `dstdomain` entries added to `squid/squid.conf` under a new
+`planning-research` tier — `arxiv.org`, `datatracker.ietf.org`,
+`www.rfc-editor.org` — with `tests/test_squid_isolation.bats` S-7/S-8/S-9
+asserting each reaches `TCP_TUNNEL/200`. No mechanism is new: same
+`dstdomain` exact-match discipline, same shared config, no `dstdom_regex`,
+no per-profile split.
+
+**Why:** `swe-prior-art-research` owns `docs/planning/prior-art.md` in the
+ADR 002 contract and is the only research skill wired into it. Its
+primary/technical source tier was unreachable — `WebFetch` against a cited
+paper or RFC was refused at the proxy — while `WebSearch` kept working,
+because it executes server-side and never transits this container's network
+stack (already recorded as F-6 in `auto-memory-seeding-step-zero.md`). The
+skill could discover sources and not read them.
+
+Two claims from the draft design behind this work were probed and
+**disproved**; recorded here so they are not carried forward:
+
+- **`claude.ai` is not required and was not added.** The draft held that
+  `WebFetch`'s domain-safety preflight calls `claude.ai/api/web/domain_info`,
+  that the missing entry denies it, and that this likely broke `WebFetch` for
+  every URL. `claude.ai` is indeed proxy-refused — and a `WebFetch` against
+  the allowlisted `code.claude.com` succeeded anyway, returning full page
+  content. The preflight is not a hard gate from inside this container.
+- **`docs.anthropic.com` is not broken.** An observed `Socket is closed`
+  against it did not reproduce; the same URL returns a clean 301 to
+  `code.claude.com`, and the apex redirects to `platform.claude.com`. Both
+  targets are already allowlisted. Transient failure, not a config gap.
+
+The same probing established, against the prior assumption, that `WebFetch`'s
+content retrieval **does** transit `HTTP_PROXY`/`HTTPS_PROXY`: a fetch of
+`arxiv.org` before this change returned `proxy refused the connection`. That
+is what makes `squid.conf` the correct control point for this gap.
+
+**STRIDE mapping (delta only):**
+
+| Threat (STRIDE) | Control changed |
+|---|---|
+| **Information Disclosure (I)** | Three new blind-tunnel exfiltration channels, in the same accepted-risk class already recorded for the reference tier in Change 15 and `squid-proxy-integration.md` §6.2-I: Squid sees only the CONNECT tunnel for HTTPS, so it restricts destination, never content. This is an incremental addition to an accepted risk, not a new category. It is stated rather than left implicit because "three more domains" is exactly the increment that accumulates without review. |
+| **Repudiation (R)** | Unchanged and still one-sided. Fetches to the new domains appear in the Squid access log; the `WebSearch` queries that found them do not, and cannot, because that tool never reaches this container. Widening what is fetchable therefore widens the fetch log without widening the search log — the visibility gap named in §5 gets proportionally larger, not smaller. Nothing here closes it. |
+
+No other STRIDE category changes: no new surface is writable, no privilege
+boundary moves, no failure mode is introduced, and the proxy's fail-closed
+startup is untouched.
+
+**Residual, not yet closed:**
+- **Exclusions are policy, not mechanism.** HN, Stack Overflow, Reddit,
+  LinkedIn, X, `dl.acm.org` and `ieeexplore.ieee.org` are excluded by a
+  comment in `squid.conf` and by nobody having added them. Default-deny means
+  an *unlisted* domain is refused, so the exclusion holds today — but a future
+  entry added by mistake fails no test. The suite asserts what is reachable,
+  never what must stay unreachable.
+- **Nothing constrains which allowed domain a session fetches.** Squid gates
+  the destination; it cannot distinguish retrieving a paper from posting to an
+  attacker-controlled path on the same host. Pre-existing, and the reason the
+  draft design proposed an application-layer gate — see the next item.
+- **`WebSearch` remains ungated and unlogged locally.** The
+  `PreToolUse`-hook layer intended to close it is not built, and the draft's
+  schema for it does not hold: `permissions.allow` merges across settings
+  scopes rather than being overridden by managed settings, so a managed
+  allow-list pre-approves rather than restricts. The key that would close it,
+  `allowManagedPermissionRulesOnly`, is managed-scope-only and all-or-nothing
+  — enabling it makes managed settings the sole source of permission rules and
+  would silently drop the deny block Change 22 moved into `.claude/settings.json`.
+  That needs its own Case E design pass, not an increment on this one.
+- **Claude Code is unpinned** (`base/Dockerfile`, `npm install -g
+  @anthropic-ai/claude-code`, no version). Any settings-schema behaviour
+  verified for that future design would be verified against whatever npm
+  served at last build.

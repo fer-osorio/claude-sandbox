@@ -25,11 +25,19 @@
 # squid.conf by mistake would not fail this suite.
 #
 # Requires a squid/ directory (Dockerfile + squid.conf) as a sibling of
-# base/crypto/systems/research, per docs/squid_proxy_guide.md Part 3 Steps
-# 1-2. That directory is not part of this repo — it's created locally by
-# the operator — so this suite cannot build or commit it (out of scope per
-# SDD §2.3); if it's missing, setup fails loudly rather than silently
-# skipping (SDD §8).
+# base/crypto/systems/research. That directory is committed: it landed in
+# 9269ddb, the commit Change 15 of docs/claude_code_security_plan.md
+# records as closing the gap where Layer 4 of the five-layer defense was
+# documentation only. So this suite builds claude-squid:test from the
+# tracked config — the same file a real session's proxy runs on, which is
+# what makes S-1..S-9 assertions about the shipped policy rather than
+# about a local copy of it.
+#
+# The existence check in setup_file() stays, and its job is narrower than
+# it looks: if squid/ is missing or incomplete, setup fails loudly instead
+# of letting the whole group skip and report green. SDD §8 step 6 records
+# the transition — before squid/ was committed, failing at setup_file()
+# was the designed behaviour rather than a defect.
 #
 # The curl helper image is pinned to docker.io/curlimages/curl:latest,
 # fully qualified — an unqualified curlimages/curl:latest depends on

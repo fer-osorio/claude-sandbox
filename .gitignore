@@ -12,3 +12,6 @@ check-auto-memory*.sh.out
 
 # Locat setting for claude code
 .claude/settings.local.json
+
+# test_runtime_posture.bats R-6;OOM-kill assertion 
+oom

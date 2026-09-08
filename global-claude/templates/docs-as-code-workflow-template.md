@@ -95,6 +95,7 @@ issue references a document; a document is committed alongside the code.
 | **Architecture Decision Record (ADR)** | `docs/adr/` | Single architectural decision, context, and consequences | Permanent, never deleted |
 | **`BUILDING.md`** | Repo root | How to build and run the project locally | Living document |
 | **`ARCHITECTURE.md`** | Repo root | High-level system overview | Living document |
+| **Planning artifact** | `docs/planning/` (opt-in) | Scope, prior-art, feasibility, and charter documents from this project's Planning phase | Permanent once scaffolded |
 
 <!-- Add a row for project-specific document types if the project warrants
      them. Example for a security or performance-critical project:
@@ -121,6 +122,20 @@ repo-root/
     benchmarks/
       <YYYY-MM>-<feature-slug>.md
 -->
+
+`docs/planning/` is not part of the default layout above — it is scaffolded
+only when the injected `project-planning` skill is asked to begin planning
+for this project, and its presence opts every injected Planning skill into
+the contract that skill enforces. Once scaffolded it holds:
+
+```
+docs/planning/
+  README.md
+  scope.md
+  prior-art.md
+  feasibility.md
+  charter.md
+```
 
 ### 2.3 How components relate
 

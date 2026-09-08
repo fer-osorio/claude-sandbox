@@ -80,6 +80,7 @@ issue references a document; a document is committed alongside the code.
 | **Implementation plan** | `docs/plans/` | Ordered steps to execute a change | Permanent after execution |
 | **Design document** | `docs/designs/` | Before/after structure, trade-offs, migration path | Permanent |
 | **Architecture Decision Record (ADR)** | `docs/adr/` | Single architectural decision, context, and consequences | Permanent, never deleted |
+| **Planning artifact** | `docs/planning/` (opt-in) | Scope, prior-art, feasibility, and charter documents from a project's Planning phase | Permanent once scaffolded |
 | **`BUILDING.md`** | Repo root | How to build and run the project locally | Living document |
 | **`ARCHITECTURE.md`** | Repo root | High-level system overview | Living document |
 | **Security/threat model document** | `docs/` | STRIDE analysis and controls coverage for system components | Living document |
@@ -101,6 +102,25 @@ repo-root/
       <YYYY-MM>-<feature-slug>-v<N>.md
     <security-or-ops-guide>.md
 ```
+
+`docs/planning/` is not part of the default layout above — it is scaffolded
+only when the injected `project-planning` skill is asked to begin planning
+for this project, and its presence opts every Planning skill in the
+repository into the contract `docs/adr/002-planning-artifact-contract.md`
+defines. Once scaffolded it holds:
+
+```
+docs/planning/
+  README.md
+  scope.md
+  prior-art.md
+  feasibility.md
+  charter.md
+```
+
+See `docs/designs/project-planning-skill.md` §3 for why scaffolding is
+gated on an explicit request rather than happening as a side effect of
+another task.
 
 ### 2.3 How components relate
 

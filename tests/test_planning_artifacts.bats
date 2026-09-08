@@ -49,11 +49,6 @@
 # ci.yml guards --filter-tags the same way and for the same reason.
 #
 # What this suite deliberately does NOT catch:
-#   - Whether an owner that is still exempt exists. P-7 resolves every
-#     template owner to a committed skill except those in
-#     _UNBUILT_OWNERS, which today is project-planning alone — Phase 4 of
-#     #69. When that list empties the check covers all four owners with
-#     no edit to it.
 #   - Whether an owner that does exist is the skill that actually fires.
 #     P-7 resolves a path; nothing asserts that a feasibility question
 #     routes to project-feasibility rather than to
@@ -190,7 +185,13 @@ _p5_duplicate_owners() {
 # as data rather than as a sentence in a comment, so the exemption shrinks
 # visibly and P-7 covers every owner the moment the list empties, with no
 # edit to the check itself.
-_UNBUILT_OWNERS="project-planning"
+#
+# The list is now empty. project-planning landed in Phase 4 of #69, so P-7
+# resolves all four template owners rather than two. That widening is the
+# observable worth checking after this change — not the exit status, which
+# was green while the exemption still covered scope.md and charter.md. The
+# mechanism stays for the next owner ADR 002 names before it is built.
+_UNBUILT_OWNERS=""
 
 _p7_missing_owner_skills() {
     for t in $(_templates); do

@@ -186,8 +186,10 @@ artifact itself names the template it came from. The index is the mitigation,
 and it is a weak one.
 
 The global layer grows by 199 lines against a 3000-line ceiling that D-7
-describes as a bound on unnoticed growth rather than a target. Phases 3 and 4
-add no templates, so this is the whole cost of the Planning contract.
+describes as a bound on unnoticed growth rather than a target. Phase 3 adds
+no template; Phase 4 adds one, placed beside this directory rather than in
+it — see [`project-planning-skill.md`](project-planning-skill.md)
+§Decision 3.
 
 Decision 2 makes the capability invisible until a project opts in, and there
 is currently no message telling an operator that `docs/planning/` is what

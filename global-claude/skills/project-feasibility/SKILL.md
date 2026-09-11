@@ -10,9 +10,9 @@ slipped. The output is not an opinion on whether the idea is good — it is
 the material a human uses to decide go or no-go, honest enough that a
 no-go is a usable outcome.
 
-Producing the decision itself is not this skill's job. ADR 001 names
-autonomous go/no-go as an anti-goal: assemble the evidence, state the
-confidence, stop.
+Producing the decision itself is not this skill's job. ADR 001 of the
+claude-sandbox project names autonomous go/no-go as an anti-goal: assemble
+the evidence, state the confidence, stop.
 
 ## Input contract
 
@@ -100,13 +100,13 @@ write nothing.
   in a committed artifact, is this skill. Whether a solution already
   exists and whether an approach is viable is `swe-prior-art-research`,
   and its answer is an input here rather than a competitor.
-- A no-go is a first-class result. ADR 002 records that a refusal with its
-  reasoning is the most reusable output the Planning phase produces, so
-  write it with the same care as an approval and leave it in the tree with
-  its status set.
+- A no-go is a first-class result. ADR 002 of the claude-sandbox project
+  records that a refusal with its reasoning is the most reusable output the
+  Planning phase produces, so write it with the same care as an approval
+  and leave it in the tree with its status set.
 
 ## Changelog
 
-- **0.1 (draft)** — Initial version, built to the contract in
-  `docs/designs/project-feasibility-skill.md`. Not yet exercised against
-  a real `scope.md`.
+- **0.1 (draft)** — Initial version, built to the contract in the
+  project-feasibility-skill design document of the claude-sandbox
+  project. Not yet exercised against a real `scope.md`.

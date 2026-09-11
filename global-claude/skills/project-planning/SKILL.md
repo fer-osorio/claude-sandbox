@@ -14,7 +14,8 @@ Two of the four Planning artifacts belong to this skill, and they face
 opposite directions. `scope.md` takes dictation: it records what a person
 said and nothing else. `charter.md` aggregates what the run found and then
 stops short of the conclusion. Producing the conclusion is not this skill's
-job — ADR 001 names autonomous go/no-go as an anti-goal.
+job — ADR 001 of the claude-sandbox project names autonomous go/no-go as
+an anti-goal.
 
 ## Input contract
 
@@ -154,12 +155,14 @@ the section above.
   sentence.** The section's line ceiling bounds its length, not its
   authorship. A decision written here would pass every check the contract
   has and would be the least visible failure in a finished artifact.
-- A no-go is a first-class result. ADR 002 records that a refusal with its
-  reasoning is the most reusable output this phase produces. Leave the
-  charter in the tree with its status set; do not delete it.
+- A no-go is a first-class result. ADR 002 of the claude-sandbox project
+  records that a refusal with its reasoning is the most reusable output
+  this phase produces. Leave the charter in the tree with its status set;
+  do not delete it.
 
 ## Changelog
 
-- **0.1 (draft)** — Initial version, built to the contract in
-  `docs/designs/project-planning-skill.md`. Not yet exercised against a
-  real run; no Planning artifact has been written under it.
+- **0.1 (draft)** — Initial version, built to the contract in the
+  project-planning-skill design document of the claude-sandbox project.
+  Not yet exercised against a real run; no Planning artifact has been
+  written under it.

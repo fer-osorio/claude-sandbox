@@ -153,7 +153,8 @@ carries that suite.
   Whether something exists and whether the approach is viable is this
   skill, and the finding is an input to that judgment rather than a rival
   to it. In a Planning run both fire, at different steps, in the order
-  ADR 002 lays out — that is intended, not a collision.
+  ADR 002 of the claude-sandbox project lays out — that is intended, not a
+  collision.
 
 ## Changelog
 
@@ -165,7 +166,8 @@ carries that suite.
   0.3 established — what the answer must conclude, not which words appear.
 - **0.4 (draft)** — Added the Planning-phase output section: in a project
   carrying `docs/planning/`, findings become `docs/planning/prior-art.md`
-  under the ADR 002 contract rather than a reply. Gated on the directory
+  under the contract in ADR 002 of the claude-sandbox project rather than a
+  reply. Gated on the directory
   existing, because this skill is injected into every project and only
   some of them run that contract. Reasoning steps unchanged.
 - **0.3 (draft)** — Re-tested the mutual-exclusion boundary with a

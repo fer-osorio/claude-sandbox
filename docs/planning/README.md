@@ -13,10 +13,10 @@ and nothing else.
 
 | Artifact | Status | Owner | Contains |
 |---|---|---|---|
-| `scope.md` | not yet written | `project-planning` | Problem statement, constraints, explicit non-goals |
-| `prior-art.md` | not yet written | `swe-prior-art-research` | Prior art, build-vs-adopt recommendation |
-| `feasibility.md` | not yet written | `project-feasibility` | Technical / operational / financial feasibility, risk inventory |
-| `charter.md` | not yet written | `project-planning` | Charter and go/no-go decision material |
+| [`scope.md`](scope.md) | Approved | `project-planning` | Problem statement, constraints, explicit non-goals |
+| [`prior-art.md`](prior-art.md) | Approved | `swe-prior-art-research` | Prior art, build-vs-adopt recommendation |
+| [`feasibility.md`](feasibility.md) | Approved | `project-feasibility` | Technical / operational / financial feasibility, risk inventory |
+| [`charter.md`](charter.md) | Approved | `project-planning` | Charter and go/no-go decision material |
 
 Every skill that writes an artifact updates its own row here, and only its
 own row. `tests/test_planning_artifacts.bats` fails if an artifact exists

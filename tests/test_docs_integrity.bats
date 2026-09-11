@@ -316,13 +316,37 @@ EOF
 
             # An ADR number with no project qualifier names this repository's
             # ADR to a reader who has their own.
-            grep -noE "ADR [0-9]{3}( ${_D9_QUALIFIER})?" "$f" \
-            | while IFS=: read -r ln hit; do
-                case "$hit" in
-                    *"${_D9_QUALIFIER}") continue ;;
-                esac
-                echo "${f}:${ln}: '${hit}' is unqualified — write '${hit} ${_D9_QUALIFIER}' (ADR 005)"
-            done
+            #
+            # Matched against each line joined with the one after it. A
+            # line-by-line match reported "ADR 001 of the / claude-sandbox
+            # project" as unqualified, because these documents are wrapped
+            # at about 76 columns and the qualifier straddles the break.
+            # That form is correct prose, so a check that rejects it would
+            # push authors to fight the wrapping convention to satisfy the
+            # tool. Found by the negative control, not by review.
+            awk -v q="$_D9_QUALIFIER" '
+                { line[NR] = $0 }
+                END {
+                    for (i = 1; i <= NR; i++) {
+                        base = line[i]
+                        gsub(/[ \t]+/, " ", base)
+                        n = length(base)
+                        joined = base " " line[i + 1]
+                        gsub(/[ \t]+/, " ", joined)
+                        rest = joined
+                        off = 0
+                        while (match(rest, /ADR [0-9][0-9][0-9]/)) {
+                            start = off + RSTART
+                            num = substr(rest, RSTART, RLENGTH)
+                            after = substr(rest, RSTART + RLENGTH, length(q) + 1)
+                            if (start <= n && after != " " q)
+                                printf "%s:%d: \047%s\047 is unqualified — write \047%s %s\047 (ADR 005)\n", FILENAME, i, num, num, q
+                            off = start + RLENGTH - 1
+                            rest = substr(rest, RSTART + RLENGTH)
+                        }
+                    }
+                }
+            ' "$f"
         done
     )
 }

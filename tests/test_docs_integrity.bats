@@ -256,6 +256,77 @@ _skills_without_loadable_description() {
     )
 }
 
+# The global layer is authored here and read inside a different repository,
+# so a repo-relative path written there resolves against the reader's tree.
+# It dangles, or — worse, for an ADR number, since numbering restarts at 001
+# everywhere — it resolves to a different document that happens to sit at
+# the same path. ADR 005 qualifies ADR 003 decision 4 for these files and is
+# what this check enforces.
+#
+# The discriminator is direction, and it cannot be inferred from the path.
+# `docs/designs/docs-as-code-workflow.md` is correct in the design skill,
+# which tells the reader to look for it in its own repository, and wrong in
+# CLAUDE.md:71, which cites it as though it were always present. So the
+# exemptions below are per file and path, not per path — an exemption is a
+# judgment, and it shows up as one in a diff.
+#
+# Paths that are target-relative by construction: everything the Planning
+# contract writes into the reader's own docs/planning/, and the bare
+# directory names the workflow template uses to describe a layout.
+_D9_ALLOWED_PREFIXES="docs/planning/"
+_D9_ALLOWED_EXACT="docs/adr/ docs/designs/ docs/plans/"
+# Conditional citations: the sentence around them already states that the
+# reader's repository may not carry the thing being named.
+_D9_ALLOWED_PAIRS="global-claude/skills/design/SKILL.md:docs/designs/docs-as-code-workflow.md
+global-claude/skills/swe-prior-art-research/SKILL.md:tests/test_planning_artifacts.bats"
+_D9_QUALIFIER="of the claude-sandbox project"
+
+_cross_boundary_citations() {
+    (
+        cd "$SANDBOX_DIR" || exit 1
+        find global-claude -name '*.md' | sort | while IFS= read -r f; do
+            [ -f "$f" ] || continue
+
+            # A path token this repository can resolve. The leading capture
+            # keeps ~/.claude/... and /absolute/... from matching, so the
+            # injected layer's own paths are not reported; strip that
+            # character before testing the path.
+            grep -noE '(^|[^~/A-Za-z0-9_.-])(docs|tests|base|squid|global-claude|templates)/[A-Za-z0-9_./-]*[A-Za-z0-9_/-]' "$f" \
+            | while IFS=: read -r ln tok; do
+                case "$tok" in
+                    docs/*|tests/*|base/*|squid/*|global-claude/*|templates/*) path="$tok" ;;
+                    *) path="${tok#?}" ;;
+                esac
+                [ -e "$path" ] || continue
+                skip=""
+                for pre in $_D9_ALLOWED_PREFIXES; do
+                    case "$path" in "${pre}"*) skip=yes ;; esac
+                done
+                for ex in $_D9_ALLOWED_EXACT; do
+                    [ "$path" = "$ex" ] && skip=yes
+                done
+                while IFS= read -r pair; do
+                    [ "${f}:${path}" = "$pair" ] && skip=yes
+                done <<EOF
+$_D9_ALLOWED_PAIRS
+EOF
+                [ -n "$skip" ] && continue
+                echo "${f}:${ln}: cites '${path}', which exists here and need not exist where this file is read — name the document and project instead (ADR 005)"
+            done
+
+            # An ADR number with no project qualifier names this repository's
+            # ADR to a reader who has their own.
+            grep -noE "ADR [0-9]{3}( ${_D9_QUALIFIER})?" "$f" \
+            | while IFS=: read -r ln hit; do
+                case "$hit" in
+                    *"${_D9_QUALIFIER}") continue ;;
+                esac
+                echo "${f}:${ln}: '${hit}' is unqualified — write '${hit} ${_D9_QUALIFIER}' (ADR 005)"
+            done
+        done
+    )
+}
+
 # bats test_tags=fast, hostonly
 @test "D-1: every relative markdown link in a tracked document resolves" {
     run _unresolved_markdown_links
@@ -339,6 +410,17 @@ _skills_without_loadable_description() {
     [ "$status" -eq 0 ]
     if [ -n "$output" ]; then
         echo "--- skills whose trigger never reaches context ---" >&2
+        echo "$output" >&2
+    fi
+    [ -z "$output" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "D-9: the global layer cites nothing that exists only in this repository" {
+    run _cross_boundary_citations
+    [ "$status" -eq 0 ]
+    if [ -n "$output" ]; then
+        echo "--- read inside other repositories; see docs/adr/005 ---" >&2
         echo "$output" >&2
     fi
     [ -z "$output" ]

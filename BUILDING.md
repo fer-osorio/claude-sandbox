@@ -43,6 +43,38 @@ too late to affect them. Full design rationale:
 - Docker (`ENGINE=docker`), fully supported as a fallback
 - GitHub CLI (`gh`) — optional, for issue and PR management
 
+### What this project assumes of the host
+
+Two tiers. **Minimal** is what a session needs to start and for the
+security controls to hold; below it something visibly breaks, and you find
+out immediately. **Ideal** is what the design assumes when it claims a
+control is *enforced*. Between the two, things look like they work while a
+guarantee is quietly absent — this project's characteristic failure is
+silent degradation rather than a crash, so the gap is worth stating.
+
+**Minimal**
+
+| Assumption | Where it lives | If absent |
+|---|---|---|
+| A container engine: rootless Podman, or Docker via `ENGINE=docker` | `start.sh` | No session starts |
+| Container UID matches the host UID owning the mounted project | Build-time `HOST_UID` under Docker; `--userns=keep-id` under Podman (`start.sh`) | Git reports an ownership warning. Rebuild the image — never work around it with `safe.directory` or `chmod -R a+w` |
+| ~2 GiB RAM and 2 CPUs per session | `start.sh:58-59`, overridable via `config.local.sh` or the environment | Sessions are killed or crawl |
+| Egress reaches the Squid allowlist | `squid/squid.conf` | Network calls are refused at the proxy, visibly |
+| SELinux hosts relabel bind mounts | [SELinux relabeling](#selinux-relabeling-fedora--other-selinux-enforcing-hosts) — automatic under Podman | `EACCES` on the mounted project |
+| `bats-core`, to run the test suite on the host | [Running the test suite](#running-the-test-suite) | No tests run anywhere, including the engine-free tier |
+
+**Ideal**
+
+| Assumption | Where it lives | If absent |
+|---|---|---|
+| The kernel delegates cgroups v2 `memory` to the user session | R-6 in `tests/test_runtime_posture.bats`; [Podman prerequisites](#podman-prerequisites-rootless-wsl2) | **Podman accepts `--memory` and never enforces it.** The container looks healthy and the limit is decorative. Only a deliberate OOM probe finds it — this is the worked example of the gap between the tiers, and under WSL 2.5.x it is an upstream regression rather than a one-time setup error |
+| Toolchains are baked into the image, never installed at runtime | §Interpreter discipline in the injected `global-claude/CLAUDE.md` | Build artifacts outlive the interpreter they were built against |
+| `GH_TOKEN` is exported on the host | Forwarded conditionally by `start.sh:236` | Issue and PR work fails inside the session, though everything else runs |
+| The model driving the session holds the judgment rules the instruction layer asks for | Nowhere | Unknown. Nothing records which capability tier those rules were written against, or which degrades first under a weaker one — a named gap, with no mechanism proposed |
+
+The last row has no home other than this table, and is deliberately left as
+an open question rather than an implied promise.
+
 ## Build all images
 
 Run once, and again after any Dockerfile change:

@@ -9,7 +9,7 @@ owner: swe-prior-art-research
 
 ## TL;DR
 
-Adequate prior art exists for each sub-problem individually — rootless-cgroups delegation is a known, partly-unresolved Podman/WSL2 issue class; assumption/RAID logs are established requirements-engineering practice; AGENTS.md-style shared instruction-file conventions are a real, if young (2026), practice. Nothing found addresses the specific combination in `docs/planning/scope.md §Problem statement` — a docs-as-code-governed, injected AI-agent instruction layer citing itself across repo boundaries — so #103 and #104 are novel combinations of known components, not novel problems from scratch. #102's WSL2 cgroups gap traces to a currently-unresolved upstream regression, which raises rather than lowers its priority.
+Adequate prior art exists for each sub-problem separately — rootless-cgroups delegation, assumption and RAID logs, AGENTS.md-style shared instruction files — but nothing found addresses the combination in `docs/planning/scope.md §Problem statement`. #103 and #104 are novel combinations of known components, not novel problems. #102's cgroups gap traces to an unresolved upstream regression, raising its priority.
 
 ## Findings
 
@@ -21,14 +21,14 @@ Adequate prior art exists for each sub-problem individually — rootless-cgroups
 
 ## Build vs adopt
 
-- **#102**: adopt. State prerequisites using the existing minimal-vs-ideal/degraded-mode framing already common in reliability-engineering practice; cite the WSL 2.5.x regression explicitly rather than as a one-time fixed issue.
-- **#103 decision 1 (ledger)**: adopt, with a deliberate strengthening. RAID-log methodology is the precedent; the "empty before `status: Approved`" gate goes beyond typical RAID practice and should be flagged as an intentional design choice when this reaches Design, not an unexamined default.
-- **#103 decision 2 (entry test)**: build. No comparable prior art found; closer to plausibly-novel than known-class-novel-combination once decision 1 is set aside.
-- **#104**: adopt the principle (keep shared files scope-limited; don't cite what the reader won't have), build the mechanism. No surveyed tool already enforces citation portability *within* a shared instruction file's own prose — the AGENTS.md ecosystem solves this by scoping files, not by a citation-form rule, which #104's design pass should weigh as an alternative.
+- **#102**: adopt. State prerequisites using the minimal-vs-ideal framing common in reliability engineering; cite the WSL 2.5.x regression explicitly rather than as a one-time fixed issue.
+- **#103 decision 1 (ledger)**: adopt, with a deliberate strengthening. RAID-log methodology is the precedent; the "empty before `status: Approved`" gate goes beyond it and should reach Design as an intentional choice, not an unexamined default.
+- **#103 decision 2 (entry test)**: build. No comparable prior art found; closer to plausibly-novel once decision 1 is set aside.
+- **#104**: adopt the principle — keep shared files scope-limited, do not cite what the reader will not have — and build the mechanism. No surveyed tool enforces citation portability within a shared instruction file's own prose; the AGENTS.md ecosystem scopes files instead, which #104's design pass should weigh as an alternative.
 
 ## Confidence
 
-- WSL2/cgroups (#102): solid — three independent GitHub issues plus a maintained cross-project reference doc. The 2.4.13-vs-2.5.x regression boundary rests on a single reporter's account — treat as anecdotal on the exact version.
-- Requirements-elicitation precedent (#103 decision 1): solid on the general principle (multiple convergent sources: one paper, plus independent industry RAID-log practice), single-paper depth on the specific "document context alongside requirements" recommendation.
-- #103 decision 2 and #104's core failure mode: thin. No direct precedent surfaced for either — treated here as a genuine absence (per this skill's step 6), not an under-searched gap, given how specific the injected-instruction-layer setup is.
-- Retrieval was scoped to Squid's allowlisted domains (`github.com`, `arxiv.org`); several relevant-looking results (`rootlesscontaine.rs`, `morphllm.com`, `medium.com`) were visible via WebSearch summaries only, not independently fetched and read.
+- WSL2/cgroups (#102): solid — three GitHub issues plus a maintained reference. The 2.5.x regression boundary rests on one account; treat as anecdotal.
+- Requirements elicitation (#103 decision 1): solid on the principle, single-paper depth on the recommendation.
+- #103 decision 2 and #104's core failure mode: thin. No direct precedent; a genuine absence, not an under-searched gap.
+- Retrieval was scoped to Squid's allowlist; some sources were seen only in summaries.

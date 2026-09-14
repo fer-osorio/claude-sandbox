@@ -23,9 +23,9 @@ this definition actually used?* Both are answered by evidence, never by
 reading the thing and finding it plausible.
 
 The cost of skipping this is not a broken gate — it is a gate everyone
-believes in. See `docs/engineering-principles-by-lifecycle-phase.md`
-§Part I.1 for the enforcement ladder and §Part I.3 for load-bearing vs
-vestigial.
+believes in. See the engineering-principles document of the claude-sandbox
+project, §Part I.1 for the enforcement ladder and §Part I.3 for
+load-bearing vs vestigial.
 
 ## When to invoke
 
@@ -84,7 +84,7 @@ reads is vestigial no matter how load-bearing it looks.
   and what makes a later regression legible.
 - This does not apply to prose rules. A convention nobody can fail is rung
   2 by construction; the honest move is to say so, not to invent a probe
-  for it. See `docs/adr/003-where-a-behavioural-rule-goes.md`.
+  for it. See ADR 003 of the claude-sandbox project.
 
 ## Changelog
 

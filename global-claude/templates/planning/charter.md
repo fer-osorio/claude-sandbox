@@ -17,9 +17,9 @@ ceiling-decision: 8
      here is not traceable to scope.md, prior-art.md, or feasibility.md,
      it does not belong in the charter.
 
-     ADR 001 names autonomous go/no-go as an anti-goal. The Decision
-     section is filled in by a person, not by the skill that writes the
-     rest of this file. -->
+     ADR 001 of the claude-sandbox project names autonomous go/no-go as an
+     anti-goal. The Decision section is filled in by a person, not by the
+     skill that writes the rest of this file. -->
 
 # Project charter
 

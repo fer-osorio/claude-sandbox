@@ -11,9 +11,9 @@ Index for the Planning phase. One row per artifact: what it is, who writes
 it, and whether it is current. A reader looking for one thing reads this
 table and then opens one file — that is what the index is for.
 
-The contract these artifacts follow is ADR 002 of the sandbox project,
-which assigns each path exactly one owner. This file records the rows and
-the two rules that govern them, and nothing else.
+The contract these artifacts follow is ADR 002 of the claude-sandbox
+project, which assigns each path exactly one owner. This file records the
+rows and the two rules that govern them, and nothing else.
 
 ## Index
 

@@ -68,13 +68,13 @@ strategy.
 - Case D and E: always confirm, however small the change looks
 - Committing without asking never extends to pushing, opening PRs, or
   creating issues
-- See docs/designs/docs-as-code-workflow.md §4 for case selection
+- See the `design` skill, Step 2, for case selection
 
 ## Output discipline
 - Spend length only on what the diff or a linked document cannot carry;
-  restating a linked document is not earned length
-  (docs/engineering-principles-by-lifecycle-phase.md §Part I.4). Expand
-  beyond that only when asked.
+  restating a linked document is not earned length (the
+  engineering-principles document of the claude-sandbox project,
+  §Part I.4). Expand beyond that only when asked.
 - Default to Markdown for prose deliverables. A richer format — HTML, a
   published page, DOCX — is earned when Markdown cannot carry the content
   (interaction, charts, layout), or when it was asked for

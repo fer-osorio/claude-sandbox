@@ -115,21 +115,12 @@ _templates() {
     find "$TEMPLATE_DIR" -maxdepth 1 -name '*.md' 2>/dev/null | sort
 }
 
-# Words in the non-blank, non-comment body under a "## <heading>" whose
-# slug matches $2, up to the next "## " or end of file. The heading itself
-# is not counted.
-#
-# Words rather than physical lines. Lines are a property of how the author
-# wrapped the prose, not of how much they wrote: the first real run was
-# written unwrapped and every section passed, while the same text hard
-# wrapped at this repository's 76 columns breached thirteen of twenty
-# ceilings. A unit that answers differently depending on where the newlines
-# fell is not measuring the thing the ceiling exists to bound.
-#
-# A table row counts its cell contents, so a table spends budget faster per
-# visual line than prose does. No ceilinged section currently prescribes
-# one.
-_section_words() {
+# Non-blank, non-comment body lines under a "## <heading>" whose slug
+# matches $2, up to the next "## " or end of file. The heading itself is
+# not emitted. Authoring comments are skipped, so a section carrying only
+# the template's instructions comes back empty — which is what lets P-8
+# tell an unfilled Decision from a filled one.
+_section_body() {
     awk -v want="$2" '
         /^## / {
             body = tolower(substr($0, 4))
@@ -143,9 +134,24 @@ _section_words() {
         /<!--/ { incomment = 1 }
         incomment { if (/-->/) incomment = 0; next }
         /^[[:space:]]*$/ { next }
-        { n += NF }
-        END { print n + 0 }
+        { print }
     ' "$1"
+}
+
+# Words in that body.
+#
+# Words rather than physical lines. Lines are a property of how the author
+# wrapped the prose, not of how much they wrote: the first real run was
+# written unwrapped and every section passed, while the same text hard
+# wrapped at this repository's 76 columns breached thirteen of twenty
+# ceilings. A unit that answers differently depending on where the newlines
+# fell is not measuring the thing the ceiling exists to bound.
+#
+# A table row counts its cell contents, so a table spends budget faster per
+# visual line than prose does. No ceilinged section currently prescribes
+# one.
+_section_words() {
+    _section_body "$1" "$2" | awk '{ n += NF } END { print n + 0 }'
 }
 
 # Every declared ceiling, as "<section> <limit>" pairs across all templates.
@@ -250,6 +256,30 @@ _p6_dead_ceiling_keys() {
     done
 }
 
+# The charter template asks for the Decision to be "filled in by a person,
+# with a date". The first real Decision was written without one and passed
+# every check; the date was added afterwards, on request.
+#
+# Keyed on the section being filled, not on status: Approved. A charter is
+# Approved the moment the writing skill finishes it, with the Decision
+# legitimately still blank — ADR 002 decision 3's vocabulary records
+# document lifecycle, and ADR 004 decision 7 is explicit that a no-go
+# charter is Approved too. A check keyed on status would therefore fail on
+# every correctly written charter, and a check that fails on correct input
+# gets switched off.
+#
+# This cannot compel a person to decide. It requires only that a decision
+# they made can be placed in time against the artifacts it was made on.
+_p8_undated_decisions() {
+    for a in $(_artifacts); do
+        rel="docs/planning/$(basename "$a")"
+        body="$(_section_body "$a" decision)"
+        [ -n "$body" ] || continue
+        printf '%s\n' "$body" | grep -qE '[0-9]{4}-[0-9]{2}-[0-9]{2}' \
+            || echo "${rel}: '## Decision' is filled in but carries no ISO date"
+    done
+}
+
 _report() {
     if [ -n "$1" ]; then
         echo "--- $2 ---" >&2
@@ -338,5 +368,13 @@ _report() {
     run _p7_missing_owner_skills
     [ "$status" -eq 0 ]
     _report "$output" "owners naming no committed skill"
+    [ -z "$output" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "P-8: a filled Decision section carries a date" {
+    run _p8_undated_decisions
+    [ "$status" -eq 0 ]
+    _report "$output" "decisions with no date"
     [ -z "$output" ]
 }

@@ -38,6 +38,21 @@
 # empties, so it has to be the list doing the work and not the absence of a
 # skill. Repeat that control when Phase 4 empties it for real.
 #
+# P-0b, P-4, P-6 and P-8 were negative-controlled on 2026-09-14, when the
+# ceiling unit changed and P-8 was added:
+#   - P-4 reported "section 'open-questions' is 179 words, ceiling is 108"
+#     against a padded charter, and went silent on revert.
+#   - P-6 reported a ceiling-nosuchsection-words key naming no section, and
+#     went silent on revert. Its parser changed with the rename, so the
+#     control is against the new pattern, not the old result.
+#   - P-0b's key set went to zero against an empty template directory —
+#     the same shape as a template the parser no longer matches, which is
+#     the failure it exists for.
+#   - P-8 reported the committed charter with its date stripped, went
+#     silent on revert, and read the template's comment-only Decision as
+#     unfilled. That last one is the control that matters: it is the
+#     difference between keying on a filled section and keying on status.
+#
 # What that verification proves is bounded by how it was performed. bats is
 # not in the sandbox image (BUILDING.md, "Running the test suite"), so from
 # inside a session the helper functions below can be extracted and called

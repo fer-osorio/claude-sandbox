@@ -78,8 +78,8 @@ this section — without it, report the assessment in the conversation and
 write nothing.
 
 1. Follow `~/.claude/templates/planning/feasibility.md`. Its sections and
-   their order are the contract, and the `ceiling-<section>:` keys in its
-   frontmatter are hard line limits per section. What does not fit does
+   their order are the contract, and the `ceiling-<section>-words:` keys in its
+   frontmatter are hard word limits per section. What does not fit does
    not belong in this artifact.
 2. Write `docs/planning/feasibility.md`. Frontmatter carries `status`
    (`Draft`, `Approved`, or `Superseded by <path>`), `date`, `phase` and

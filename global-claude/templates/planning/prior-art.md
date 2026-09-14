@@ -2,10 +2,10 @@
 artifact: docs/planning/prior-art.md
 owner: swe-prior-art-research
 phase: planning
-ceiling-tldr: 6
-ceiling-findings: 60
-ceiling-build-vs-adopt: 15
-ceiling-confidence: 8
+ceiling-tldr-words: 54
+ceiling-findings-words: 540
+ceiling-build-vs-adopt-words: 135
+ceiling-confidence-words: 72
 ---
 
 <!-- Template for docs/planning/prior-art.md. Copy, fill, delete these

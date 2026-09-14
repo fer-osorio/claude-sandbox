@@ -148,8 +148,8 @@ the section above.
 
 1. Follow `~/.claude/templates/planning/scope.md` and
    `~/.claude/templates/planning/charter.md`. Their sections and order are
-   the contract, and the `ceiling-<section>:` keys in their frontmatter are
-   hard line limits per section. What does not fit does not belong in the
+   the contract, and the `ceiling-<section>-words:` keys in their frontmatter are
+   hard word limits per section. What does not fit does not belong in the
    artifact.
 2. Write `docs/planning/scope.md` and `docs/planning/charter.md`.
    Frontmatter carries `status` (`Draft`, `Approved`, or
@@ -188,7 +188,7 @@ the section above.
   three fire, at different steps, in contract order — intended, not a
   collision.
 - **The Decision section is reserved, and nothing enforces that but this
-  sentence.** The section's line ceiling bounds its length, not its
+  sentence.** The section's word ceiling bounds its length, not its
   authorship. A decision written here would pass every check the contract
   has and would be the least visible failure in a finished artifact.
 - A no-go is a first-class result. ADR 002 of the claude-sandbox project

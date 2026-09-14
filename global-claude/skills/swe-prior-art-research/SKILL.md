@@ -105,8 +105,8 @@ to satisfy this section.
 When it does exist, the findings are an artifact rather than a reply:
 
 1. Read `~/.claude/templates/planning/prior-art.md` and follow it. Its
-   sections and their order are the contract, and the `ceiling-<section>:`
-   keys in its frontmatter are hard line limits per section — what does not
+   sections and their order are the contract, and the `ceiling-<section>-words:`
+   keys in its frontmatter are hard word limits per section — what does not
    fit does not belong in this artifact.
 2. Write to `docs/planning/prior-art.md`. Frontmatter carries `status`
    (`Draft`, `Approved`, or `Superseded by <path>`), `date`, `phase` and

@@ -2,12 +2,12 @@
 artifact: docs/planning/feasibility.md
 owner: project-feasibility
 phase: planning
-ceiling-tldr: 6
-ceiling-technical: 20
-ceiling-operational: 15
-ceiling-financial: 15
-ceiling-risk-inventory: 20
-ceiling-confidence-by-dimension: 12
+ceiling-tldr-words: 54
+ceiling-technical-words: 180
+ceiling-operational-words: 135
+ceiling-financial-words: 135
+ceiling-risk-inventory-words: 180
+ceiling-confidence-by-dimension-words: 108
 ---
 
 <!-- Template for docs/planning/feasibility.md. Copy, fill, delete these

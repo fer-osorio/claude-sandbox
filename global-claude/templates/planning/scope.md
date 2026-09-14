@@ -2,11 +2,11 @@
 artifact: docs/planning/scope.md
 owner: project-planning
 phase: planning
-ceiling-tldr: 6
-ceiling-problem-statement: 12
-ceiling-constraints: 12
-ceiling-non-goals: 12
-ceiling-definition-of-done: 10
+ceiling-tldr-words: 54
+ceiling-problem-statement-words: 108
+ceiling-constraints-words: 108
+ceiling-non-goals-words: 108
+ceiling-definition-of-done-words: 90
 ---
 
 <!-- Template for docs/planning/scope.md. Copy, fill, delete these

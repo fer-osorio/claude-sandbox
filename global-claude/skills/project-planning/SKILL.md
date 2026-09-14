@@ -1,6 +1,6 @@
 ---
 name: project-planning
-description: "Run the Planning phase for a scoped project end to end — facilitate scope intake, sequence prior-art research and feasibility assessment, then write docs/planning/scope.md and docs/planning/charter.md as go/no-go material for a human gate. Trigger on a request to plan a project, start the Planning phase, or produce a project charter. Delegates to swe-prior-art-research and project-feasibility rather than competing with them — resolve by span, not by keyword: orchestrating the whole phase and ending in a charter routes here, while a standalone prior-art question or a single feasibility judgment routes to those skills directly. Requires an approved docs/planning/scope.md before any headless run, and never fills in the charter's Decision section."
+description: "Run the Planning phase for a scoped project end to end — facilitate scope intake, sequence prior-art research and feasibility assessment, then write docs/planning/scope.md and docs/planning/charter.md as go/no-go material for a human gate. Trigger on a request to plan a project, start the Planning phase, or produce a project charter. Planning applies when the open question is whether the work should exist; if existence is settled and only the shape is open, that is Design — a default the operator can override rather than a refusal. Delegates to swe-prior-art-research and project-feasibility rather than competing with them — resolve by span, not by keyword: orchestrating the whole phase and ending in a charter routes here, while a standalone prior-art question or a single feasibility judgment routes to those skills directly. Requires an approved docs/planning/scope.md before any headless run, and never fills in the charter's Decision section."
 ---
 
 # Project Planning
@@ -41,6 +41,38 @@ A verdict measured against invented constraints is indistinguishable, in
 the finished artifact, from one measured against given ones. Every later
 step in this phase is measured against this file, and the file is committed,
 indexed, and read by someone who was not here.
+
+**Inference is declared, not assumed.** The rule above reaches a question
+the operator did not answer. It does not reach an interpretation of what
+they did say — reading "must run offline" as a hard constraint rather than
+a stated preference is neither a guess at an unanswered question nor plain
+transcription, and once written it reads as dictation.
+
+So intake keeps a ledger. Every claim bound for `scope.md` that did not
+come from the operator's words goes on it, named alongside what it was
+inferred from, and is declared back before approval:
+
+> Inferred, not stated:
+> 1. Read "must run offline" as a hard constraint, not a preference.
+> 2. Nothing said about non-goals — section left as an explicit gap.
+
+**The ledger is empty before `status: Approved`.** Each entry is confirmed
+by the operator and becomes dictation, corrected, or rewritten as an
+explicit gap. An unresolved entry blocks approval — which is what makes
+approval mean every line has been ratified, rather than that the operator
+said yes.
+
+The ledger is conversational and is never written to disk. That is sound
+only because an approved `scope.md` is defined to have none left.
+
+**Drafting on request is a supported mode, and it raises the bar.** The
+operator may ask for sections to be proposed rather than dictated. Then
+every substantive claim in the draft starts on the ledger, because none of
+it traces to their words yet, and approving a section clears its entries.
+
+Summarising material the operator supplied is not inference. Supplying a
+fact they never stated is — however obvious it looks, and however true it
+turns out to be.
 
 ## Scaffolding
 
@@ -162,6 +194,12 @@ the section above.
 
 ## Changelog
 
+- **0.2 (draft)** — Intake declares its inferences, and the ledger is empty
+  before approval; drafting on request is supported and puts every drafted
+  claim on that ledger; the entry test moved into the description as a
+  routing default. Settled in ADR 006 of the claude-sandbox project, on
+  evidence from the first real run — a constraint the model inferred, that
+  nobody stated, that everybody approved, and that was wrong.
 - **0.1 (draft)** — Initial version, built to the contract in the
   project-planning-skill design document of the claude-sandbox project.
   Not yet exercised against a real run; no Planning artifact has been

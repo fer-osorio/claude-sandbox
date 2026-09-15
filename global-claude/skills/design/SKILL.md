@@ -94,11 +94,24 @@ Continue to Step 2.
 **No charter, or no `docs/planning/`**
 Continue to Step 2 using built-in defaults.
 
+**The charter informs the classification that follows; it does not perform
+it.** Step 2 runs its decision tree on the change in front of you, charter
+or no charter. The constraints and non-goals a charter records are inputs
+that tree operates on. A Case named anywhere in a charter is not one of
+those inputs and does not bind Step 2 — the charter was written before the
+module boundaries and the reversibility Step 2 asks about were known, so a
+Case assigned there was assigned on strictly less information. Read the
+charter first; do not let it decide.
+
 ---
 
 ## Step 2 — Classify the change
 
-Apply the following decision tree. Stop at the first match.
+Apply the following decision tree to the change in front of you. Stop at
+the first match.
+
+If Step 1b found a charter, its constraints and non-goals are inputs to the
+questions below. Any Case it names is not.
 
 ```
 0. Is a project-specific Case E defined in

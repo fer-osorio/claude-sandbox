@@ -17,7 +17,7 @@ Look for `docs/designs/docs-as-code-workflow.md` in the project root.
 
 **Found**
 Read it. Its conventions take precedence over the defaults in this skill.
-Continue to Step 2.
+Continue to Step 1b.
 
 **Not found — explicit setup request**
 User says "initialize docs-as-code", "set up the workflow", "new project
@@ -58,7 +58,7 @@ setup", or similar:
 4. Save the result to `docs/designs/docs-as-code-workflow.md`.
 5. Propose as a first commit: `docs: add docs-as-code workflow`
 
-Then continue to Step 2.
+Then continue to Step 1b.
 
 **Not found — heuristic**
 No `docs/` directory exists in the project root, and the requested
@@ -68,10 +68,30 @@ addition, or chore):
 > exists. Would you like me to initialize one from the template before
 > we continue?"
 
-- Yes → follow the explicit setup path above, then continue to Step 2.
-- No → continue to Step 2 using built-in defaults.
+- Yes → follow the explicit setup path above, then continue to Step 1b.
+- No → continue to Step 1b using built-in defaults.
 
 **Not found — neither**
+Continue to Step 1b using built-in defaults.
+
+---
+
+## Step 1b — Read the project charter
+
+**Applies only when `docs/planning/` exists in the current project.** Its
+presence is the opt-in signal — a project without it behaves exactly as
+this skill does today, and nothing is read. Never create the directory to
+satisfy this step.
+
+**Charter found**
+Read `docs/planning/charter.md`. Cite the parts you use by path and
+section — `docs/planning/charter.md §Recommendation`, `§Open questions`,
+`§Decision` — and build on them. Do not restate the charter, and do not
+re-derive a problem statement: `docs/planning/scope.md` already holds one,
+and a citation names a path and a section.
+Continue to Step 2.
+
+**No charter, or no `docs/planning/`**
 Continue to Step 2 using built-in defaults.
 
 ---

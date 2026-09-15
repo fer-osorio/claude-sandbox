@@ -78,13 +78,16 @@ this section — without it, report the assessment in the conversation and
 write nothing.
 
 1. Follow `~/.claude/templates/planning/feasibility.md`. Its sections and
-   their order are the contract, and the `ceiling-<section>:` keys in its
-   frontmatter are hard line limits per section. What does not fit does
+   their order are the contract, and the `ceiling-<section>-words:` keys in its
+   frontmatter are hard word limits per section. What does not fit does
    not belong in this artifact.
 2. Write `docs/planning/feasibility.md`. Frontmatter carries `status`
    (`Draft`, `Approved`, or `Superseded by <path>`), `date`, `phase` and
    `owner`; the `ceiling-*` and `artifact` keys stay in the template.
-   Delete the template's authoring comments from the output.
+   Delete the template's authoring comments from the output. Set
+   `status: Approved` when the document is complete — `status` records the
+   document's lifecycle, not the verdict it carries, so completeness is
+   this skill's call. Do not ask the operator to approve it.
 3. Update the `feasibility.md` row in `docs/planning/README.md`: set the
    status cell, and change the artifact name from a code span to a
    markdown link now that the file exists. **That row only.** Every other
@@ -107,6 +110,10 @@ write nothing.
 
 ## Changelog
 
+- **0.2 (draft)** — Named the owner of `status: Approved`. The first real
+  run left it unset because no sentence said who set it, and the operator
+  had to ask. Lifecycle is not verdict — ADR 004 of the claude-sandbox
+  project, decision 7 — so completeness is this skill's to declare.
 - **0.1 (draft)** — Initial version, built to the contract in the
   project-feasibility-skill design document of the claude-sandbox
   project. Not yet exercised against a real `scope.md`.

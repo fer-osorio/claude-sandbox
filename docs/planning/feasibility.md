@@ -9,7 +9,7 @@ owner: project-feasibility
 
 ## TL;DR
 
-Yes, buildable by this solo operator at low-to-moderate cost. #102 and #104 are straightforward documentation/test changes with strong prior art; #103 is the highest-risk item, since it's a decision about the very Planning process being exercised for the first time in this run, with no external precedent for its proposed Planning-vs-Design boundary. Cost is justified: per `docs/planning/scope.md §Problem statement`, all three currently degrade silently, and that risk compounds with every future session or project this instruction layer touches.
+Yes, buildable at low-to-moderate cost. #102 and #104 are straightforward documentation and test changes with strong prior art; #103 is the highest-risk item — a decision about the Planning process this run is the first to exercise, with no external precedent. All three degrade silently (`docs/planning/scope.md §Problem statement`), and risk compounds with every session.
 
 ## Technical
 

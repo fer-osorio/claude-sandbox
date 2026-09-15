@@ -9,16 +9,14 @@ owner: project-planning
 
 ## TL;DR
 
-Fix three documentation gaps in `claude-sandbox`'s instruction layer (`global-claude/`), surfaced while prepping `project-planning`'s first real run: state the minimal vs. ideal host environment this project assumes (#102), decide how Planning-phase scope intake records inference and what actually qualifies for Planning (#103), and make `global-claude/`'s cross-repo citations resolve correctly wherever they're injected (#104). All three are currently silent-failure risks rather than crashes — undocumented assumptions, an approval gate with no teeth against misread constraints, and citations that resolve to a wrong file instead of erroring — which is why bundling them into one Planning run is worth doing now rather than fixing each ad hoc.
+Fix three silent-failure gaps in `claude-sandbox`'s instruction layer: the host environment this project assumes (#102), how Planning intake records inference and what qualifies for Planning (#103), and citations under `global-claude/` that resolve only inside this repo (#104). None crashes; each fails quietly, which is why they are bundled into one run.
 
 ## Problem statement
 
-Anyone operating this sandbox or authoring under `global-claude/` works against an instruction layer with three undocumented, silent (not crashing) failure modes:
-- `#102`: environment assumptions (memory/CPU, cgroups v2 delegation, UID matching, egress allowlist, baked-in toolchains, GH_TOKEN, whether judgment rules hold under the driving model) are scattered, so no operator can tell which tier — minimal or ideal — their host is in. R-6's cgroups incident is the worked example.
-- `#103`: the entry/approval gate defends against unanswered questions but not against a plausible misreading of answered ones, and has no principled Planning-vs-Design boundary.
-- `#104`: `global-claude/` is injected into every project this sandbox touches, but its citations resolve only inside this repo — elsewhere they dangle or silently resolve to the wrong file.
-
-Solved means each gap gets a documented, checkable answer instead of an implicit one.
+Anyone operating this sandbox or authoring under `global-claude/` faces three undocumented, non-crashing failure modes:
+- `#102`: environment assumptions — memory, cgroups v2 delegation, UID matching, egress, toolchains, `GH_TOKEN`, the driving model's judgment — are scattered, so no operator can tell which tier their host is in. R-6's cgroups incident is the worked example.
+- `#103`: the entry gate defends against unanswered questions but not against a plausible misreading of answered ones, and has no principled Planning-vs-Design boundary.
+- `#104`: `global-claude/` is injected into every project, but its citations resolve only inside this repo — elsewhere they dangle or silently resolve to the wrong file.
 
 ## Constraints
 
@@ -31,17 +29,17 @@ Solved means each gap gets a documented, checkable answer instead of an implicit
 
 ## Non-goals
 
-- Building #102's model-tier-enforcement mechanism (whether the instruction layer's rules hold under a given model) — the issue defers this; only naming the gap is in scope.
-- Turning any single #102 assumption into an entrypoint health check — a separate decision, per the issue's own scoping.
-- Actually implementing #103's ledger/entry-test mechanism inside `project-planning`'s SKILL.md or ADR 004 — this Planning run settles the two decisions; building the mechanism (if adopted) is Design-phase work, gated on the charter's Decision.
-- A full manual audit of every doc in the repo for cross-repo-citation bugs beyond the confirmed `CLAUDE.md:71` instance — the proposed `D-9` static check is meant to catch the rest automatically, not a hand audit.
-- Resolving ADR 003's broader "weakest rung" enforcement gap (rung-1/rung-2 checks failing silently) — only the citation-portability instance is in scope here.
-- Expanding this Planning run to any issue beyond #102/#103/#104.
+- Building #102's model-tier-enforcement mechanism — the issue defers it; naming the gap is what is in scope.
+- Turning any #102 assumption into an entrypoint health check — a separate decision, per the issue's own scoping.
+- Implementing #103's ledger or entry test. This run settles the two decisions; building the mechanism is Design work, gated on the charter's Decision.
+- A hand audit of every doc for cross-repo-citation bugs beyond `CLAUDE.md:71` — the proposed `D-9` check is meant to catch the rest.
+- Resolving ADR 003's broader weakest-rung gap; only the citation-portability instance is in scope.
+- Any issue beyond #102, #103 and #104.
 
 ## Definition of done
 
-- Planning: `scope.md`, `prior-art.md`, `feasibility.md`, `charter.md` all exist under `docs/planning/`, pass `tests/test_planning_artifacts.bats`, and the charter's `## Decision` is filled in by a human.
-- If Go: #102 → BUILDING.md (or a linked doc) states environment assumptions in Minimal/Ideal tiers; #103 → both decisions are recorded in `project-planning`'s SKILL.md/ADR 004 as Design resolves them; #104 → `CLAUDE.md:71` (and any other flagged instance) uses the name-by-document-and-project form, ADR 003 is qualified, and `D-9` in `tests/test_docs_integrity.bats` passes.
-- Each of #102/#103/#104 closed on GitHub, referencing the commit(s) that resolved it.
-- If No-go or Deferred: the charter records that outcome with reasoning, and no issue is closed prematurely — a recorded no-go is itself the done condition.
+- Planning: all four artifacts exist, pass `tests/test_planning_artifacts.bats`, and the charter's `## Decision` is human-filled.
+- If Go: #102 states environment assumptions in Minimal and Ideal tiers; #103's two decisions are recorded as Design resolves them; #104 converts every flagged citation to the qualified form, qualifies ADR 003, and lands `D-9` passing.
+- #102, #103 and #104 closed, with the commits that resolved them.
+- If No-go or Deferred: the charter records that outcome with reasoning, and no issue is closed — a recorded no-go is itself done.
 

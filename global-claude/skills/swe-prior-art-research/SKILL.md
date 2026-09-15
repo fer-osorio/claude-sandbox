@@ -105,13 +105,16 @@ to satisfy this section.
 When it does exist, the findings are an artifact rather than a reply:
 
 1. Read `~/.claude/templates/planning/prior-art.md` and follow it. Its
-   sections and their order are the contract, and the `ceiling-<section>:`
-   keys in its frontmatter are hard line limits per section — what does not
+   sections and their order are the contract, and the `ceiling-<section>-words:`
+   keys in its frontmatter are hard word limits per section — what does not
    fit does not belong in this artifact.
 2. Write to `docs/planning/prior-art.md`. Frontmatter carries `status`
    (`Draft`, `Approved`, or `Superseded by <path>`), `date`, `phase` and
    `owner`; the `ceiling-*` and `artifact` keys stay in the template.
-   Delete the template's authoring comments from the output.
+   Delete the template's authoring comments from the output. Set
+   `status: Approved` when the document is complete — `status` records the
+   document's lifecycle, not a judgment about the findings, so completeness
+   is this skill's call. Do not ask the operator to approve it.
 3. Read `docs/planning/scope.md` if present and cite it as
    `docs/planning/scope.md §Problem statement`. Do not restate the problem
    — a citation names a path and a section; "see the planning documents"
@@ -158,6 +161,11 @@ carries that suite.
 
 ## Changelog
 
+- **0.6 (draft)** — Named the owner of `status: Approved` on the Planning
+  artifact. The first real run left it unset because no sentence said who
+  set it, and the operator had to ask. Lifecycle is not verdict — ADR 004
+  of the claude-sandbox project, decision 7 — so completeness is this
+  skill's to declare.
 - **0.5 (draft)** — Reciprocal mutual-exclusion clause against the new
   `project-feasibility` skill, in the description and the notes. This
   skill's own feasibility claim is deliberately not narrowed: it is

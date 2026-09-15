@@ -11,12 +11,18 @@
 # runs in CI (see BUILDING.md, "Tag axes").
 #
 # Vacuity, stated plainly because it matters for how much these results
-# mean today: no artifact has been written yet, so P-2 and P-4 currently
-# have nothing to iterate over and pass trivially. P-1, P-3, P-5 and P-6
-# all assert against the four committed templates and carry real weight
-# now. P-2 and P-4 bind automatically the first time a skill writes to
-# docs/planning/ — no edit to this file required, which is the property
-# worth having.
+# mean: P-2 and P-4 had nothing to iterate over until the first real
+# Planning run landed four artifacts under docs/planning/ on 2026-09-11.
+# They bound automatically at that moment, with no edit to this file, which
+# is the property worth having. Both now carry weight, as P-1, P-3, P-5 and
+# P-6 already did against the committed templates.
+#
+# What binding revealed about P-4 is recorded in #106 finding 1. It counted
+# physical lines, and lines are a property of how the author wrapped the
+# prose: the run's artifacts were unwrapped, so all twenty sections passed
+# while thirteen breached once wrapped at this repository's 76 columns. A
+# check can bind and still measure the wrong thing. The unit is now words —
+# see _section_words below, and docs/planning/README.md for the conversion.
 #
 # All six were negative-controlled on 2026-09-04, each observed reporting
 # against a deliberately broken fixture, before the templates moved to the
@@ -31,6 +37,21 @@
 # than decorative — the check widens to all four owners the moment the list
 # empties, so it has to be the list doing the work and not the absence of a
 # skill. Repeat that control when Phase 4 empties it for real.
+#
+# P-0b, P-4, P-6 and P-8 were negative-controlled on 2026-09-14, when the
+# ceiling unit changed and P-8 was added:
+#   - P-4 reported "section 'open-questions' is 179 words, ceiling is 108"
+#     against a padded charter, and went silent on revert.
+#   - P-6 reported a ceiling-nosuchsection-words key naming no section, and
+#     went silent on revert. Its parser changed with the rename, so the
+#     control is against the new pattern, not the old result.
+#   - P-0b's key set went to zero against an empty template directory —
+#     the same shape as a template the parser no longer matches, which is
+#     the failure it exists for.
+#   - P-8 reported the committed charter with its date stripped, went
+#     silent on revert, and read the template's comment-only Decision as
+#     unfilled. That last one is the control that matters: it is the
+#     difference between keying on a filled section and keying on status.
 #
 # What that verification proves is bounded by how it was performed. bats is
 # not in the sandbox image (BUILDING.md, "Running the test suite"), so from
@@ -47,6 +68,12 @@
 # nothing. This was not hypothetical: moving the templates without moving
 # the pointer produced exactly that, six passes over zero templates.
 # ci.yml guards --filter-tags the same way and for the same reason.
+#
+# P-0b is the same guard one level down, and the rename from ceiling-* to
+# ceiling-*-words is why it exists. P-4 iterates over the ceiling keys it
+# parses out of each template; a template the parser no longer matches
+# yields none, and P-4 then passes over nothing. P-0 would not catch it,
+# because the template set is still non-empty.
 #
 # What this suite deliberately does NOT catch:
 #   - Whether an owner that does exist is the skill that actually fires.
@@ -105,8 +132,10 @@ _templates() {
 
 # Non-blank, non-comment body lines under a "## <heading>" whose slug
 # matches $2, up to the next "## " or end of file. The heading itself is
-# not counted.
-_section_lines() {
+# not emitted. Authoring comments are skipped, so a section carrying only
+# the template's instructions comes back empty — which is what lets P-8
+# tell an unfilled Decision from a filled one.
+_section_body() {
     awk -v want="$2" '
         /^## / {
             body = tolower(substr($0, 4))
@@ -120,9 +149,31 @@ _section_lines() {
         /<!--/ { incomment = 1 }
         incomment { if (/-->/) incomment = 0; next }
         /^[[:space:]]*$/ { next }
-        { n++ }
-        END { print n + 0 }
+        { print }
     ' "$1"
+}
+
+# Words in that body.
+#
+# Words rather than physical lines. Lines are a property of how the author
+# wrapped the prose, not of how much they wrote: the first real run was
+# written unwrapped and every section passed, while the same text hard
+# wrapped at this repository's 76 columns breached thirteen of twenty
+# ceilings. A unit that answers differently depending on where the newlines
+# fell is not measuring the thing the ceiling exists to bound.
+#
+# A table row counts its cell contents, so a table spends budget faster per
+# visual line than prose does. No ceilinged section currently prescribes
+# one.
+_section_words() {
+    _section_body "$1" "$2" | awk '{ n += NF } END { print n + 0 }'
+}
+
+# Every declared ceiling, as "<section> <limit>" pairs across all templates.
+_ceiling_keys() {
+    for t in $(_templates); do
+        _frontmatter "$t" | sed -n 's/^ceiling-\([a-z0-9-]*\)-words:[[:space:]]*\([0-9]*\)/\1 \2/p'
+    done
 }
 
 _p1_templates_missing_declarations() {
@@ -163,11 +214,11 @@ _p4_ceiling_violations() {
         rel="docs/planning/$(basename "$a")"
         for t in $(_templates); do
             [ "$(_fm_value "$t" artifact)" = "$rel" ] || continue
-            _frontmatter "$t" | sed -n 's/^ceiling-\([a-z0-9-]*\):[[:space:]]*\([0-9]*\)/\1 \2/p' \
+            _frontmatter "$t" | sed -n 's/^ceiling-\([a-z0-9-]*\)-words:[[:space:]]*\([0-9]*\)/\1 \2/p' \
             | while read -r section limit; do
-                actual="$(_section_lines "$a" "$section")"
+                actual="$(_section_words "$a" "$section")"
                 [ "$actual" -le "$limit" ] \
-                    || echo "${rel}: section '${section}' is ${actual} lines, ceiling is ${limit}"
+                    || echo "${rel}: section '${section}' is ${actual} words, ceiling is ${limit}"
             done
         done
     done
@@ -210,13 +261,37 @@ _p7_missing_owner_skills() {
 _p6_dead_ceiling_keys() {
     for t in $(_templates); do
         rel="${t#${SANDBOX_DIR}/}"
-        _frontmatter "$t" | sed -n 's/^ceiling-\([a-z0-9-]*\):.*/\1/p' | while IFS= read -r key; do
+        _frontmatter "$t" | sed -n 's/^ceiling-\([a-z0-9-]*\)-words:.*/\1/p' | while IFS= read -r key; do
             found=""
             while IFS= read -r heading; do
                 [ "$(_slug "$heading")" = "$key" ] && found=yes
             done < <(grep '^## ' "$t" | sed 's/^## //')
-            [ -n "$found" ] || echo "${rel}: ceiling-${key} names no '## ' section in this template"
+            [ -n "$found" ] || echo "${rel}: ceiling-${key}-words names no '## ' section in this template"
         done
+    done
+}
+
+# The charter template asks for the Decision to be "filled in by a person,
+# with a date". The first real Decision was written without one and passed
+# every check; the date was added afterwards, on request.
+#
+# Keyed on the section being filled, not on status: Approved. A charter is
+# Approved the moment the writing skill finishes it, with the Decision
+# legitimately still blank — ADR 002 decision 3's vocabulary records
+# document lifecycle, and ADR 004 decision 7 is explicit that a no-go
+# charter is Approved too. A check keyed on status would therefore fail on
+# every correctly written charter, and a check that fails on correct input
+# gets switched off.
+#
+# This cannot compel a person to decide. It requires only that a decision
+# they made can be placed in time against the artifacts it was made on.
+_p8_undated_decisions() {
+    for a in $(_artifacts); do
+        rel="docs/planning/$(basename "$a")"
+        body="$(_section_body "$a" decision)"
+        [ -n "$body" ] || continue
+        printf '%s\n' "$body" | grep -qE '[0-9]{4}-[0-9]{2}-[0-9]{2}' \
+            || echo "${rel}: '## Decision' is filled in but carries no ISO date"
     done
 }
 
@@ -236,6 +311,21 @@ _report() {
         echo "P-1, P-3, P-5 and P-6 iterate over this set. An empty set makes" >&2
         echo "all four pass while asserting nothing, so the contract would" >&2
         echo "report green with no templates behind it. Check TEMPLATE_DIR." >&2
+    fi
+    [ -n "$output" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "P-0b: the ceiling set is not empty" {
+    run _ceiling_keys
+    [ "$status" -eq 0 ]
+    if [ -z "$output" ]; then
+        echo "--- no ceiling-*-words keys under ${TEMPLATE_DIR} ---" >&2
+        echo "P-4 iterates over the keys it finds in each template. A template" >&2
+        echo "the parser no longer matches yields no ceilings, and P-4 passes" >&2
+        echo "over nothing — green with no ceiling behind it. That is P-0's" >&2
+        echo "failure one level down, and the key was renamed from ceiling-*" >&2
+        echo "to ceiling-*-words when the unit changed from lines to words." >&2
     fi
     [ -n "$output" ]
 }
@@ -293,5 +383,13 @@ _report() {
     run _p7_missing_owner_skills
     [ "$status" -eq 0 ]
     _report "$output" "owners naming no committed skill"
+    [ -z "$output" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "P-8: a filled Decision section carries a date" {
+    run _p8_undated_decisions
+    [ "$status" -eq 0 ]
+    _report "$output" "decisions with no date"
     [ -z "$output" ]
 }

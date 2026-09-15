@@ -2,11 +2,11 @@
 artifact: docs/planning/charter.md
 owner: project-planning
 phase: planning
-ceiling-tldr: 6
-ceiling-recommendation: 12
-ceiling-evidence: 20
-ceiling-open-questions: 12
-ceiling-decision: 8
+ceiling-tldr-words: 54
+ceiling-recommendation-words: 108
+ceiling-evidence-words: 180
+ceiling-open-questions-words: 108
+ceiling-decision-words: 72
 ---
 
 <!-- Template for docs/planning/charter.md. Copy, fill, delete these

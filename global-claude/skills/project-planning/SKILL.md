@@ -148,14 +148,18 @@ the section above.
 
 1. Follow `~/.claude/templates/planning/scope.md` and
    `~/.claude/templates/planning/charter.md`. Their sections and order are
-   the contract, and the `ceiling-<section>:` keys in their frontmatter are
-   hard line limits per section. What does not fit does not belong in the
+   the contract, and the `ceiling-<section>-words:` keys in their frontmatter are
+   hard word limits per section. What does not fit does not belong in the
    artifact.
 2. Write `docs/planning/scope.md` and `docs/planning/charter.md`.
    Frontmatter carries `status` (`Draft`, `Approved`, or
    `Superseded by <path>`), `date`, `phase` and `owner`; the `ceiling-*`
    and `artifact` keys stay in the template. Delete the template's
    authoring comments from the output — with the one exception below.
+   `scope.md`'s `Approved` is the operator's, per the input contract above.
+   `charter.md`'s is this skill's: set `status: Approved` when the document
+   is complete, with `## Decision` still blank. `status` records lifecycle,
+   not outcome — the gate is the Decision section, not this field.
 3. **The charter's Decision section is an exception to step 2.** Emit the
    `## Decision` heading and the template's authoring comment verbatim, and
    nothing else. That comment is the instruction to the person who fills it
@@ -184,7 +188,7 @@ the section above.
   three fire, at different steps, in contract order — intended, not a
   collision.
 - **The Decision section is reserved, and nothing enforces that but this
-  sentence.** The section's line ceiling bounds its length, not its
+  sentence.** The section's word ceiling bounds its length, not its
   authorship. A decision written here would pass every check the contract
   has and would be the least visible failure in a finished artifact.
 - A no-go is a first-class result. ADR 002 of the claude-sandbox project
@@ -194,6 +198,10 @@ the section above.
 
 ## Changelog
 
+- **0.3 (draft)** — Named the owner of `status: Approved` on each of the
+  two artifacts. `scope.md` stays the operator's; the charter's is this
+  skill's, set while `## Decision` is still blank. The first real run left
+  both unset because no sentence said who set them.
 - **0.2 (draft)** — Intake declares its inferences, and the ledger is empty
   before approval; drafting on request is supported and puts every drafted
   claim on that ledger; the entry test moved into the description as a

@@ -1,4 +1,5 @@
 ---
+template-tier: contract
 artifact: docs/planning/charter.md
 owner: project-planning
 phase: planning

@@ -1,3 +1,10 @@
+---
+template-tier: scaffold
+seeded-by: design
+unowned-because: the project chooses where the result lands and owns it
+  from then on, so there is no fixed path and no single writer.
+---
+
 # Docs-as-Code Workflow
 **Version:** 1.0.0
 **Status:** Accepted

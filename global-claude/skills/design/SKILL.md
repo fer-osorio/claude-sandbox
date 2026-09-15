@@ -24,37 +24,40 @@ User says "initialize docs-as-code", "set up the workflow", "new project
 setup", or similar:
 1. Read `~/.claude/templates/docs-as-code-workflow-template.md`.
 2. Resolve all placeholders and authoring instructions:
-   a. Replace `<org>/<repo>` in the frontmatter Scope field.
-   b. Replace the §1.1 Current state comment block with one paragraph
+   a. Delete the template's YAML frontmatter. It declares the template to
+      the checks that read it and is not part of any document made from
+      it.
+   b. Replace `<org>/<repo>` in the `**Scope:**` line under the title.
+   c. Replace the §1.1 Current state comment block with one paragraph
       describing the project's existing documentation state honestly (what
       is missing, inconsistent, or undisciplined). Do not leave the
       comment in place.
-   c. Review the §1 Scope exclusions list. Add or remove items to reflect
+   d. Review the §1 Scope exclusions list. Add or remove items to reflect
       what this workflow document actually covers for this project.
-   d. Add project-specific tools to the §2.2 Tools table (e.g., Docker,
+   e. Add project-specific tools to the §2.2 Tools table (e.g., Docker,
       CMake, vcpkg, Nix). Remove the instructional comment after adding
       entries, or remove the comment alone if no additions are needed.
-   e. Add project-specific document types to the §2.2 Document types
+   f. Add project-specific document types to the §2.2 Document types
       table if the project produces artifacts not covered by the defaults
       (e.g., benchmark reports, threat model documents). Remove the
       instructional comment afterward.
-   f. Add project-specific directories to the §2.2 Repository layout
+   g. Add project-specific directories to the §2.2 Repository layout
       block if additional directories were added to the document types
       table. Remove the instructional comment afterward.
-   g. Case E: determine whether the project has a domain-specific
+   h. Case E: determine whether the project has a domain-specific
       workflow requirement (e.g., security-critical changes requiring
       threat model docs, schema migrations requiring rollback procedures).
       If yes, define Case E fully — trigger, required artifacts, minimum
       content. If no, remove the Case E section in §3, the Case E trigger
       in §4, and the Case E row in §5 entirely.
-   h. Add project-specific definitions to §6 if new document types or
+   i. Add project-specific definitions to §6 if new document types or
       terms were introduced. Remove the instructional comment afterward.
-   i. Verify that no `<!-- ... -->` comment blocks remain in the output.
+   j. Verify that no `<!-- ... -->` comment blocks remain in the output.
       Every comment in the template is an authoring instruction; none
       belong in the committed document.
-3. Set `Status: Accepted` in the frontmatter. The decision to adopt this
-   workflow is made at setup time; the document records a decision already
-   taken, not a proposal under review.
+3. Set `**Status:** Accepted` in the same header block. The decision to
+   adopt this workflow is made at setup time; the document records a
+   decision already taken, not a proposal under review.
 4. Save the result to `docs/designs/docs-as-code-workflow.md`.
 5. Propose as a first commit: `docs: add docs-as-code workflow`
 

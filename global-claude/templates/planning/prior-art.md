@@ -1,4 +1,5 @@
 ---
+template-tier: contract
 artifact: docs/planning/prior-art.md
 owner: swe-prior-art-research
 phase: planning

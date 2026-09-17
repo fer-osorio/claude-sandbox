@@ -237,10 +237,11 @@ there on an SELinux-enforcing host. See
 
 ## Authentication
 
-Claude Code requires an Anthropic API key. On first use, authenticate on
-the host and pass the key into containers via the `ANTHROPIC_API_KEY`
-environment variable. See `docs/claude_code_security_plan.md` §Phase 1
-for the full authentication setup procedure.
+Log in from inside the session, through Claude Code's own OAuth flow, the
+first time you use it after `./start.sh`. See `docs/user_guide.md`
+§Authenticating a session, and Change 23 in
+`docs/claude_code_security_plan.md` for why the `ANTHROPIC_API_KEY` flow is
+deliberately not used.
 
 ## Running the test suite
 

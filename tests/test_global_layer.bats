@@ -121,11 +121,11 @@ teardown() {
 # bats test_tags=fast
 @test "G-10: every file in the global layer arrives in ~/.claude with its content intact" {
     # G-1 diffs one file. entrypoint.sh copies the tree wholesale, and every
-    # consumer of the layer — ten skills, five templates, the commit-msg hook —
-    # depends on that being true for the specific file it needs. The design
-    # skill reads ~/.claude/templates/docs-as-code-workflow-template.md, a
-    # runtime path D-1 is exempted from resolving; before this test, that
-    # template could stop arriving and nothing in the repository would fail.
+    # consumer of the layer depends on that being true for the specific file
+    # it needs. The design skill reads
+    # ~/.claude/templates/docs-as-code-workflow-template.md, a runtime path
+    # D-1 is exempted from resolving; before this test, that template could
+    # stop arriving and nothing in the repository would fail.
     #
     # One-directional deliberately: it walks the source tree, so the files the
     # entrypoint legitimately adds to ~/.claude that the source has no copy of

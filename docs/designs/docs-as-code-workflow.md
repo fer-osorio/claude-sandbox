@@ -189,9 +189,8 @@ git commit -m "docs: update BUILDING.md or ARCHITECTURE.md (closes #<issue-numbe
 redesign (`ci`, `build`)
 
 Open a GitHub Issue. Write a design document in `docs/designs/` as the
-first commit. The design captures current structure, target structure,
-motivation, and migration path. Commit the code in small steps. Extract
-any binding decision into an ADR as the final step.
+first commit. Commit the code in small steps. Extract any binding decision
+into an ADR as the final step.
 
 ```bash
 gh issue create --title "<type>: <short description>"
@@ -209,22 +208,10 @@ git commit -m "<type>: <step two> (#<issue-number>)"
 git commit -m "docs: ADR 00N — <decision> (closes #<issue-number>)"
 ```
 
-Design document minimum structure:
-
-```markdown
-## Current structure
-<What exists today and why it is insufficient.>
-
-## Target structure
-<What the component will look like after the change.>
-
-## Motivation
-<The specific problem being solved.>
-
-## Migration path
-1. <Step one>
-2. <Step two>
-```
+Design document structure: follow Step 6a of the injected `design` skill,
+which is the single declared format. Per [ADR 007](../adr/007-shared-template-convention.md)
+decision 5, a format an injected skill already carries is cited here rather
+than copied.
 
 **Artifacts produced:** GitHub Issue, `docs/designs/<slug>.md`,
 optionally `docs/adr/00N-<slug>.md`.
@@ -241,37 +228,11 @@ Open a GitHub Issue. Write an ADR directly — the ADR *is* the design
 document for decisions of this weight. An implementation plan goes in
 `docs/plans/` if the execution is non-trivial.
 
-ADR format:
-
-```markdown
-# ADR 00N — <Short title of the decision>
-
-## Status
-Accepted
-
-## Context
-<What situation or problem forced this decision?
-What constraints existed? What was tried before?>
-
-## Decision
-<What was decided? State it plainly and directly.>
-
-## Consequences
-<What becomes easier, harder, or impossible as a result?
-Include both positive and negative consequences.
-Include any implicit assumptions the decision relies on.>
-
-## Alternatives considered
-<For each rejected option:
-**Chose:** … **Rejected:** … **Why the rejected option is attractive:** …
-**What breaks if you try it anyway:** …>
-```
-
-The **Alternatives considered** section brings ADRs in line with the design
-document structure in Case C, which already records trade-offs. It is not
-optional: an option recorded without its appeal will be reinvented by the
-next person who finds it obvious, and because ADRs are never rewritten, an
-alternative left out at authoring time is unrecoverable.
+ADR format: follow Step 6b of the injected `design` skill, which is the
+single declared format and carries the rationale for its mandatory
+**Alternatives considered** section. Per [ADR 007](../adr/007-shared-template-convention.md)
+decision 5, a format an injected skill already carries is cited here rather
+than copied.
 
 ADRs are **never rewritten**. If a decision is reversed, a new ADR is
 written with status `Supersedes ADR 00N`.

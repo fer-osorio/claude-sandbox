@@ -53,6 +53,23 @@
 #     unfilled. That last one is the control that matters: it is the
 #     difference between keying on a filled section and keying on status.
 #
+# P-0c and P-1's two branches were negative-controlled on 2026-09-15, when
+# TEMPLATE_DIR widened to cover both tiers (ADR 007 decision 2). Each probe
+# was applied to a committed template and reverted:
+#   - template-tier: scafold  -> P-0c reported the unrecognised value.
+#   - owner: deleted from a contract template -> P-1's contract branch.
+#   - owner: and a ceiling key added to a scaffold -> P-1's scaffold branch
+#     reported both as belonging to a contract template.
+#   - seeded-by: no-such-skill -> P-7 reported it, which is the half of P-7
+#     that did not exist before the widening.
+#
+# The first attempt at those four controls reported nothing, for all four.
+# The harness had not exported TEMPLATE_DIR, so _templates found no files
+# and every check passed over an empty set. That is P-0's failure mode
+# exactly, met in the harness rather than the suite, and it is the reason
+# P-0c asserts each tier is non-empty rather than trusting that a branch
+# with nothing in it would be noticed.
+#
 # What that verification proves is bounded by how it was performed. bats is
 # not in the sandbox image (BUILDING.md, "Running the test suite"), so from
 # inside a session the helper functions below can be extracted and called
@@ -100,7 +117,13 @@ PLANNING_DIR="${SANDBOX_DIR}/docs/planning"
 # docs/designs/planning-skill-output-routing.md §Decision 1. This path is
 # load-bearing — an empty TEMPLATE_DIR makes P-1, P-3, P-5 and P-6 pass over
 # nothing rather than fail, so P-0 asserts the set is non-empty.
-TEMPLATE_DIR="${SANDBOX_DIR}/global-claude/templates/planning"
+#
+# It covers every template in the injected layer, not only planning/, per
+# ADR 007 decision 2. Before that, global-claude/templates/*.md was reached
+# by no check at all: a template could be added there and never be seen,
+# which is P-0's own failure mode occurring in a directory P-0 did not
+# watch.
+TEMPLATE_DIR="${SANDBOX_DIR}/global-claude/templates"
 
 # Heading text to ceiling-key slug: lowercase, drop anything that is not a
 # letter, digit or space, then spaces to hyphens. "TL;DR" -> tldr,
@@ -127,7 +150,22 @@ _artifacts() {
 }
 
 _templates() {
-    find "$TEMPLATE_DIR" -maxdepth 1 -name '*.md' 2>/dev/null | sort
+    find "$TEMPLATE_DIR" -maxdepth 2 -name '*.md' 2>/dev/null | sort
+}
+
+# ADR 007 decision 1 names two tiers. A contract template governs one
+# artifact at one path with one owning skill and measurable sections; a
+# scaffold is copied once and then owned by the project.
+_TEMPLATE_TIERS="contract scaffold"
+
+# Templates of one tier. Selection is on the declared value, never on
+# whether some other key happened to be absent: keying the tier on a
+# missing artifact: would let a typo demote a contract template, after
+# which P-1, P-4, P-5 and P-7 would all pass over it.
+_templates_of_tier() {
+    for t in $(_templates); do
+        [ "$(_fm_value "$t" template-tier)" = "$1" ] && echo "$t"
+    done
 }
 
 # Non-blank, non-comment body lines under a "## <heading>" whose slug
@@ -169,21 +207,51 @@ _section_words() {
     _section_body "$1" "$2" | awk '{ n += NF } END { print n + 0 }'
 }
 
-# Every declared ceiling, as "<section> <limit>" pairs across all templates.
+# Every declared ceiling, as "<section> <limit>" pairs. Contract templates
+# only — a scaffold declares none, by ADR 007 decision 1.
 _ceiling_keys() {
-    for t in $(_templates); do
+    for t in $(_templates_of_tier contract); do
         _frontmatter "$t" | sed -n 's/^ceiling-\([a-z0-9-]*\)-words:[[:space:]]*\([0-9]*\)/\1 \2/p'
     done
 }
 
-_p1_templates_missing_declarations() {
+# An undeclared or unrecognised tier is a failure, never a demotion to the
+# laxer tier. A convention whose lax tier is the default erodes without
+# anything turning red.
+_p0c_bad_tiers() {
     for t in $(_templates); do
+        rel="${t#${SANDBOX_DIR}/}"
+        tier="$(_fm_value "$t" template-tier)"
+        case " ${_TEMPLATE_TIERS} " in
+            *" ${tier} "*) ;;
+            *) echo "${rel}: template-tier is '${tier}' — expected one of: ${_TEMPLATE_TIERS}" ;;
+        esac
+    done
+}
+
+_p1_templates_missing_declarations() {
+    for t in $(_templates_of_tier contract); do
         rel="${t#${SANDBOX_DIR}/}"
         [ -n "$(_fm_value "$t" artifact)" ] || echo "${rel}: no 'artifact:' in frontmatter"
         [ -n "$(_fm_value "$t" owner)" ]    || echo "${rel}: no 'owner:' in frontmatter"
         _frontmatter "$t" | grep -q '^ceiling-' \
             || echo "${rel}: declares no ceiling-* keys, so nothing constrains its sections"
     done
+    # A scaffold carrying contract keys is miscategorised, not half-checked.
+    for t in $(_templates_of_tier scaffold); do
+        rel="${t#${SANDBOX_DIR}/}"
+        [ -n "$(_fm_value "$t" seeded-by)" ] \
+            || echo "${rel}: no 'seeded-by:' in frontmatter"
+        [ -n "$(_fm_value "$t" unowned-because)" ] \
+            || echo "${rel}: no 'unowned-because:' — a scaffold states why no skill owns its output"
+        for k in artifact owner; do
+            [ -z "$(_fm_value "$t" "$k")" ] \
+                || echo "${rel}: declares '${k}:', which belongs to a contract template"
+        done
+        _frontmatter "$t" | grep -q '^ceiling-' \
+            && echo "${rel}: declares ceiling-* keys, which belong to a contract template"
+    done
+    return 0
 }
 
 _p2_invalid_status() {
@@ -200,7 +268,7 @@ _p2_invalid_status() {
 _p3_missing_index_rows() {
     index="${PLANNING_DIR}/README.md"
     # Every artifact path a template claims, plus every artifact that exists.
-    { for t in $(_templates); do _fm_value "$t" artifact; done
+    { for t in $(_templates_of_tier contract); do _fm_value "$t" artifact; done
       for a in $(_artifacts); do echo "docs/planning/$(basename "$a")"; done
     } | sort -u | while IFS= read -r path; do
         [ -n "$path" ] || continue
@@ -212,7 +280,7 @@ _p3_missing_index_rows() {
 _p4_ceiling_violations() {
     for a in $(_artifacts); do
         rel="docs/planning/$(basename "$a")"
-        for t in $(_templates); do
+        for t in $(_templates_of_tier contract); do
             [ "$(_fm_value "$t" artifact)" = "$rel" ] || continue
             _frontmatter "$t" | sed -n 's/^ceiling-\([a-z0-9-]*\)-words:[[:space:]]*\([0-9]*\)/\1 \2/p' \
             | while read -r section limit; do
@@ -225,7 +293,7 @@ _p4_ceiling_violations() {
 }
 
 _p5_duplicate_owners() {
-    for t in $(_templates); do _fm_value "$t" artifact; done \
+    for t in $(_templates_of_tier contract); do _fm_value "$t" artifact; done \
     | sort | uniq -d | while IFS= read -r dup; do
         [ -n "$dup" ] && echo "${dup}: claimed by more than one template — ownership must be unambiguous"
     done
@@ -244,22 +312,30 @@ _p5_duplicate_owners() {
 # mechanism stays for the next owner ADR 002 names before it is built.
 _UNBUILT_OWNERS=""
 
+# Both tiers: a contract template names its writer in owner:, a scaffold
+# names the skill that copies it in seeded-by:. Every template therefore
+# declares at least one skill that must resolve, which is what closes "a
+# template nobody reads".
 _p7_missing_owner_skills() {
     for t in $(_templates); do
         rel="${t#${SANDBOX_DIR}/}"
-        owner="$(_fm_value "$t" owner)"
-        # A missing owner: key is P-1's finding, not this one's.
+        case "$(_fm_value "$t" template-tier)" in
+            scaffold) key=seeded-by ;;
+            *)        key=owner ;;
+        esac
+        owner="$(_fm_value "$t" "$key")"
+        # A missing key is P-1's finding, not this one's.
         [ -n "$owner" ] || continue
         case " ${_UNBUILT_OWNERS} " in
             *" ${owner} "*) continue ;;
         esac
         [ -f "${SANDBOX_DIR}/global-claude/skills/${owner}/SKILL.md" ] \
-            || echo "${rel}: owner '${owner}' names no skill at global-claude/skills/${owner}/SKILL.md"
+            || echo "${rel}: ${key} '${owner}' names no skill at global-claude/skills/${owner}/SKILL.md"
     done
 }
 
 _p6_dead_ceiling_keys() {
-    for t in $(_templates); do
+    for t in $(_templates_of_tier contract); do
         rel="${t#${SANDBOX_DIR}/}"
         _frontmatter "$t" | sed -n 's/^ceiling-\([a-z0-9-]*\)-words:.*/\1/p' | while IFS= read -r key; do
             found=""
@@ -308,9 +384,9 @@ _report() {
     [ "$status" -eq 0 ]
     if [ -z "$output" ]; then
         echo "--- no templates under ${TEMPLATE_DIR} ---" >&2
-        echo "P-1, P-3, P-5 and P-6 iterate over this set. An empty set makes" >&2
-        echo "all four pass while asserting nothing, so the contract would" >&2
-        echo "report green with no templates behind it. Check TEMPLATE_DIR." >&2
+        echo "P-0c, P-1, P-3, P-5, P-6 and P-7 iterate over this set. An empty" >&2
+        echo "set makes them all pass while asserting nothing, so the contract" >&2
+        echo "would report green with no templates behind it. Check TEMPLATE_DIR." >&2
     fi
     [ -n "$output" ]
 }
@@ -331,7 +407,25 @@ _report() {
 }
 
 # bats test_tags=fast, hostonly
-@test "P-1: every template declares an artifact path, an owner, and ceilings" {
+@test "P-0c: every template declares a recognised tier, and neither tier is empty" {
+    run _p0c_bad_tiers
+    [ "$status" -eq 0 ]
+    _report "$output" "templates with no recognised template-tier"
+    [ -z "$output" ]
+
+    for tier in $_TEMPLATE_TIERS; do
+        run _templates_of_tier "$tier"
+        if [ -z "$output" ]; then
+            echo "--- no '${tier}' templates under ${TEMPLATE_DIR} ---" >&2
+            echo "P-1 branches on the tier, so an empty branch asserts nothing" >&2
+            echo "while reporting green — P-0's failure mode, per tier." >&2
+        fi
+        [ -n "$output" ]
+    done
+}
+
+# bats test_tags=fast, hostonly
+@test "P-1: every template declares what its tier requires" {
     run _p1_templates_missing_declarations
     [ "$status" -eq 0 ]
     _report "$output" "templates missing declarations"

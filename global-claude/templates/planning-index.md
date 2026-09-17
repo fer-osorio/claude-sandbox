@@ -1,3 +1,11 @@
+---
+template-tier: scaffold
+seeded-by: project-planning
+unowned-because: ADR 002 of the claude-sandbox project assigns this index
+  to every Planning skill, each updating its own row, so no single skill
+  owns the file.
+---
+
 <!-- Template for docs/planning/README.md, written once when the
      Planning directory is scaffolded. Copy, then delete these comments.
 

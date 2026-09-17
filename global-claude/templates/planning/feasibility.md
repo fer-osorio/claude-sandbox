@@ -1,4 +1,5 @@
 ---
+template-tier: contract
 artifact: docs/planning/feasibility.md
 owner: project-feasibility
 phase: planning

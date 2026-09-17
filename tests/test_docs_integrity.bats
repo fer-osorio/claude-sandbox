@@ -351,6 +351,36 @@ EOF
     )
 }
 
+# base/Dockerfile and .github/workflows/ci.yml each pin the bats commit they
+# install. CI is the authoritative run and the image is what a session runs
+# against, so the two disagreeing means a check can pass in one place and fail
+# in the other for a reason neither reports — the drift #118 was filed about,
+# one layer up. Nothing else compares them, and a version bump touches two
+# files in different languages, which is exactly the edit that gets made once.
+#
+# Both literals are read out of their own file rather than from a shared
+# source: a shared source neither file reads would prove nothing about what is
+# actually installed.
+_bats_pin_mismatch() {
+    (
+        cd "$SANDBOX_DIR" || exit 1
+        d_commit=$(awk -F= '/^ARG BATS_COMMIT=/ {print $2; exit}' base/Dockerfile)
+        d_version=$(awk -F= '/^ARG BATS_VERSION=/ {print $2; exit}' base/Dockerfile)
+        c_commit=$(awk -F: '/^ *BATS_COMMIT:/ {gsub(/ /, "", $2); print $2; exit}' .github/workflows/ci.yml)
+        c_version=$(awk -F: '/^ *BATS_VERSION:/ {gsub(/ /, "", $2); print $2; exit}' .github/workflows/ci.yml)
+
+        [ -n "$d_commit" ] || echo "base/Dockerfile: no 'ARG BATS_COMMIT=' found"
+        [ -n "$c_commit" ] || echo ".github/workflows/ci.yml: no 'BATS_COMMIT:' found"
+        [ -n "$d_version" ] || echo "base/Dockerfile: no 'ARG BATS_VERSION=' found"
+        [ -n "$c_version" ] || echo ".github/workflows/ci.yml: no 'BATS_VERSION:' found"
+
+        [ -z "$d_commit" ] || [ -z "$c_commit" ] || [ "$d_commit" = "$c_commit" ] \
+            || echo "bats commit differs: base/Dockerfile pins ${d_commit}, ci.yml pins ${c_commit}"
+        [ -z "$d_version" ] || [ -z "$c_version" ] || [ "$d_version" = "$c_version" ] \
+            || echo "bats version differs: base/Dockerfile pins ${d_version}, ci.yml pins ${c_version}"
+    )
+}
+
 # bats test_tags=fast, hostonly
 @test "D-1: every relative markdown link in a tracked document resolves" {
     run _unresolved_markdown_links
@@ -445,6 +475,17 @@ EOF
     [ "$status" -eq 0 ]
     if [ -n "$output" ]; then
         echo "--- read inside other repositories; see docs/adr/005 ---" >&2
+        echo "$output" >&2
+    fi
+    [ -z "$output" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "D-10: the image and CI pin the same bats commit" {
+    run _bats_pin_mismatch
+    [ "$status" -eq 0 ]
+    if [ -n "$output" ]; then
+        echo "--- a session and the authoritative gate would run different bats ---" >&2
         echo "$output" >&2
     fi
     [ -z "$output" ]

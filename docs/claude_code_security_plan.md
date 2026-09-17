@@ -1419,3 +1419,90 @@ startup is untouched.
   @anthropic-ai/claude-code`, no version). Any settings-schema behaviour
   verified for that future design would be verified against whatever npm
   served at last build.
+
+---
+
+### Change 25 — `bats` Added to the Base Image and Pinned in Both Places
+**Affects:** §5 (STRIDE Coverage Map, delta only), `base/Dockerfile`,
+`.github/workflows/ci.yml`, `BUILDING.md`, `tests/test_docs_integrity.bats`.
+Date: 2026-09-17. Issue #118.
+
+**What changed:**
+`base/Dockerfile` gains a layer installing `bats-core` to `/usr/local`: the
+tag `v1.14.0` is cloned for speed, then the resolved `HEAD` is compared
+against a pinned commit, so a moved tag fails the build instead of silently
+changing the version. `.github/workflows/ci.yml` replaces an unpinned
+`git clone --depth 1` of the default branch with the same pinned commit.
+D-10 asserts the two pins agree. `BUILDING.md` points at `base/Dockerfile`
+for the values rather than repeating them, so there is no third literal.
+
+**Why:**
+Two independent problems, fixed together because fixing one alone makes the
+other worse.
+
+`bats` was a host-only prerequisite, so a session could verify a check's
+logic only by extracting its helper functions and calling them directly —
+which exercises the `awk` and `sed` and none of the bats wiring, tags, or
+reporting. 34 of 68 tests need no container engine and no image; those now
+run from inside a session. The concrete failure this removes: while adding
+P-0c, four negative-control probes against deliberately broken templates all
+reported nothing, because the extraction harness had not exported
+`TEMPLATE_DIR` and every check passed over an empty set. Real bats sets it at
+the top of the file. That error was caught only because four probes going
+silent at once is implausible, which is not a mechanism.
+
+Separately, CI installed whatever the default branch held at run time. The
+version behind a given green run was never recorded, and the gate could
+change without anyone touching this repository. An image has to pin to be
+reproducible at all, so pinning only the image would have made it stricter
+than the authoritative gate — the two would drift by construction.
+
+**Which image, and why `base` rather than a profile image:**
+`base/Dockerfile` reaches every session and every profile, at the cost of
+carrying a shell test framework in the crypto and research images, which
+will not use it. A profile image (`systems/`) would sit beside `cmake`,
+`clang` and `lcov` and stay outside Case E's literal trigger — but `start.sh`
+defaults to `base`, so this repository would have to be registered under that
+profile to run its own suite, pulling a C++ toolchain to run shell tests, and
+crypto and research sessions would still have none. The cost of the chosen
+option is image size. The cost of the alternative is that the capability is
+missing exactly where it is wanted.
+
+Worth naming rather than leaving implicit: a profile `Dockerfile` governs what
+a container process can do just as `base/Dockerfile` does, but Case E's trigger
+list names only the latter. Either the list is incomplete or the omission is
+deliberate, and nobody has said which. This change does not settle it.
+
+**STRIDE mapping (delta only):**
+
+| Threat (STRIDE) | Control changed |
+|---|---|
+| **Spoofing (S)** | **Improved.** §5's Spoofing row names "pin dependency versions" as its control, and CI was violating it: an unpinned default-branch clone piped into `sudo ./install.sh`. An upstream compromise, or a force-push to that branch, would have executed attacker-controlled code as root on the runner and baked an arbitrary `bats` into the image, with nothing recording which version ran. Pinning to a commit closes the substitution path. It does not close trust in the object itself — see residual. |
+| **Elevation of Privilege (E)** | **No change.** `bats` is Bash scripts installed root-owned under `/usr/local`, with no setuid bit and no daemon. The container already ships `bash`, `python3` and `npm`, so no new interpreter class appears; the process running it is still `claude-agent`, and `/usr/local` is not writable at runtime. |
+| **Tampering (T)** | **No change at runtime.** The install happens at build time as root, before `USER claude-agent`. Nothing new is writable by the session. |
+
+No other category changes: no network surface is added at runtime (the clone
+is a build-time operation on the host, outside the sandbox, so the Squid
+allowlist does not govern it and is untouched), no privilege boundary moves,
+and no resource limit is affected.
+
+**Residual, not yet closed:**
+- **A commit pin is not signature verification.** Trust reduces to "GitHub
+  served the correct object for this SHA". Git's SHA-1 object naming is the
+  integrity mechanism, and nothing here verifies a maintainer signature or a
+  release attestation. This is strictly better than an unpinned branch and
+  strictly weaker than a verified artifact.
+- **Nothing observes that the built image actually contains that commit.**
+  D-10 compares two literals in two files; confirming the installed `bats` is
+  the pinned one requires running the built image, which is engine-gated and
+  therefore outside CI. The pin is asserted, not observed — the same shape of
+  gap as #113, one layer down.
+- **A distro-package install still diverges.** `BUILDING.md` continues to
+  offer `apt-get install bats`, which is a different version. Tolerable for
+  local iteration, and stated there, but it means "passes locally" and
+  "passes in CI" are not the same claim.
+- **Claude Code in the same file remains unpinned**, as recorded under
+  Change 24. This change pins a test framework and leaves the agent itself
+  floating; the asymmetry is deliberate only in that it was out of scope.
+- **Image size grows for every profile**, including the two that will never
+  invoke it.

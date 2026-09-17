@@ -102,6 +102,7 @@ issue references a document; a document is committed alongside the code.
 | **Architecture Decision Record (ADR)** | `docs/adr/` | Single architectural decision, context, and consequences | Permanent, never deleted |
 | **`BUILDING.md`** | Repo root | How to build and run the project locally | Living document |
 | **`ARCHITECTURE.md`** | Repo root | High-level system overview | Living document |
+| **User guide** | <!-- path the project chooses --> | Task-oriented day-to-day usage; defers build commands to `BUILDING.md` and internals to `ARCHITECTURE.md` | Living document |
 | **Planning artifact** | `docs/planning/` (opt-in) | Scope, prior-art, feasibility, and charter documents from this project's Planning phase | Permanent once scaffolded |
 
 <!-- Add a row for project-specific document types if the project warrants

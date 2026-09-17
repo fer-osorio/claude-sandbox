@@ -60,6 +60,15 @@ setup", or similar:
    decision already taken, not a proposal under review.
 4. Save the result to `docs/designs/docs-as-code-workflow.md`.
 5. Propose as a first commit: `docs: add docs-as-code workflow`
+6. Offer a user guide, once, and take no for an answer:
+   > "The workflow document's §2.2 table now names a user guide. This
+   > project has none — would you like one seeded from the template?"
+   Yes → read `~/.claude/templates/user-guide.md`, resolve its
+   placeholders and authoring comments the same way, save it to the
+   location §2.2 records, and propose a second commit:
+   `docs: add user guide`.
+   No → continue. Do not ask again, and do not leave a stub behind: a
+   project that declined one is not missing one.
 
 Then continue to Step 1b.
 

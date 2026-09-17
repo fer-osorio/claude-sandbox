@@ -83,6 +83,7 @@ issue references a document; a document is committed alongside the code.
 | **Planning artifact** | `docs/planning/` (opt-in) | Scope, prior-art, feasibility, and charter documents from a project's Planning phase | Permanent once scaffolded |
 | **`BUILDING.md`** | Repo root | How to build and run the project locally | Living document |
 | **`ARCHITECTURE.md`** | Repo root | High-level system overview | Living document |
+| **User guide** | `docs/user_guide.md` | Task-oriented day-to-day usage; defers build commands to `BUILDING.md` and internals to `ARCHITECTURE.md` | Living document |
 | **Security/threat model document** | `docs/` | STRIDE analysis and controls coverage for system components | Living document |
 | **Operational guide** | `docs/` | Setup and operational procedures for infrastructure components | Living document |
 

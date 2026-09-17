@@ -39,9 +39,22 @@ jobs:
         # Upstream install rather than the distro package, matching the
         # distro-independent instruction in BUILDING.md so CI and a local
         # run exercise the same bats version semantics.
+        #
+        # Pinned to the same commit as base/Dockerfile's BATS_COMMIT. An
+        # unpinned clone of the default branch meant the version behind a
+        # given green run was never recorded, and the gate could change
+        # under us whenever upstream moved. D-10 asserts these two agree;
+        # change both or the check fails.
+        env:
+          BATS_VERSION: v1.14.0
+          BATS_COMMIT: eb7f42f8d608ac693d7a4b67474f6714ea68cfc5
         run: |
-          git clone --depth 1 https://github.com/bats-core/bats-core.git /tmp/bats-core
-          sudo /tmp/bats-core/install.sh /usr/local
+          git clone --depth 1 --branch "$BATS_VERSION" \
+            https://github.com/bats-core/bats-core.git /tmp/bats-core
+          cd /tmp/bats-core
+          test "$(git rev-parse HEAD)" = "$BATS_COMMIT"
+          sudo ./install.sh /usr/local
+          cd -
           bats --version
 
       - name: Guard against an empty test selection

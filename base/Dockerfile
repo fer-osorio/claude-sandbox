@@ -66,6 +66,30 @@ RUN mkdir -p /etc/apt/keyrings \
 RUN npm install -g @anthropic-ai/claude-code
 
 # ─────────────────────────────────────────────────────────────────────────────
+# LAYER 3b — bats-core (test framework)
+# Present so a session can run the engine-free `hostonly` tier itself instead
+# of extracting helper functions and calling them directly, which exercises
+# the awk and sed and none of the bats wiring, tags, or reporting.
+#
+# Pinned to a commit, not a branch and not a tag: a branch moves by
+# definition and a tag can be moved. The tag is cloned for speed, then the
+# resolved HEAD is compared against BATS_COMMIT, so a moved tag fails the
+# build loudly rather than silently changing the version CI and the image
+# agree on. .github/workflows/ci.yml pins the same commit, and D-10 asserts
+# the two agree.
+# ─────────────────────────────────────────────────────────────────────────────
+ARG BATS_VERSION=v1.14.0
+ARG BATS_COMMIT=eb7f42f8d608ac693d7a4b67474f6714ea68cfc5
+RUN git clone --depth 1 --branch "$BATS_VERSION" \
+        https://github.com/bats-core/bats-core.git /tmp/bats-core \
+    && cd /tmp/bats-core \
+    && test "$(git rev-parse HEAD)" = "$BATS_COMMIT" \
+    && ./install.sh /usr/local \
+    && cd / \
+    && rm -rf /tmp/bats-core \
+    && bats --version
+
+# ─────────────────────────────────────────────────────────────────────────────
 # LAYER 4 — Non-root user
 # claude-agent is created with HOST_UID so bind-mounted project files have
 # matching ownership. No chown at runtime, no privilege escalation needed.

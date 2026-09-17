@@ -61,7 +61,7 @@ silent degradation rather than a crash, so the gap is worth stating.
 | ~2 GiB RAM and 2 CPUs per session | `start.sh:58-59`, overridable via `config.local.sh` or the environment | Sessions are killed or crawl |
 | Egress reaches the Squid allowlist | `squid/squid.conf` | Network calls are refused at the proxy, visibly |
 | SELinux hosts relabel bind mounts | [SELinux relabeling](#selinux-relabeling-fedora--other-selinux-enforcing-hosts) — automatic under Podman | `EACCES` on the mounted project |
-| `bats-core`, to run the test suite on the host | [Running the test suite](#running-the-test-suite) | No tests run anywhere, including the engine-free tier |
+| `bats-core` on the host, to run the engine-gated test tiers | [Running the test suite](#running-the-test-suite) | Only the `hostonly` tier runs, from inside a session or in CI; everything needing an image or a container does not |
 
 **Ideal**
 
@@ -245,13 +245,17 @@ deliberately not used.
 
 ## Running the test suite
 
-Requires [`bats-core`](https://github.com/bats-core/bats-core) on the host —
-a TAP-compliant testing framework for Bash. It was chosen because it's
-shell-native: `build.sh`, `start.sh`, and `entrypoint.sh` are already all
-Bash, so tests can drive and assert on them directly without pulling in a
-new language runtime just for testing.
+Uses [`bats-core`](https://github.com/bats-core/bats-core) — a TAP-compliant
+testing framework for Bash. It was chosen because it's shell-native:
+`build.sh`, `start.sh`, and `entrypoint.sh` are already all Bash, so tests
+can drive and assert on them directly without pulling in a new language
+runtime just for testing.
 
-**Install** (pick one):
+`bats` ships in `claude-base`, so a session can run the `hostonly` tier
+itself. Running the engine-gated tiers still needs it on the host, because
+those build images and start containers.
+
+**Install on the host** (pick one):
 
 ```bash
 # Debian / Ubuntu
@@ -261,12 +265,21 @@ sudo apt-get install bats
 sudo dnf install epel-release   # RHEL/CentOS only; Fedora ships bats directly
 sudo dnf install bats
 
-# Any distro — canonical upstream install, not tied to a distro package version
-git clone https://github.com/bats-core/bats-core.git
-cd bats-core && sudo ./install.sh /usr/local
+# Any distro — upstream, pinned to the commit the image and CI both install.
+# BATS_VERSION and BATS_COMMIT are declared in base/Dockerfile; use those
+# values rather than copying them here, so this file cannot drift from them.
+git clone --depth 1 --branch <BATS_VERSION> \
+  https://github.com/bats-core/bats-core.git
+cd bats-core
+test "$(git rev-parse HEAD)" = "<BATS_COMMIT>"
+sudo ./install.sh /usr/local
 ```
 
 Verify with `bats --version`.
+
+A distro package is a different version from the pinned one. That is
+tolerable for local iteration and is why both options are still listed, but
+CI and the image are the versions that decide a merge.
 
 ```bash
 # Fast tier only (default local iteration loop) — runs against Podman

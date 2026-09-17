@@ -3,8 +3,9 @@
 # Scope, stated explicitly so nobody mistakes it for more than it is:
 # this job runs ONLY the tests tagged `hostonly` — those that need no
 # container engine and no pre-built image. Today that is the layered-config
-# group (tests/test_config.bats) and the documentation-integrity group
-# (tests/test_docs_integrity.bats).
+# group (tests/test_config.bats), the documentation-integrity group
+# (tests/test_docs_integrity.bats), and the planning-artifact group
+# (tests/test_planning_artifacts.bats).
 #
 # NOT covered here, and still runnable only on a developer machine with
 # Podman and built images:

@@ -297,18 +297,18 @@ optionally `docs/plans/<date>-<slug>-v<N>.md`.
 Ask the following questions in order. Stop at the first match.
 
 ```
+0. <Insert project-specific trigger for Case E, if defined.>
+   YES → Case E (and apply Case B/C/D on top as scope warrants).
+
 1. Does this change cross module boundaries, introduce a new abstraction,
    or constrain future design choices?
    YES → Case D (ADR) or Case C (design doc), depending on scope.
 
-2. <Insert project-specific trigger for Case E, if defined.>
-   YES → Case E.
-
-3. Does this change have a motivation that a commit message cannot
+2. Does this change have a motivation that a commit message cannot
    fully express?
    YES → Case B (Issue) or Case C (Issue + design doc).
 
-4. Is the change self-contained, easily reversible, and self-explanatory?
+3. Is the change self-contained, easily reversible, and self-explanatory?
    YES → Case A (commit message only).
 ```
 

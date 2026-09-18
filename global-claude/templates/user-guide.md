@@ -1,6 +1,6 @@
 ---
 template-tier: scaffold
-seeded-by: design
+seeded-by: design user-guide-check
 unowned-because: the project chooses where its guide lives and what it
   covers, and edits it directly from then on, so there is no fixed path
   and no single writer.

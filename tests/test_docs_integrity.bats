@@ -17,7 +17,9 @@
 #   - Backtick-quoted repo paths (`docs/AGENTS.md`, `base/entrypoint.sh`).
 #     Six such paths in the tracked docs are illustrative examples rather
 #     than real references, so checking them would produce false positives.
-#     Only markdown links are checked.
+#     D-1 checks only markdown links; D-11 checks docs/*.md tokens, with
+#     the illustrative ones exempted by name. Other directories are not
+#     covered.
 #   - Anchor fragments. A link to a real file with a #heading that no longer
 #     exists still passes D-1.
 #   - Skill references that are not backtick-quoted, including the ones in
@@ -381,6 +383,50 @@ _bats_pin_mismatch() {
     )
 }
 
+# D-1 checks markdown links only, but most citations of a document in this
+# repository are bare paths: start.sh comments, bats file headers, prose in
+# backticks. Renaming a document (#105) breaks every one of them silently.
+# This check closes that gap for docs/*.md tokens in every tracked file
+# outside the global layer — D-9 governs that, and its planning paths are
+# target-relative by design — and outside the untracked docs/tmp/.
+#
+# Some unresolved tokens are deliberate: illustrative examples, or paths a
+# design proposed and never created. They are exempt per file and path, as
+# in D-9, so each exemption is a judgment that shows up in a diff. A rename
+# that moves one of these files must move its entry too. This file is not
+# scanned: the list above would report itself.
+_D11_ALLOWED_PAIRS="docs/adr/003-where-a-behavioural-rule-goes.md:docs/planning/templates/scope.md
+docs/designs/interpreter-presence-health-check.md:docs/AGENTS.md
+docs/designs/interpreter-presence-health-check.md:docs/security_plan_changelog.md
+docs/designs/planning-skill-output-routing.md:docs/planning/templates/prior-art.md
+docs/designs/planning-skill-output-routing.md:docs/planning/templates/scope.md
+docs/designs/project-planning-skill.md:docs/plans/2026-09-planning-phase-handoff.md
+docs/designs/squid-proxy-integration.md:docs/claude-sandbox-memory.md
+docs/designs/user-guide-session-start-check.md:docs/USER_GUIDE.md
+docs/designs/workspace-artifact-staleness.md:docs/AGENTS.md
+docs/engineering-principles-by-lifecycle-phase.md:docs/angular_commit_convention.md"
+
+_unresolved_doc_paths() {
+    (
+        cd "$SANDBOX_DIR" || exit 1
+        git ls-files | grep -vE '^(global-claude|docs/tmp)/|^tests/test_docs_integrity\.bats$' | while IFS= read -r f; do
+            [ -f "$f" ] || continue
+            # Same leading-character capture as D-9: keeps ~/... and /abs/...
+            # from matching, and is stripped before the path is tested.
+            grep -noE '(^|[^~/A-Za-z0-9_.-])docs/[A-Za-z0-9_./-]*\.md' "$f" \
+            | while IFS=: read -r ln tok; do
+                case "$tok" in
+                    docs/*) path="$tok" ;;
+                    *) path="${tok#?}" ;;
+                esac
+                [ -e "$path" ] && continue
+                printf '%s\n' "$_D11_ALLOWED_PAIRS" | grep -qxF "${f}:${path}" && continue
+                echo "${f}:${ln}: cites '${path}', which does not exist"
+            done
+        done
+    )
+}
+
 # bats test_tags=fast, hostonly
 @test "D-1: every relative markdown link in a tracked document resolves" {
     run _unresolved_markdown_links
@@ -486,6 +532,17 @@ _bats_pin_mismatch() {
     [ "$status" -eq 0 ]
     if [ -n "$output" ]; then
         echo "--- a session and the authoritative gate would run different bats ---" >&2
+        echo "$output" >&2
+    fi
+    [ -z "$output" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "D-11: every docs/ path cited outside the global layer resolves" {
+    run _unresolved_doc_paths
+    [ "$status" -eq 0 ]
+    if [ -n "$output" ]; then
+        echo "--- a bare path D-1 cannot see; renamed or never created ---" >&2
         echo "$output" >&2
     fi
     [ -z "$output" ]

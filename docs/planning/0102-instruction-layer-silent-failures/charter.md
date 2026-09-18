@@ -15,14 +15,14 @@ Proposal: fix three silent-failure gaps in `claude-sandbox`'s instruction layer 
 
 Proceed, with one named condition.
 
-- Proceed with #102 and #104 unqualified — `docs/planning/feasibility.md §Technical` and `§Operational` rate them high-confidence and low-effort, with prior art (`docs/planning/prior-art.md §Build vs adopt`).
+- Proceed with #102 and #104 unqualified — `docs/planning/0102-instruction-layer-silent-failures/feasibility.md §Technical` and `§Operational` rate them high-confidence and low-effort, with prior art (`docs/planning/0102-instruction-layer-silent-failures/prior-art.md §Build vs adopt`).
 - Proceed with #103 decision 1 (ledger) — `feasibility.md §Technical` calls it low-risk; precedent solid (`prior-art.md §Findings`).
 - Proceed with #103 decision 2 (entry test) as revisable, not load-bearing — `feasibility.md §Risk inventory`'s own mitigation, since `prior-art.md §Confidence` found no precedent.
 - Named condition: if Design finds decision 2's entry test conflicts with ADR 004 decision 5 in practice, not just in #103's abstract argument, that is grounds to stop and revisit — not to proceed anyway.
 
 ## Evidence
 
-- `docs/planning/scope.md §Problem statement` — all three are identified, silent-failure risks, not hypothetical.
+- `docs/planning/0102-instruction-layer-silent-failures/scope.md §Problem statement` — all three are identified, silent-failure risks, not hypothetical.
 - `feasibility.md §Technical` — none require new infrastructure or touch container-security files; #102 and #104 low-risk.
 - `prior-art.md §Findings` — #102's cgroups gap traces to an unresolved upstream regression, which raises priority.
 - `prior-art.md §Findings` — #103 decision 1 and #104's citation fix have convergent external precedent (RAID logs, arXiv:1210.7101, the AGENTS.md ecosystem).

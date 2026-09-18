@@ -13,7 +13,7 @@ constrain `global-claude/skills/design/SKILL.md`. That file is unchanged.
 The ADR specifies a target state nothing implements, which #89 opened to
 track and #106 finding 4 confirmed against a real run.
 
-It is no longer abstract. `docs/planning/charter.md` is a committed
+It is no longer abstract. `docs/planning/0102-instruction-layer-silent-failures/charter.md` is a committed
 artifact with `status: Approved`, written by the first real Planning run on
 2026-09-11. The next `/design` invocation in this repository will not read
 it.

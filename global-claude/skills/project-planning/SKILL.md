@@ -1,6 +1,6 @@
 ---
 name: project-planning
-description: "Run the Planning phase for a scoped project end to end — facilitate scope intake, sequence prior-art research and feasibility assessment, then write docs/planning/scope.md and docs/planning/charter.md as go/no-go material for a human gate. Trigger on a request to plan a project, start the Planning phase, or produce a project charter. Planning applies when the open question is whether the work should exist; if existence is settled and only the shape is open, that is Design — a default the operator can override rather than a refusal. Delegates to swe-prior-art-research and project-feasibility rather than competing with them — resolve by span, not by keyword: orchestrating the whole phase and ending in a charter routes here, while a standalone prior-art question or a single feasibility judgment routes to those skills directly. Requires an approved docs/planning/scope.md before any headless run, and never fills in the charter's Decision section."
+description: "Run the Planning phase for a scoped project end to end — facilitate scope intake, sequence prior-art research and feasibility assessment, then write scope.md and charter.md in a per-run Planning bundle as go/no-go material for a human gate. Trigger on a request to plan a project, start the Planning phase, or produce a project charter. Planning applies when the open question is whether the work should exist; if existence is settled and only the shape is open, that is Design — a default the operator can override rather than a refusal. Delegates to swe-prior-art-research and project-feasibility rather than competing with them — resolve by span, not by keyword: orchestrating the whole phase and ending in a charter routes here, while a standalone prior-art question or a single feasibility judgment routes to those skills directly. Requires an approved scope.md in the current bundle before any headless run, and never fills in the charter's Decision section."
 ---
 
 # Project Planning
@@ -19,7 +19,13 @@ an anti-goal.
 
 ## Input contract
 
-**`docs/planning/scope.md` is required, and it must carry
+**`<bundle>`** is the directory the **Current** row of
+`docs/planning/README.md` names, `docs/planning/<NNNN>-<slug>/`. If the
+index names none and nobody is present, say so and stop; never pick one
+from the directory listing (ADR 008 of the claude-sandbox project). With a
+person present, open one (below).
+
+**`<bundle>/scope.md` is required, and it must carry
 `status: Approved`.** A person authors it and approves it; that approval is
 the entry gate to the whole phase. Three cases, and only three:
 
@@ -92,15 +98,21 @@ Never create it as a side effect of another task, and never in a headless
 run. The second case does not arise on its own terms: a headless run
 requires an approved `scope.md`, which requires the directory already.
 
-Scaffolding writes two things:
+Scaffolding writes `docs/planning/` and `docs/planning/README.md`, the
+bundle index, following `~/.claude/templates/planning-bundles.md`.
 
-1. `docs/planning/` itself.
-2. `docs/planning/README.md`, following
-   `~/.claude/templates/planning-index.md`. All four rows are created in
-   their initial state.
+**Opening a bundle** starts a new run, with a person present, never
+headless. Ask for the tracking issue, then write:
 
-The index is **the one place this skill writes rows it does not own**, and
-the distinction is creation versus update. It creates the table; after
+1. `docs/planning/<NNNN>-<slug>/`, where `NNNN` is that issue's number
+   zero-padded to four digits and `<slug>` is lowercase kebab-case.
+2. `<bundle>/README.md`, following `~/.claude/templates/planning-index.md`,
+   with all four rows in their initial state.
+3. A row for it in `docs/planning/README.md`, marked **Current**. Unmark the
+   previous Current row. Its artifacts and their status are left alone.
+
+Both indexes are **the one place this skill writes rows it does not own**,
+and the distinction is creation versus update. It creates the tables; after
 that, every skill updates only its own row, including this one.
 
 ## Workflow
@@ -109,12 +121,12 @@ that, every skill updates only its own row, including this one.
    `scope.md` from what the operator supplied and stop for approval.
 
 2. **Prior art.** Hand off to `swe-prior-art-research`. It writes
-   `docs/planning/prior-art.md` and updates its own index row. Do not
+   `<bundle>/prior-art.md` and updates its own index row. Do not
    research in its place, and do not summarise its output into a second
    copy that can disagree with the first.
 
 3. **Feasibility.** Hand off to `project-feasibility`. It reads `scope.md`
-   and the prior-art artifact, writes `docs/planning/feasibility.md`, and
+   and the prior-art artifact, writes `<bundle>/feasibility.md`, and
    updates its own index row.
 
 4. **Charter.** Re-read all three artifacts **from disk** before writing,
@@ -132,7 +144,7 @@ existing solution that already meets the scope, or an infeasibility no
 named condition lifts.
 
 The test is a quotation, not a judgment: **name the sentence and cite it as
-`docs/planning/feasibility.md §Technical`. If no such sentence can be
+`<bundle>/feasibility.md §Technical`. If no such sentence can be
 quoted, continue.** Report the stop with that citation.
 
 An early stop still leaves the artifact and its index row in place — the
@@ -151,7 +163,7 @@ the section above.
    the contract, and the `ceiling-<section>-words:` keys in their frontmatter are
    hard word limits per section. What does not fit does not belong in the
    artifact.
-2. Write `docs/planning/scope.md` and `docs/planning/charter.md`.
+2. Write `<bundle>/scope.md` and `<bundle>/charter.md`.
    Frontmatter carries `status` (`Draft`, `Approved`, or
    `Superseded by <path>`), `date`, `phase` and `owner`; the `ceiling-*`
    and `artifact` keys stay in the template. Delete the template's
@@ -166,9 +178,9 @@ the section above.
    in; deleting it leaves a bare heading under a document that has just made
    a recommendation.
 4. Every line under the charter's `## Evidence` cites its source as
-   `docs/planning/scope.md §Constraints`. A claim that cannot be traced to
+   `<bundle>/scope.md §Constraints`. A claim that cannot be traced to
    one of the three preceding artifacts does not belong in the charter.
-5. Update the `scope.md` and `charter.md` rows in `docs/planning/README.md`
+5. Update the `scope.md` and `charter.md` rows in `<bundle>/README.md`
    as each file is written: set the status cell, and change the artifact
    name from a code span to a markdown link now that the file exists.
    **Those two rows only.** The other two belong to other skills.
@@ -198,6 +210,9 @@ the section above.
 
 ## Changelog
 
+- **0.4 (draft)** — Opens a per-run bundle and marks it Current in the bundle
+  index (ADR 008 of the claude-sandbox project); scaffolding now writes
+  that index rather than a single artifact table.
 - **0.3 (draft)** — Named the owner of `status: Approved` on each of the
   two artifacts. `scope.md` stays the operator's; the charter's is this
   skill's, set while `## Decision` is still blank. The first real run left

@@ -95,11 +95,17 @@ presence is the opt-in signal — a project without it behaves exactly as
 this skill does today, and nothing is read. Never create the directory to
 satisfy this step.
 
+**`<bundle>`** is the directory the **Current** row of
+`docs/planning/README.md` names, `docs/planning/<NNNN>-<slug>/`. If the
+index names none, say so and continue as if no charter were found; never
+pick one from the directory listing (ADR 008 of the claude-sandbox
+project).
+
 **Charter found**
-Read `docs/planning/charter.md`. Cite the parts you use by path and
-section — `docs/planning/charter.md §Recommendation`, `§Open questions`,
+Read `<bundle>/charter.md`. Cite the parts you use by path and
+section — `<bundle>/charter.md §Recommendation`, `§Open questions`,
 `§Decision` — and build on them. Do not restate the charter, and do not
-re-derive a problem statement: `docs/planning/scope.md` already holds one,
+re-derive a problem statement: `<bundle>/scope.md` already holds one,
 and a citation names a path and a section.
 Continue to Step 2.
 

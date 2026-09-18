@@ -1,6 +1,6 @@
 ---
 name: swe-prior-art-research
-description: "Research prior art and evaluate technical feasibility for a software engineering problem or idea — has this been solved, built, or attempted before, and is it viable given real constraints. Trigger on requests to check whether an approach/idea/problem has precedent, existing solutions, or prior attempts, or whether something is technically feasible/worth building. Mutually exclusive with industry-research-analyst — resolve by what the answer needs to conclude, not by keyword: a personal build-vs-buy decision (even phrased as \"has anyone built X\") routes here, since surveying what exists is only an input to that decision; a market/competitive landscape report routes to industry-research-analyst instead. Also distinct from technical-explanation-structure (explaining an already-identified system). Also mutually exclusive with project-feasibility, on the same test: whether a scoped project should start, ending in a committed docs/planning/feasibility.md, routes there — whether a solution already exists and an approach is viable routes here, and is an input to that judgment."
+description: "Research prior art and evaluate technical feasibility for a software engineering problem or idea — has this been solved, built, or attempted before, and is it viable given real constraints. Trigger on requests to check whether an approach/idea/problem has precedent, existing solutions, or prior attempts, or whether something is technically feasible/worth building. Mutually exclusive with industry-research-analyst — resolve by what the answer needs to conclude, not by keyword: a personal build-vs-buy decision (even phrased as \"has anyone built X\") routes here, since surveying what exists is only an input to that decision; a market/competitive landscape report routes to industry-research-analyst instead. Also distinct from technical-explanation-structure (explaining an already-identified system). Also mutually exclusive with project-feasibility, on the same test: whether a scoped project should start, ending in a committed Planning feasibility.md, routes there — whether a solution already exists and an approach is viable routes here, and is an input to that judgment."
 ---
 
 # Software Engineering Prior-Art & Feasibility Research
@@ -102,24 +102,29 @@ presence is the opt-in signal — a project without it gets the default
 behaviour above and nothing is written to disk. Never create the directory
 to satisfy this section.
 
-When it does exist, the findings are an artifact rather than a reply:
+When it does exist, the findings are an artifact rather than a reply.
+**`<bundle>`** is the directory the **Current** row of
+`docs/planning/README.md` names, `docs/planning/<NNNN>-<slug>/`. If the
+index names none, say so and stop; never pick one from the directory
+listing (ADR 008 of the claude-sandbox project).
+
 
 1. Read `~/.claude/templates/planning/prior-art.md` and follow it. Its
    sections and their order are the contract, and the `ceiling-<section>-words:`
    keys in its frontmatter are hard word limits per section — what does not
    fit does not belong in this artifact.
-2. Write to `docs/planning/prior-art.md`. Frontmatter carries `status`
+2. Write to `<bundle>/prior-art.md`. Frontmatter carries `status`
    (`Draft`, `Approved`, or `Superseded by <path>`), `date`, `phase` and
    `owner`; the `ceiling-*` and `artifact` keys stay in the template.
    Delete the template's authoring comments from the output. Set
    `status: Approved` when the document is complete — `status` records the
    document's lifecycle, not a judgment about the findings, so completeness
    is this skill's call. Do not ask the operator to approve it.
-3. Read `docs/planning/scope.md` if present and cite it as
-   `docs/planning/scope.md §Problem statement`. Do not restate the problem
+3. Read `<bundle>/scope.md` if present and cite it as
+   `<bundle>/scope.md §Problem statement`. Do not restate the problem
    — a citation names a path and a section; "see the planning documents"
    does not.
-4. Update the `prior-art.md` row in `docs/planning/README.md`: set the
+4. Update the `prior-art.md` row in `<bundle>/README.md`: set the
    status cell, and change the artifact name from a code span to a markdown
    link now that the file exists. **That row only.** Every other row and
    every other path under `docs/planning/` belongs to a different skill.
@@ -161,6 +166,9 @@ carries that suite.
 
 ## Changelog
 
+- **0.7 (draft)** — Paths resolve through the Current bundle (ADR 008 of the
+  claude-sandbox project). A second run under the flat layout would have
+  overwritten the first run's Approved prior-art artifact.
 - **0.6 (draft)** — Named the owner of `status: Approved` on the Planning
   artifact. The first real run left it unset because no sentence said who
   set it, and the operator had to ask. Lifecycle is not verdict — ADR 004

@@ -21,7 +21,7 @@ it was. Once written, an interpretation is indistinguishable from dictation
 verdict measured against invented constraints cannot be told apart, in the
 finished artifact, from one measured against given ones.
 
-The first run produced exactly that failure. `docs/planning/scope.md`
+The first run produced exactly that failure. `docs/planning/0102-instruction-layer-silent-failures/scope.md`
 §Constraints carries "This sandbox session has no container engine
 available, so `hostonly`/engine-gated tests can be inspected but not run
 here". The operator never said it; the model inferred it, flagged three
@@ -188,7 +188,7 @@ Planning, which decision 2's own argument rejects and which ADR 004 decision
 - [ADR 005](005-citing-across-the-repo-boundary.md) — governs how the new
   skill text cites
 - Issue #103 — the two decisions; Issue #106 — the first run's findings
-- [`docs/planning/charter.md`](../planning/charter.md) — the Go, and the
+- [`docs/planning/0102-instruction-layer-silent-failures/charter.md`](../planning/0102-instruction-layer-silent-failures/charter.md) — the Go, and the
   named condition this ADR answers
-- [`docs/planning/scope.md`](../planning/scope.md) §Constraints — the false
+- [`docs/planning/0102-instruction-layer-silent-failures/scope.md`](../planning/0102-instruction-layer-silent-failures/scope.md) §Constraints — the false
   constraint, left in place as evidence

@@ -406,6 +406,20 @@ docs/designs/0047-user-guide-session-start-check.md:docs/USER_GUIDE.md
 docs/designs/0007-workspace-artifact-staleness.md:docs/AGENTS.md
 docs/engineering-principles-by-lifecycle-phase.md:docs/angular_commit_convention.md"
 
+# Files that describe the Planning contract as it stood before ADR 008 moved
+# its artifacts into per-run bundles. There, docs/planning/<name>.md names
+# the contract path of that time, not a file in this tree, and rewriting
+# them would falsify the record. Exempt for those five names only; a
+# citation of an actual artifact belongs under its bundle.
+_D11_FLAT_PLANNING_FILES="docs/adr/002-planning-artifact-contract.md
+docs/adr/004-planning-to-design-handoff.md
+docs/adr/005-citing-across-the-repo-boundary.md
+docs/designs/0069-planning-skill-output-routing.md
+docs/designs/0069-project-feasibility-skill.md
+docs/designs/0069-project-planning-skill.md
+docs/claude-code-security-plan.md
+squid/squid.conf"
+
 _unresolved_doc_paths() {
     (
         cd "$SANDBOX_DIR" || exit 1
@@ -421,6 +435,10 @@ _unresolved_doc_paths() {
                 esac
                 [ -e "$path" ] && continue
                 printf '%s\n' "$_D11_ALLOWED_PAIRS" | grep -qxF "${f}:${path}" && continue
+                case "$path" in
+                    docs/planning/README.md|docs/planning/scope.md|docs/planning/prior-art.md|docs/planning/feasibility.md|docs/planning/charter.md)
+                        printf '%s\n' "$_D11_FLAT_PLANNING_FILES" | grep -qxF "$f" && continue ;;
+                esac
                 echo "${f}:${ln}: cites '${path}', which does not exist"
             done
         done

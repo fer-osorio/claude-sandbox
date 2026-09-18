@@ -37,7 +37,7 @@ SKILL.md, but does not say where they go. They are at
 `~/.claude/templates/planning/<artifact>.md`, because the skills that
 follow them are injected into every project while this directory is
 per-project. See
-[`planning-skill-output-routing.md`](../designs/planning-skill-output-routing.md)
+[`0069-planning-skill-output-routing.md`](../designs/0069-planning-skill-output-routing.md)
 §Decision 1 for why, and §Consequences for what that costs.
 
 Artifact paths are unchanged — decision 2 specifies them and only the

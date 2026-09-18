@@ -29,7 +29,7 @@ Prior art, researched 2026-09-18:
 Two in-repo constraints were checked. Lines ~120–123 of
 [ADR 002](../adr/002-planning-artifact-contract.md) reject naming *as a
 substitute for the index*, which leaves naming as such open.
-`auto-memory-seeding.md` §4.1 ("Do not encode a filename convention") is
+`0065-auto-memory-seeding.md` §4.1 ("Do not encode a filename convention") is
 scoped to memory topic files. Neither constraint blocks this change.
 
 ## Decision
@@ -60,10 +60,16 @@ risk, which rules out camelCase.
   every project (`docs/designs/docs-as-code-workflow.md`).
 - `docs/tmp/`, which is untracked scratch.
 
-**Existing files are renamed.** Each `NNNN` is taken from the introducing
-commit's issue reference, or else from the PR that merged it. All eight
-design documents without an issue arrived through a PR. `git log --follow`
-preserves their history.
+**Existing files are renamed.** Each `NNNN` comes from the first of these
+that exists:
+
+1. The issue referenced in the introducing commit.
+2. The issue closed by the PR that merged it.
+3. That PR's own number.
+
+Every document lacking an issue in its commit arrived through a PR. Three
+of those PRs closed an issue (#12, #28, #30). `git log --follow` preserves
+each file's history.
 
 **Enforced by:**
 

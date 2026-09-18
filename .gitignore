@@ -1,5 +1,5 @@
 # Per-machine config override — see config.local.sh.example and
-# docs/designs/sandbox-config-file.md. Never committed: it exists so an
+# docs/designs/0028-sandbox-config-file.md. Never committed: it exists so an
 # operator can tune resource limits / engine choice for their own host
 # without touching the reviewed, shared config.sh.
 config.local.sh
@@ -7,7 +7,7 @@ config.local.sh
 # Diagnostic output from check-auto-memory.sh — regenerated on every run,
 # and its contents are environment-specific (container names, session IDs,
 # whatever a live session happened to record). Findings worth keeping are
-# transcribed into docs/designs/auto-memory-seeding-step-zero.md instead.
+# transcribed into docs/designs/0035-auto-memory-seeding-step-zero.md instead.
 check-auto-memory*.sh.out
 
 # Locat setting for claude code

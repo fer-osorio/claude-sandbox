@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # check-auto-memory.sh — step-zero diagnostic for Claude Code's Auto Memory
-# feature. See docs/designs/auto-memory-seeding-step-zero.md for the research
-# pass this supports, and docs/designs/auto-memory-seeding.md §4.2 for the
+# feature. See docs/designs/0035-auto-memory-seeding-step-zero.md for the research
+# pass this supports, and docs/designs/0065-auto-memory-seeding.md §4.2 for the
 # verification gate deny-scope exists to close.
 #
 # Confirms, empirically, whether Auto Memory is actually active rather than
@@ -162,7 +162,7 @@ cmd_behavior() {
     fi
 }
 
-# Closes the gate in auto-memory-seeding.md §4.2: does introducing a
+# Closes the gate in 0065-auto-memory-seeding.md §4.2: does introducing a
 # user-scope ~/.claude/settings.json — which the seeding design adds, purely
 # to carry autoMemoryDirectory — weaken the project-scope permissions.deny
 # rules a mounted repository supplies?

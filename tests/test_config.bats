@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# test_config.bats — Group: Layered Config (docs/designs/sandbox-config-file.md)
+# test_config.bats — Group: Layered Config (docs/designs/0028-sandbox-config-file.md)
 #
 # Covers config.sh's own correctness and the four-layer precedence chain
 # (hardcoded defaults < config.sh < config.local.sh < env var), not
@@ -11,7 +11,7 @@
 #
 # None of these tests touch a real config.local.sh: an operator's own
 # gitignored file must never be read, written, or deleted by the test
-# suite (see docs/designs/sandbox-config-file.md's discussion of why a
+# suite (see docs/designs/0028-sandbox-config-file.md's discussion of why a
 # .gitignore entry, not test tooling, is the boundary here). The registry
 # tests below (C-7 onward) are no exception: each writes its own
 # config.sh/config.local.sh pair into a throwaway REG_TMPDIR, copies the
@@ -128,7 +128,7 @@ _reg_fixture_dir() {
     grep -Eq 'source "\$\{?SANDBOX_DIR\}?/config\.sh"' "${SANDBOX_DIR}/start.sh"
 }
 
-# C-7 onward: named project registry (docs/designs/named-project-registry.md)
+# C-7 onward: named project registry (docs/designs/0030-named-project-registry.md)
 
 # bats test_tags=fast, hostonly
 @test "C-7: @name resolves to the registered path and its registry profile" {

@@ -31,7 +31,7 @@
 # reviewed commit. Redefining a name config.sh already registers is not:
 # start.sh detects it, reverts to config.sh's value, and prints a warning.
 # To repoint a committed name, edit config.sh instead — see
-# docs/designs/named-project-registry.md, "Layering: config.local.sh may
+# docs/designs/0030-named-project-registry.md, "Layering: config.local.sh may
 # add, not override".
 #
 # PROJECT_PATH[scratch-thing]="${PROJECT_BASE}/scratch-thing"

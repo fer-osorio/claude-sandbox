@@ -16,7 +16,7 @@ WSL2; `ENGINE=docker` selects Docker instead). Examples in this document use
 `docker` for the commands run directly against a container (`exec`, ad-hoc
 `run`), since that's the longer-standing precedent — substitute `podman` if
 that's your active engine. See `BUILDING.md` for Podman-specific setup and
-`docs/designs/podman-migration.md` for the full engine-swap design.
+`docs/designs/0025-podman-migration.md` for the full engine-swap design.
 
 ```
 debian:bookworm-slim
@@ -58,7 +58,7 @@ if present) rather than hardcoding the profile list or runtime values
 themselves. Precedence, later wins: hardcoded fallback in the scripts <
 `config.sh` < `config.local.sh` < a matching env var at call time (e.g.
 `ENGINE=docker ./start.sh ...`). Full design rationale:
-[`docs/designs/sandbox-config-file.md`](docs/designs/sandbox-config-file.md).
+[`docs/designs/0028-sandbox-config-file.md`](docs/designs/0028-sandbox-config-file.md).
 
 `config.sh` also carries a named project registry — `PROJECT_PATH` /
 `PROJECT_PROFILE`, addressed from `start.sh` as `@<name>` (e.g.
@@ -67,7 +67,7 @@ themselves. Precedence, later wins: hardcoded fallback in the scripts <
 have (a personal or scratch project not worth a reviewed commit); it may
 not redefine one that's already there — `start.sh` reverts such an
 attempt and warns. Full design rationale:
-[`docs/designs/named-project-registry.md`](docs/designs/named-project-registry.md).
+[`docs/designs/0030-named-project-registry.md`](docs/designs/0030-named-project-registry.md).
 
 ### Build all images (do this once, and after any Dockerfile change)
 
@@ -159,7 +159,7 @@ one) is a different, smaller step since the Podman migration: create the
 to `PROFILES`, and to `PROFILE_BASE` if it builds on top of `base`).
 `build.sh` and `start.sh` both pick it up automatically — no other file
 needs editing. See [`config.sh`](config.sh) and
-[`docs/designs/sandbox-config-file.md`](docs/designs/sandbox-config-file.md).
+[`docs/designs/0028-sandbox-config-file.md`](docs/designs/0028-sandbox-config-file.md).
 
 ---
 
@@ -282,4 +282,4 @@ architectural limit (Tier 3), not a deferred implementation task. If
 you need to verify shared library dependencies of a compiled binary,
 do so manually with `docker exec -u root` after the session starts,
 using `readelf -d`, with full awareness of what you are inspecting and
-why. See `workspace-artifact-staleness.md` §6.3 for the full ruling.
+why. See `0007-workspace-artifact-staleness.md` §6.3 for the full ruling.

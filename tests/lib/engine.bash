@@ -3,7 +3,7 @@
 # Test bodies call these functions instead of invoking docker/podman
 # literally, so `ENGINE=podman bats tests/` validated the Podman migration
 # without rewriting test logic (design rationale: SDD §3.4). Now that the
-# migration has landed (podman-migration.md §8 step 11), the default here
+# migration has landed (0025-podman-migration.md §8 step 11), the default here
 # matches build.sh/start.sh's default so a bare `bats tests/` exercises the
 # same engine a bare `./start.sh` would use. Use `ENGINE=docker bats tests/`
 # to run against the Docker fallback instead.

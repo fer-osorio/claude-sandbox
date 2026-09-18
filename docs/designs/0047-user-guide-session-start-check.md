@@ -11,7 +11,7 @@ inspection, and only one is worth building.
 
 **`config.local.sh` — declined.** `config.local.sh.example` is already
 committed and `BUILDING.md` documents it, so discovery is covered. The
-four-layer design in `docs/designs/sandbox-config-file.md` makes the file
+four-layer design in `docs/designs/0028-sandbox-config-file.md` makes the file
 optional by construction — the hardcoded defaults work without it. A prompt
 on every session start for an optional file is noise, and noise gets tuned
 out, alongside `base/entrypoint.sh`'s existing genuine advisory warnings

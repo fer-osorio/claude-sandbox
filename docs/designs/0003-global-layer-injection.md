@@ -456,7 +456,7 @@ The complete `~/.claude-sandbox/` tree after this design is implemented:
     ├── squid_proxy_guide.md
     ├── adr/
     └── designs/
-        └── global-layer-injection.md    ← this document
+        └── 0003-global-layer-injection.md    ← this document
 ```
 
 ---

@@ -184,7 +184,7 @@ _skill_dirs_without_manifest() {
 
 # The global layer is copied into ~/.claude in every session, so its size is
 # a permanent context-window cost paid by every task. docs/designs/
-# global-layer-injection.md §5.2 names "Global layer size discipline" as the
+# 0003-global-layer-injection.md §5.2 names "Global layer size discipline" as the
 # Denial of Service control and puts a 200-line CLAUDE.md at "significant but
 # acceptable" — but named the control without giving it a mechanism, so
 # nothing has ever observed it fail. D-6 and D-7 are that mechanism.
@@ -396,14 +396,14 @@ _bats_pin_mismatch() {
 # that moves one of these files must move its entry too. This file is not
 # scanned: the list above would report itself.
 _D11_ALLOWED_PAIRS="docs/adr/003-where-a-behavioural-rule-goes.md:docs/planning/templates/scope.md
-docs/designs/interpreter-presence-health-check.md:docs/AGENTS.md
-docs/designs/interpreter-presence-health-check.md:docs/security_plan_changelog.md
-docs/designs/planning-skill-output-routing.md:docs/planning/templates/prior-art.md
-docs/designs/planning-skill-output-routing.md:docs/planning/templates/scope.md
-docs/designs/project-planning-skill.md:docs/plans/2026-09-planning-phase-handoff.md
-docs/designs/squid-proxy-integration.md:docs/claude-sandbox-memory.md
-docs/designs/user-guide-session-start-check.md:docs/USER_GUIDE.md
-docs/designs/workspace-artifact-staleness.md:docs/AGENTS.md
+docs/designs/0006-interpreter-presence-health-check.md:docs/AGENTS.md
+docs/designs/0006-interpreter-presence-health-check.md:docs/security_plan_changelog.md
+docs/designs/0069-planning-skill-output-routing.md:docs/planning/templates/prior-art.md
+docs/designs/0069-planning-skill-output-routing.md:docs/planning/templates/scope.md
+docs/designs/0069-project-planning-skill.md:docs/plans/2026-09-planning-phase-handoff.md
+docs/designs/0012-squid-proxy-integration.md:docs/claude-sandbox-memory.md
+docs/designs/0047-user-guide-session-start-check.md:docs/USER_GUIDE.md
+docs/designs/0007-workspace-artifact-staleness.md:docs/AGENTS.md
 docs/engineering-principles-by-lifecycle-phase.md:docs/angular_commit_convention.md"
 
 _unresolved_doc_paths() {

@@ -30,7 +30,7 @@ overrides the registry's default. Register a project by adding it to
 everyone) or to `config.local.sh` (this machine only, never committed) —
 `config.local.sh` can add a name `config.sh` doesn't have, but can't
 redefine one that's already there. Full rationale:
-[`docs/designs/named-project-registry.md`](designs/named-project-registry.md).
+[`docs/designs/0030-named-project-registry.md`](designs/0030-named-project-registry.md).
 
 Each session is a fresh, ephemeral container: your project directory is
 bind-mounted, the container runs non-root with capabilities dropped and
@@ -67,7 +67,7 @@ and skills reach every session without being part of any one project. The
 copy is one-way and read-only from the container's perspective — edits
 made inside a session never write back to the host source directories, and
 sessions never see each other's copies. Full mechanism, isolation
-guarantees, and STRIDE analysis: [`docs/designs/global-layer-injection.md`](designs/global-layer-injection.md).
+guarantees, and STRIDE analysis: [`docs/designs/0003-global-layer-injection.md`](designs/0003-global-layer-injection.md).
 
 ## Adding a tool
 
@@ -87,8 +87,8 @@ Two options, covered in detail in `ARCHITECTURE.md`:
   at session start** — usually means a venv or CMake build directory in
   your project was built against a tool installed via Strategy B that was
   never promoted to the Dockerfile. The warning names the fix. Background:
-  [`interpreter-presence-health-check.md`](designs/interpreter-presence-health-check.md),
-  [`workspace-artifact-staleness.md`](designs/workspace-artifact-staleness.md).
+  [`0006-interpreter-presence-health-check.md`](designs/0006-interpreter-presence-health-check.md),
+  [`0007-workspace-artifact-staleness.md`](designs/0007-workspace-artifact-staleness.md).
 - **Session start fails with "unknown image" or "image does not exist"** —
   check the profile name is one of `base`/`crypto`/`systems`/`research`,
   and that you've built it with `./build.sh <profile>`.
@@ -99,4 +99,4 @@ Two options, covered in detail in `ARCHITECTURE.md`:
 
 See [`BUILDING.md`](../BUILDING.md#running-the-test-suite) for `bats`
 invocation. What each test group validates and why:
-[`docs/designs/claude-sandbox-testing-module-sdd.md`](designs/claude-sandbox-testing-module-sdd.md).
+[`docs/designs/0011-claude-sandbox-testing-module-sdd.md`](designs/0011-claude-sandbox-testing-module-sdd.md).

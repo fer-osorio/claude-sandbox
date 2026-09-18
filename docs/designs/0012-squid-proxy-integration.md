@@ -5,7 +5,7 @@
 > **Relates to:** `docs/claude_code_security_plan.md` (Phase 2.8–2.9, Phase 5 Audit Logging,
 > STRIDE coverage map), `docs/squid_proxy_guide.md` (source guide this design implements and
 > corrects), `ARCHITECTURE.md`, `docs/designs/docs-as-code-workflow.md` (Case E trigger),
-> `docs/designs/claude-sandbox-testing-module-sdd.md` (Test Group 3, S-1–S-3 — currently unable
+> `docs/designs/0011-claude-sandbox-testing-module-sdd.md` (Test Group 3, S-1–S-3 — currently unable
 > to run; this design is the prerequisite)
 > **Audience:** The engineer maintaining this sandbox — assumes familiarity with the image
 > hierarchy, the entrypoint/global-layer mechanism, and the STRIDE framework used throughout
@@ -297,7 +297,7 @@ acl allowed_domains dstdomain raw.githubusercontent.com
 
 # ── Reference tier — authoritative, low-UGC documentation only ────────
 # Curated per SDD §3. Stack Overflow and similar UGC sites are
-# deliberately excluded — see squid-proxy-integration.md §3.
+# deliberately excluded — see 0012-squid-proxy-integration.md §3.
 acl allowed_domains dstdomain docs.python.org
 acl allowed_domains dstdomain nodejs.org
 acl allowed_domains dstdomain developer.mozilla.org
@@ -399,7 +399,7 @@ if ! docker run -d \
     --security-opt=no-new-privileges \
     claude-squid > /dev/null; then
     echo "Error: Squid proxy failed to start."
-    echo "Fail-closed per squid-proxy-integration.md SDD §6.3 — aborting session."
+    echo "Fail-closed per 0012-squid-proxy-integration.md SDD §6.3 — aborting session."
     exit 1
 fi
 ```
@@ -496,8 +496,8 @@ image (Debian + Squid, no toolchain), so build failures should be rare and fast 
 fix — unlike, say, a broken `claude-systems` build blocking one profile, a broken proxy build
 blocks all sessions, which is a meaningful but not disproportionate cost given what it protects.
 
-This differs from the warn-only precedent set in `interpreter-presence-health-check.md` and
-`workspace-artifact-staleness.md` — those checks address environment-correctness conditions
+This differs from the warn-only precedent set in `0006-interpreter-presence-health-check.md` and
+`0007-workspace-artifact-staleness.md` — those checks address environment-correctness conditions
 (a stale venv, a stale CMake cache) where hard-failing would impose an availability cost
 disproportionate to a non-security-relevant problem. Network egress enforcement is the primary
 control against Information Disclosure; the asymmetry does not hold here.
@@ -654,7 +654,7 @@ on the proxy container).
 
 ### Version 1.1 — 2026-08-03
 Operator signed off on the §6.3 fail-closed decision. Status moved from Draft to Accepted.
-Document relocated to `docs/designs/squid-proxy-integration.md` per the location convention in
+Document relocated to `docs/designs/0012-squid-proxy-integration.md` per the location convention in
 `docs/designs/docs-as-code-workflow.md` (§2.2, repository layout).
 
 ### Version 1.2 — 2026-08-05

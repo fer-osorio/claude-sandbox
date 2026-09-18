@@ -5,8 +5,8 @@
 > verification gate stand; steps 3–8 are deliberately not executed, for want of
 > content that fits the mechanism. See §9, "Why this is parked."
 > **Classification:** Case E (container security control) + Case C (multi-component feature)
-> **Relates to:** `auto-memory-seeding-step-zero.md` (evidence base),
-> `global-layer-injection.md` (the mechanism this extends),
+> **Relates to:** `0035-auto-memory-seeding-step-zero.md` (evidence base),
+> `0003-global-layer-injection.md` (the mechanism this extends),
 > `docs/claude_code_security_plan.md` (STRIDE coverage map)
 > **Audience:** The engineer maintaining this sandbox — assumes the global
 > layer's copy-on-start model and the existing STRIDE coverage map are known.
@@ -23,9 +23,9 @@ container. This was "Option A" in `injecting_memories_into_containers.md`, an
 untracked session export deleted 2026-09-04 — the one-way seed, not round-trip
 persistence. That naming is provenance only: the scope this document defines is
 the sentence above it, not a pointer into a document no longer in the
-repository. See the References entry in `auto-memory-seeding-step-zero.md`.
+repository. See the References entry in `0035-auto-memory-seeding-step-zero.md`.
 
-The empirical groundwork is `auto-memory-seeding-step-zero.md`. Findings are
+The empirical groundwork is `0035-auto-memory-seeding-step-zero.md`. Findings are
 cited here by their identifiers (F-1, Q-4, R-2, …) and **not restated**; that
 document is the record, this one is the decision.
 
@@ -50,7 +50,7 @@ session, which is precisely the case for a startup check.
 ### 1.3 Non-goals
 
 - **No write-back or memory promotion** (Option B). The standing decision in
-  `global-layer-injection.md` §9 holds, for the reasons in §5.4.
+  `0003-global-layer-injection.md` §9 holds, for the reasons in §5.4.
 - **No rule enforcement.** Per step-zero's Scope decision, seeded content is
   advisory. Guardrails remain `permissions.deny`, Squid, and the container
   posture. Nothing in this design makes memory a control.
@@ -413,7 +413,7 @@ fabricated "experience" that resurfaces in later, unrelated tasks. A write-back
 path would carry that across the container boundary the ephemerality guarantee
 exists to hold. Independent defense work converges on separating untrusted
 candidate memory from trusted memory behind mediated promotion, which is the
-human review gate `global-layer-injection.md` §9 already prescribes.
+human review gate `0003-global-layer-injection.md` §9 already prescribes.
 
 No other STRIDE category is affected. Spoofing and Elevation of Privilege are
 untouched: no identity, credential, capability, or privilege boundary changes.
@@ -512,7 +512,7 @@ the dependency is permanent.
 **Chose:** memory seed.
 **Rejected:** putting the content in `global-claude/CLAUDE.md`.
 *Why the rejected option is attractive:* zero new mechanism, zero new surface,
-one corpus instead of two, and it is the path `global-layer-injection.md` §9
+one corpus instead of two, and it is the path `0003-global-layer-injection.md` §9
 already prescribes for insights worth keeping.
 *What breaks if you try it anyway:* nothing, for a small corpus — and for a small
 corpus it remains the right answer (§2). It stops scaling when the corpus exceeds
@@ -629,7 +629,7 @@ layer, and within that scope every decision here holds. It is a limit of the
 scope itself, and it bounds the feature's value more tightly than §6.1 states.
 
 `config.sh` already carries the `@name` project registry
-(`named-project-registry.md`), so a per-project seed layer has an obvious key
+(`0030-named-project-registry.md`), so a per-project seed layer has an obvious key
 and an obvious precedent. If seeding is worth building at all, that is likely
 the version worth building — designed deliberately, with its own collision and
 trust questions answered, not bolted onto this one.

@@ -119,7 +119,7 @@ docs/planning/
   charter.md
 ```
 
-See `docs/designs/project-planning-skill.md` §3 for why scaffolding is
+See `docs/designs/0069-project-planning-skill.md` §3 for why scaffolding is
 gated on an explicit request rather than happening as a side effect of
 another task.
 

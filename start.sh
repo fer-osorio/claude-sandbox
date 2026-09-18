@@ -5,7 +5,7 @@
 #   project_directory  — path to the project to mount (default: current dir)
 #   @name              — a project registered in config.sh's PROJECT_PATH /
 #                        PROJECT_PROFILE (and optionally extended by
-#                        config.local.sh — see docs/designs/named-project-registry.md)
+#                        config.local.sh — see docs/designs/0030-named-project-registry.md)
 #   image              — which sandbox image to use (default: base, or the
 #                        registered project's default profile for @name);
 #                        one of the profiles defined in config.sh
@@ -29,11 +29,11 @@
 # Profile list, image prefix, engine default, and resource/log-driver
 # settings come from config.sh (and optionally config.local.sh, gitignored,
 # per-machine). Precedence: hardcoded defaults below < config.sh <
-# config.local.sh < env var. See docs/designs/sandbox-config-file.md.
+# config.local.sh < env var. See docs/designs/0028-sandbox-config-file.md.
 #
 # Engine:
 #   ENGINE=podman (default) or ENGINE=docker selects which container engine
-#   binary is invoked. See docs/designs/podman-migration.md.
+#   binary is invoked. See docs/designs/0025-podman-migration.md.
 
 set -euo pipefail
 
@@ -70,7 +70,7 @@ declare -A PROJECT_PROFILE=()
 # Snapshot of the committed registry, taken before config.local.sh can see
 # or touch it. Used below to detect and revert an attempt to redefine a
 # committed name — see "Layering: config.local.sh may add, not override"
-# in docs/designs/named-project-registry.md. Adding a name not present in
+# in docs/designs/0030-named-project-registry.md. Adding a name not present in
 # config.sh is unrestricted; this only guards names that are.
 declare -A COMMITTED_PROJECT_PATH=()
 declare -A COMMITTED_PROJECT_PROFILE=()
@@ -110,7 +110,7 @@ PROXY_LOG_MAX_FILE="${_ENV_PROXY_LOG_MAX_FILE:-$PROXY_LOG_MAX_FILE}"
 PROJECT_ARG="${1:-$(pwd)}"
 IMAGE_TAG="${2:-}"
 
-# @name resolution — see docs/designs/named-project-registry.md. Runs
+# @name resolution — see docs/designs/0030-named-project-registry.md. Runs
 # after both config layers are sourced, before the existing directory
 # check below, so a resolved registry path receives exactly the
 # validation an explicit path receives.
@@ -222,7 +222,7 @@ echo ""
 # no relabel suboption (only the legacy -v ...:z syntax does), so the
 # Docker fallback path is unchanged; the same underlying bug is presumed to
 # still be present there on SELinux-enforcing hosts (e.g. Fedora) — tracked
-# in podman-migration.md §9, not fixed here.
+# in 0025-podman-migration.md §9, not fixed here.
 RELABEL_ARG=""
 if [ "$ENGINE" = "podman" ]; then
     RELABEL_ARG=",relabel=shared"
@@ -268,7 +268,7 @@ trap cleanup EXIT
 # onto whatever UID is actually invoking $ENGINE, at run time — only needed
 # (and only supported) under Podman. The Docker path keeps matching the host
 # UID at build time via HOST_UID (see build.sh). The proxy container has no
-# bind mounts, so it never needs this. See docs/designs/podman-migration.md §3.A.
+# bind mounts, so it never needs this. See docs/designs/0025-podman-migration.md §3.A.
 USERNS_ARGS=()
 if [ "$ENGINE" = "podman" ]; then
     USERNS_ARGS=(--userns=keep-id:uid=1000,gid=1000)
@@ -277,8 +277,8 @@ fi
 # Explicit, size-capped log drivers on both containers, pinned to the same
 # driver regardless of engine rather than relying on differing defaults
 # (Podman's default varies by configuration). Closes the proxy hygiene gap
-# noted in squid-proxy-integration.md §6.2-R and the main-container gap noted
-# in claude_code_security_plan.md Phase 5. See podman-migration.md §3.B.
+# noted in 0012-squid-proxy-integration.md §6.2-R and the main-container gap noted
+# in claude_code_security_plan.md Phase 5. See 0025-podman-migration.md §3.B.
 # Size/count values come from config.sh (see header) — same defaults as
 # before this became config-driven.
 PROXY_LOG_ARGS=(--log-driver json-file --log-opt "max-size=${PROXY_LOG_MAX_SIZE}" --log-opt "max-file=${PROXY_LOG_MAX_FILE}")
@@ -293,7 +293,7 @@ if ! "$ENGINE" run -d \
     "${PROXY_LOG_ARGS[@]}" \
     "$SQUID_IMAGE_NAME" > /dev/null; then
     echo "Error: Squid proxy failed to start."
-    echo "Fail-closed per docs/designs/squid-proxy-integration.md §6.3 — aborting session."
+    echo "Fail-closed per docs/designs/0012-squid-proxy-integration.md §6.3 — aborting session."
     exit 1
 fi
 

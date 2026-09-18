@@ -114,7 +114,7 @@ PLANNING_DIR="${SANDBOX_DIR}/docs/planning"
 # Templates live in the injected global layer, not beside the artifacts they
 # govern: the skills that follow them are global and reach every project,
 # while docs/planning/ is per-project. See
-# docs/designs/planning-skill-output-routing.md §Decision 1. This path is
+# docs/designs/0069-planning-skill-output-routing.md §Decision 1. This path is
 # load-bearing — an empty TEMPLATE_DIR makes P-1, P-3, P-5 and P-6 pass over
 # nothing rather than fail, so P-0 asserts the set is non-empty.
 #

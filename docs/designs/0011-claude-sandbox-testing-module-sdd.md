@@ -11,7 +11,7 @@
 | **Author** | Fernando |
 | **Reviewers** | Security Team |
 | **Supersedes** | — (no prior testing SDD exists for claude-sandbox) |
-| **Relates to** | `docs/claude_code_security_plan.md`, `docs/squid_proxy_guide.md`, `docs/designs/global-layer-injection.md`, `docs/plans/2026-05-global-layer-injection-v1.md`, `ARCHITECTURE.md`, `docs/designs/sandbox-config-file.md`, `docs/adr/002-planning-artifact-contract.md` |
+| **Relates to** | `docs/claude_code_security_plan.md`, `docs/squid_proxy_guide.md`, `docs/designs/0003-global-layer-injection.md`, `docs/plans/0003-global-layer-injection-v1.md`, `ARCHITECTURE.md`, `docs/designs/0028-sandbox-config-file.md`, `docs/adr/002-planning-artifact-contract.md` |
 
 ---
 
@@ -47,7 +47,7 @@
 
 ### 1.1 Purpose
 
-This document specifies a `bats-core` integration test harness for `claude-sandbox`. It converts the prose Testing Strategy and Security Validation tables already present in `docs/claude_code_security_plan.md`, and the six manually-executed smoke tests in `docs/plans/2026-05-global-layer-injection-v1.md` Phase 6, into an executable, version-controlled suite. No such harness currently exists — every verification step in the source documents is a manual procedure.
+This document specifies a `bats-core` integration test harness for `claude-sandbox`. It converts the prose Testing Strategy and Security Validation tables already present in `docs/claude_code_security_plan.md`, and the six manually-executed smoke tests in `docs/plans/0003-global-layer-injection-v1.md` Phase 6, into an executable, version-controlled suite. No such harness currently exists — every verification step in the source documents is a manual procedure.
 
 This work is scoped as the first of three pre-merge tasks (testing → Podman migration → config evaluation), serving as the regression baseline for the migration that follows it.
 
@@ -75,8 +75,8 @@ This document does **not** cover:
 |---|---|
 | `docs/claude_code_security_plan.md` | Source of the Testing Strategy and Security Validation tables this suite implements |
 | `docs/squid_proxy_guide.md` | Source of the manual proxy isolation test procedure (Part 3, Step 5) that Test Group 3 automates |
-| `docs/designs/global-layer-injection.md` | Source SDD for the global layer injection mechanism Test Group 4 validates |
-| `docs/plans/2026-05-global-layer-injection-v1.md` | Source of the six Phase 6 smoke tests that Test Group 4 automates verbatim in intent |
+| `docs/designs/0003-global-layer-injection.md` | Source SDD for the global layer injection mechanism Test Group 4 validates |
+| `docs/plans/0003-global-layer-injection-v1.md` | Source of the six Phase 6 smoke tests that Test Group 4 automates verbatim in intent |
 | `ARCHITECTURE.md` | Governs how tools are added to images (Strategy A/B); this document assumes that dependency-management workflow is unchanged |
 
 ---
@@ -202,8 +202,8 @@ Test bodies call `engine_run`, `engine_build`, etc. Migrating the suite to valid
 | R-3 | No-new-privileges present | `engine inspect` shows `no-new-privileges` security option active |
 | R-4 | Unknown image rejected | `start.sh <project> nonexistent-image` fails before any container starts, with an actionable error |
 | R-5 | Missing image rejected | `start.sh` against a valid image tag that hasn't been built fails with the documented `./build.sh <tag>` guidance, not a silent registry pull |
-| R-6 | Memory limit actually enforced | `--memory=100m` container allocating 500MB is killed (`exit 137`) with `OOMKilled: true` — added post-migration after `podman-migration.md` §6.2-D/Change 17 found rootless Podman under WSL2 can accept `--memory` without enforcing it when cgroups v2 `memory` delegation is absent |
-| R-7 | `/workspace` bind mount genuinely readable/writable under SELinux | A host-side file written before the container starts is readable inside it, and a file written inside the container lands on the host — added after `podman-migration.md` §6.2-T/Change 19 found a bind mount with correct POSIX bits still `EACCES` on an SELinux-enforcing host because Podman never relabeled it. Skips on non-SELinux-enforcing hosts, where the bug isn't observable |
+| R-6 | Memory limit actually enforced | `--memory=100m` container allocating 500MB is killed (`exit 137`) with `OOMKilled: true` — added post-migration after `0025-podman-migration.md` §6.2-D/Change 17 found rootless Podman under WSL2 can accept `--memory` without enforcing it when cgroups v2 `memory` delegation is absent |
+| R-7 | `/workspace` bind mount genuinely readable/writable under SELinux | A host-side file written before the container starts is readable inside it, and a file written inside the container lands on the host — added after `0025-podman-migration.md` §6.2-T/Change 19 found a bind mount with correct POSIX bits still `EACCES` on an SELinux-enforcing host because Podman never relabeled it. Skips on non-SELinux-enforcing hosts, where the bug isn't observable |
 | R-8 | `relabel=shared` (not `private`) works across concurrent sessions | Two containers concurrently mounting the same host path can both read it — distinguishes the Change 19 `shared` choice from `private`/`:Z`, which would pass a single-container check but break a second concurrent mount. Podman-only, skips on non-SELinux-enforcing hosts |
 
 ### 4.3 Group 3 — Squid Egress Enforcement
@@ -221,7 +221,7 @@ Mirrors `docs/squid_proxy_guide.md` Part 3 Step 5 exactly, wrapped as assertions
 
 ### 4.4 Group 4 — Global Layer Injection
 
-G-1 through G-6 reproduce the six Phase 6 tests from `docs/plans/2026-05-global-layer-injection-v1.md`, restated as assertions rather than manual procedures. G-7 through G-9 were added later, for the entrypoint's commit-msg hook drift check (issue #54), and are the only tests in the suite that assert on entrypoint stdout — elsewhere those lines are filtered out as noise. G-10 was added last (issue #71) and is the only test that asserts on the layer as a whole rather than on a named file within it.
+G-1 through G-6 reproduce the six Phase 6 tests from `docs/plans/0003-global-layer-injection-v1.md`, restated as assertions rather than manual procedures. G-7 through G-9 were added later, for the entrypoint's commit-msg hook drift check (issue #54), and are the only tests in the suite that assert on entrypoint stdout — elsewhere those lines are filtered out as noise. G-10 was added last (issue #71) and is the only test that asserts on the layer as a whole rather than on a named file within it.
 
 | ID | Test | Assertion |
 |---|---|---|
@@ -247,7 +247,7 @@ G-1 through G-6 reproduce the six Phase 6 tests from `docs/plans/2026-05-global-
 ### 4.6 Group 6 — Layered Config
 
 Covers `config.sh`'s own correctness and the four-layer precedence chain from
-`docs/designs/sandbox-config-file.md` (hardcoded default < `config.sh` <
+`docs/designs/0028-sandbox-config-file.md` (hardcoded default < `config.sh` <
 `config.local.sh` < environment variable), not container runtime behaviour.
 C-7 onward exercise `@name` registry resolution by running a copy of the real
 `start.sh` with `ENGINE=true` — a no-op stand-in that satisfies every engine
@@ -286,7 +286,7 @@ runnable on a CI runner with no container tooling — see §6.2.
 | D-3 | ADRs conform | Every file in `docs/adr/` carries an `# ADR NNN — Title` heading and a `Status` of `Proposed`, `Accepted`, `Deprecated`, or `Supersedes ADR NNN` |
 | D-4 | Skill directories have manifests | Every directory under `global-claude/skills/` contains a `SKILL.md` |
 | D-5 | Every test is taggable | Every `@test` has a `# bats test_tags=` comment on the preceding non-blank line — the regression guard for the defect that left eight tests invisible to `--filter-tags`, including S-1 and R-1 |
-| D-6 | `CLAUDE.md` within ceiling | At most 200 lines, the figure `docs/designs/global-layer-injection.md` §5.2 already treats as acceptable context cost |
+| D-6 | `CLAUDE.md` within ceiling | At most 200 lines, the figure `docs/designs/0003-global-layer-injection.md` §5.2 already treats as acceptable context cost |
 | D-7 | Global layer within ceiling | At most 3000 lines across every file under `global-claude/`, counted in lines because byte measurements of the same directory differ by 2.4× depending on method |
 
 ### 4.8 Group 8 — Planning Artifact Contract
@@ -435,17 +435,17 @@ Consistent with the fail-fast philosophy already established in `setup.sh` / `ru
 | `docs/claude_code_security_plan.md` | Quick Reference Card, "What is protected" list | B-1 through T-3 (full suite) |
 | `docs/squid_proxy_guide.md` | Part 3, Step 5 | S-1, S-2, S-3 |
 | `docs/squid_proxy_guide.md` | Changelog, Change 2 | R-2, R-3 (direct regression coverage) |
-| `docs/designs/global-layer-injection.md` | §5, STRIDE analysis of new surfaces | G-1 through G-6 |
-| `docs/plans/2026-05-global-layer-injection-v1.md` | Phase 6, Tests 1–6 | G-1 through G-6 |
+| `docs/designs/0003-global-layer-injection.md` | §5, STRIDE analysis of new surfaces | G-1 through G-6 |
+| `docs/plans/0003-global-layer-injection-v1.md` | Phase 6, Tests 1–6 | G-1 through G-6 |
 | `docs/claude_code_security_plan.md` | Changelog, Change 7 (UID matching) | B-2 |
 | `docs/claude_code_security_plan.md` | Changelog, Change 17 (cgroups v2 delegation) | R-6 |
-| `docs/designs/podman-migration.md` | §6.2, STRIDE analysis (Denial of Service) | R-6 |
+| `docs/designs/0025-podman-migration.md` | §6.2, STRIDE analysis (Denial of Service) | R-6 |
 | `docs/claude_code_security_plan.md` | Changelog, Change 19 (SELinux mount relabeling) | R-7, R-8 |
-| `docs/designs/podman-migration.md` | §6.2, STRIDE analysis (Tampering, follow-up finding) | R-7, R-8 |
-| `docs/designs/sandbox-config-file.md` | Layered precedence model and `@name` registry | C-1 through C-13 |
+| `docs/designs/0025-podman-migration.md` | §6.2, STRIDE analysis (Tampering, follow-up finding) | R-7, R-8 |
+| `docs/designs/0028-sandbox-config-file.md` | Layered precedence model and `@name` registry | C-1 through C-13 |
 | `docs/adr/002-planning-artifact-contract.md` | Decision 7, "enforced by a test, not by a reviewer" | P-1 through P-6 |
 | `docs/adr/003-where-a-behavioural-rule-goes.md` | Decision 4, no restatement; the placement ladder | D-2, D-6, D-7 |
-| `docs/designs/global-layer-injection.md` | §5.2, Denial of Service — "Global layer size discipline" | D-6, D-7 |
+| `docs/designs/0003-global-layer-injection.md` | §5.2, Denial of Service — "Global layer size discipline" | D-6, D-7 |
 | `docs/designs/docs-as-code-workflow.md` | §3 Case D, ADR format and Status values | D-3 |
 
 This table is the single place to check for coverage gaps: any claim in the source documents without a corresponding test ID here is undocumented risk, not tested risk.

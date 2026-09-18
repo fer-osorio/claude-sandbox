@@ -3,7 +3,7 @@
 > **Document type:** Software Design Document (SDD)
 > **Status:** Accepted
 > **Relates to:** `claude_code_security_plan.md` (Phase 5, Audit Logging; STRIDE coverage map),
-> `interpreter-presence-health-check.md` (companion SDD; handles the Python venv case that
+> `0006-interpreter-presence-health-check.md` (companion SDD; handles the Python venv case that
 > motivated this generalization), `global_layer_injection_sdd.md` (entrypoint mechanism this
 > design extends), `ARCHITECTURE.md` (Strategy A / Strategy B distinction)
 > **Audience:** The engineer maintaining this sandbox — assumes familiarity with the entrypoint
@@ -25,7 +25,7 @@ document; the two concrete checks are applications of it.
 
 ### 1.1 Relationship to the interpreter-presence SDD
 
-`interpreter-presence-health-check.md` defined the venv check and introduced the problem class
+`0006-interpreter-presence-health-check.md` defined the venv check and introduced the problem class
 informally. This document is its complement: it handles the remaining artifact types that share
 the same root cause (a path-dependent artifact in `/workspace` outlives the container state it
 was built against), frames the full generalization space using a three-tier taxonomy, and
@@ -48,7 +48,7 @@ This document covers:
 
 This document does **not** cover:
 
-- The Python venv check (owned by `interpreter-presence-health-check.md`)
+- The Python venv check (owned by `0006-interpreter-presence-health-check.md`)
 - Any artifact type not in Tier 1 or Tier 2 as defined by the taxonomy in §3
 - Changes to the Squid proxy, `permissions.deny`, or any other existing layer
 - Container-internal state that is never persisted to `/workspace` (e.g., the SoftHSM2 token
@@ -60,7 +60,7 @@ This document does **not** cover:
 
 ### 2.1 The general problem class
 
-`interpreter-presence-health-check.md` §2 identified the root asymmetry: containers are
+`0006-interpreter-presence-health-check.md` §2 identified the root asymmetry: containers are
 ephemeral by design; `/workspace` is the one persistent surface. Any artifact written to
 `/workspace` that encodes a dependency on the container's installed state outlives the container
 that made that dependency satisfiable.
@@ -101,7 +101,7 @@ OK / WARNING result with no meaningful false positive class. Consistent with the
 `claude-agent` capability set.
 
 **Current members:**
-- Python venv interpreter check (owned by `interpreter-presence-health-check.md`)
+- Python venv interpreter check (owned by `0006-interpreter-presence-health-check.md`)
 - CMake toolchain path check (§5.1 of this document)
 
 ### Tier 2 — Partial generalizations with documented ceilings
@@ -379,7 +379,7 @@ No other rows change.
 
 ### 7.2 Warn-only decision record
 
-Identical rationale to `interpreter-presence-health-check.md` §6.2: a stale build artifact is
+Identical rationale to `0006-interpreter-presence-health-check.md` §6.2: a stale build artifact is
 recoverable and does not block all work in the session, only work that depends on the stale
 artifact. The existing entrypoint contract reserves non-zero exit for unrecoverable errors.
 Escalating these checks to hard-fail would impose a disproportionate availability cost on
@@ -476,5 +476,5 @@ Pre-implementation review pass. Changes:
 ### Version 1.0 — 2026-06-27
 Initial draft. Establishes the three-tier generalization taxonomy and covers CMake build
 directory (Tier 1) and Node.js native addon (Tier 2) staleness checks. Companion to
-`interpreter-presence-health-check.md`. Formally documents the ELF/`ldd` hard architectural
+`0006-interpreter-presence-health-check.md`. Formally documents the ELF/`ldd` hard architectural
 limit as Tier 3. Derived from design discussion between the operator and Claude Sonnet 4.6.

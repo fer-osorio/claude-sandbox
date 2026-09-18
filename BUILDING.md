@@ -20,7 +20,7 @@ cp config.local.sh.example config.local.sh
 $EDITOR config.local.sh   # uncomment and edit only what you need
 ```
 
-Full design rationale: [`docs/designs/sandbox-config-file.md`](docs/designs/sandbox-config-file.md).
+Full design rationale: [`docs/designs/0028-sandbox-config-file.md`](docs/designs/0028-sandbox-config-file.md).
 
 `config.sh` also holds a named project registry (`PROJECT_PATH`/
 `PROJECT_PROFILE`, addressed as `./start.sh @<name>`), resolved against
@@ -34,7 +34,7 @@ your shell profile, so it's always set). Setting `PROJECT_BASE` inside
 `PROJECT_PATH` entries expand `${PROJECT_BASE}` when `config.sh` is
 sourced, before `config.local.sh` is, so a later assignment there comes
 too late to affect them. Full design rationale:
-[`docs/designs/named-project-registry.md`](docs/designs/named-project-registry.md).
+[`docs/designs/0030-named-project-registry.md`](docs/designs/0030-named-project-registry.md).
 
 ## Prerequisites
 
@@ -129,7 +129,7 @@ podman network create --driver bridge claude-net
 
 `build.sh` and `start.sh` both honor an `$ENGINE` environment variable
 (default `podman`). Set `ENGINE=docker` to route every build/run invocation
-through Docker instead — see `docs/designs/podman-migration.md` for the full
+through Docker instead — see `docs/designs/0025-podman-migration.md` for the full
 design. Rootless Podman needs a few things Docker's rootless setup doesn't
 require you to think about directly:
 
@@ -233,7 +233,7 @@ and add `relabel=shared` (or the `:z` suffix on `-v`) to your own mount.
 Docker's fallback path (`ENGINE=docker`) does not currently get this fix —
 Docker's `--mount` has no relabel suboption — so the same issue is possible
 there on an SELinux-enforcing host. See
-`docs/designs/podman-migration.md` §9 for the open question on that gap.
+`docs/designs/0025-podman-migration.md` §9 for the open question on that gap.
 
 ## Authentication
 
@@ -310,7 +310,7 @@ confusing them:
 running Podman and a pre-built image, which is why CI filters on `hostonly`
 rather than on `fast` — see `.github/workflows/ci.yml`.
 
-See `docs/designs/claude-sandbox-testing-module-sdd.md` for what each test
+See `docs/designs/0011-claude-sandbox-testing-module-sdd.md` for what each test
 group covers and why.
 
 ## See also
@@ -318,4 +318,4 @@ group covers and why.
 - `ARCHITECTURE.md` — image hierarchy and dependency management strategy
 - `docs/claude_code_security_plan.md` — threat model and security controls
 - `docs/squid_proxy_guide.md` — outbound network policy via Squid proxy
-- `docs/designs/claude-sandbox-testing-module-sdd.md` — bats-core test harness design
+- `docs/designs/0011-claude-sandbox-testing-module-sdd.md` — bats-core test harness design

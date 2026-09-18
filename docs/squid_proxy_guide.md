@@ -237,7 +237,7 @@ implementation.
   collide.
 - If the proxy fails to start, the script aborts and the main session
   container is never started — a fail-closed decision recorded in
-  `docs/designs/squid-proxy-integration.md` §6.3.
+  `docs/designs/0012-squid-proxy-integration.md` §6.3.
 - `HTTP_PROXY` and `HTTPS_PROXY` are injected into the main container as
   `http://claude-proxy-$$:3128`. Docker's internal DNS resolves the proxy
   container's name on the same network without any IP configuration.
@@ -247,7 +247,7 @@ implementation.
   regardless of how the script exits — normal completion, a failure in the
   main container, or an interrupt — not just the clean-exit path.
 
-See `docs/designs/squid-proxy-integration.md` for the full design and the
+See `docs/designs/0012-squid-proxy-integration.md` for the full design and the
 STRIDE analysis behind these decisions.
 
 ---
@@ -480,7 +480,7 @@ separate restart step.
 **Why:** `test_squid_isolation.bats` (Group 3, S-1–S-3) failed at
 `setup_file()` because `squid/` was never committed — this guide's own claim
 that "the current `start.sh` already incorporates Squid" was false against
-the tracked tree. See `docs/designs/squid-proxy-integration.md` for the full
+the tracked tree. See `docs/designs/0012-squid-proxy-integration.md` for the full
 design, STRIDE analysis, and rationale (fail-closed startup, non-root proxy
 execution, digest pinning).
 
@@ -498,7 +498,7 @@ sessions ran with unrestricted egress on `claude-net`, constrained only by
 Smoke testing (per Change 6) found the proxy container exiting immediately after start, with
 `docker logs` showing `FATAL: failed to open /run/squid.pid: (13) Permission denied`. Running
 Squid entirely as the non-root `proxy` user (introduced beyond this guide's original design —
-see `docs/designs/squid-proxy-integration.md` §6.4) means it never holds root privileges to
+see `docs/designs/0012-squid-proxy-integration.md` §6.4) means it never holds root privileges to
 open the root-owned `/run/squid.pid`, unlike Squid's normal pattern of opening privileged
 resources as root before dropping to its effective user. `pid_filename none` was added to
 `squid.conf`, telling Squid not to write a PID file at all.

@@ -1,7 +1,7 @@
 # User Guide Session-Start Check
 
 ## Status
-Draft
+Accepted
 
 ## Context
 

@@ -1,7 +1,7 @@
 # File Naming Convention for Documentation
 
 ## Status
-Draft
+Accepted
 
 ## Context
 
@@ -35,7 +35,8 @@ scoped to memory topic files. Neither constraint blocks this change.
 ## Decision
 
 `<NNNN>` is the tracking issue number, zero-padded to four digits. A
-document with no issue uses the number of the PR that introduced it.
+document with no issue uses the issue its PR closed, or else that PR's
+number.
 Issues and PRs share one GitHub number space, so the prefix stays
 collision-free. Several documents may share an `NNNN`. The full filename is
 the identity.
@@ -87,6 +88,11 @@ each file's history.
   issue was opened, not when its document was written. Accepted.
 - GitHub blob URLs to old paths in past issue and PR bodies stop resolving.
   The history itself is intact.
+- Scoped to this repository. The global layer's `design` skill and workflow
+  template still default to `<slug>.md` and `<YYYY-MM>-` in other projects.
+  A project's own workflow document overrides those defaults (design Step
+  1), which is how this repository applies the convention. Changing the
+  defaults is a separate decision.
 - ADR numbering remains a sequence, so it can still collide. D-12 turns a
   silent collision into a failing check. It does not prevent the collision.
 
@@ -114,7 +120,6 @@ coexist indefinitely, which is the problem #105 was opened for.
 2. `docs: ADR 008 — per-bundle planning directories (#105)`.
 3. `test(docs): D-11 — every docs/ path cited in a tracked file resolves`.
 4. `refactor(docs): rename design docs and plans to <NNNN>-<slug> (#105)`.
-   Waits on PR #125.
 5. `refactor(docs): kebab-case the reference docs (#105)`.
 6. `feat(planning): per-bundle planning directories (#105)`, per ADR 008.
 7. `test(docs): D-12 — naming conformance and ADR number uniqueness`.

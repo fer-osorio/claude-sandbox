@@ -313,9 +313,15 @@ _p5_duplicate_owners() {
 _UNBUILT_OWNERS=""
 
 # Both tiers: a contract template names its writer in owner:, a scaffold
-# names the skill that copies it in seeded-by:. Every template therefore
+# names the skill(s) that copy it in seeded-by:. Every template therefore
 # declares at least one skill that must resolve, which is what closes "a
 # template nobody reads".
+#
+# seeded-by may name more than one skill, space-separated, since #47 gave
+# the user-guide template a second seeder (user-guide-check) alongside
+# design. owner stays single-valued — a contract template has exactly one
+# writer — but the loop below runs once for it either way, so one code path
+# covers both without weakening owner's cardinality.
 _p7_missing_owner_skills() {
     for t in $(_templates); do
         rel="${t#${SANDBOX_DIR}/}"
@@ -323,14 +329,16 @@ _p7_missing_owner_skills() {
             scaffold) key=seeded-by ;;
             *)        key=owner ;;
         esac
-        owner="$(_fm_value "$t" "$key")"
+        value="$(_fm_value "$t" "$key")"
         # A missing key is P-1's finding, not this one's.
-        [ -n "$owner" ] || continue
-        case " ${_UNBUILT_OWNERS} " in
-            *" ${owner} "*) continue ;;
-        esac
-        [ -f "${SANDBOX_DIR}/global-claude/skills/${owner}/SKILL.md" ] \
-            || echo "${rel}: ${key} '${owner}' names no skill at global-claude/skills/${owner}/SKILL.md"
+        [ -n "$value" ] || continue
+        for owner in $value; do
+            case " ${_UNBUILT_OWNERS} " in
+                *" ${owner} "*) continue ;;
+            esac
+            [ -f "${SANDBOX_DIR}/global-claude/skills/${owner}/SKILL.md" ] \
+                || echo "${rel}: ${key} '${owner}' names no skill at global-claude/skills/${owner}/SKILL.md"
+        done
     done
 }
 

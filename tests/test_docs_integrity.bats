@@ -420,6 +420,48 @@ docs/designs/0069-project-planning-skill.md
 docs/claude-code-security-plan.md
 squid/squid.conf"
 
+# The naming convention in docs/designs/0105-file-naming-convention.md, as
+# a check rather than as prose someone is supposed to remember. Series are
+# prefixed with their tracking issue or PR number; reference documents are
+# plain kebab-case. Slugs are lowercase, because a case-insensitive host
+# filesystem collides names that differ only in case.
+#
+# ADR numbers are still a sequence, and two branches can draw the same one
+# (see the design doc's Consequences). git merges 008-a.md and 008-b.md
+# without a conflict, since the names differ, so a duplicate number is
+# checked here rather than left for review.
+_D12_EXEMPT="docs/designs/docs-as-code-workflow.md"
+_D12_SLUG='[a-z0-9]+(-[a-z0-9]+)*'
+
+_misnamed_docs() {
+    (
+        cd "$SANDBOX_DIR" || exit 1
+        git ls-files 'docs/*.md' | grep -v '^docs/tmp/' | while IFS= read -r f; do
+            case " ${_D12_EXEMPT} " in *" ${f} "*) continue ;; esac
+            b="$(basename "$f")"
+            case "$f" in
+                docs/designs/*) re="^[0-9]{4}-${_D12_SLUG}\.md$" ;;
+                docs/plans/*)   re="^[0-9]{4}-${_D12_SLUG}-v[0-9]+\.md$" ;;
+                docs/adr/*)     re="^[0-9]{3}-${_D12_SLUG}\.md$" ;;
+                docs/planning/*) continue ;;
+                docs/*/*)       continue ;;
+                *)              re="^${_D12_SLUG}\.md$" ;;
+            esac
+            printf '%s\n' "$b" | grep -qE "$re" || echo "${f}: name does not match ${re}"
+        done
+        for d in docs/planning/*/; do
+            [ -d "$d" ] || continue
+            b="$(basename "$d")"
+            printf '%s\n' "$b" | grep -qE "^[0-9]{4}-${_D12_SLUG}$" \
+                || echo "docs/planning/${b}/: bundle name does not match <NNNN>-<slug>"
+        done
+        git ls-files 'docs/adr/*.md' | sed -nE 's#^docs/adr/([0-9]{3})-.*#\1#p' | sort | uniq -d \
+        | while IFS= read -r n; do
+            echo "docs/adr/${n}-*: more than one ADR carries number ${n}"
+        done
+    )
+}
+
 _unresolved_doc_paths() {
     (
         cd "$SANDBOX_DIR" || exit 1
@@ -561,6 +603,17 @@ _unresolved_doc_paths() {
     [ "$status" -eq 0 ]
     if [ -n "$output" ]; then
         echo "--- a bare path D-1 cannot see; renamed or never created ---" >&2
+        echo "$output" >&2
+    fi
+    [ -z "$output" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "D-12: documentation names follow the convention, and ADR numbers are unique" {
+    run _misnamed_docs
+    [ "$status" -eq 0 ]
+    if [ -n "$output" ]; then
+        echo "--- see docs/designs/0105-file-naming-convention.md ---" >&2
         echo "$output" >&2
     fi
     [ -z "$output" ]

@@ -1,32 +1,19 @@
-# Planning artifacts
+# Planning bundles
 
-Index for the Planning phase. One row per artifact: what it is, who writes
-it, and whether it is current. A reader looking for one thing reads this
-table and then opens one file — that is what the index is for.
+One directory per Planning run, named `<NNNN>-<slug>` after its tracking
+issue. Each carries its own index of artifacts. Exactly one row is
+**Current**: the bundle every Planning skill reads and writes. Skills
+resolve it here and never infer it from the directory listing
+([ADR 008](../adr/008-per-bundle-planning-directories.md)).
 
-The contract these artifacts follow is
-[ADR 002](../adr/002-planning-artifact-contract.md). This README does not
-restate it; it records the two implementation choices ADR 002 left open,
-and nothing else.
+## Bundles
 
-## Index
-
-| Artifact | Status | Owner | Contains |
+| Bundle | Current | Issue | Question |
 |---|---|---|---|
-| [`scope.md`](scope.md) | Approved | `project-planning` | Problem statement, constraints, explicit non-goals |
-| [`prior-art.md`](prior-art.md) | Approved | `swe-prior-art-research` | Prior art, build-vs-adopt recommendation |
-| [`feasibility.md`](feasibility.md) | Approved | `project-feasibility` | Technical / operational / financial feasibility, risk inventory |
-| [`charter.md`](charter.md) | Approved | `project-planning` | Charter and go/no-go decision material |
+| [`0102-instruction-layer-silent-failures`](0102-instruction-layer-silent-failures/README.md) | **Current** | #102, #103, #104 | Fix three silent-failure gaps in the instruction layer? |
 
-Every skill that writes an artifact updates its own row here, and only its
-own row. `tests/test_planning_artifacts.bats` fails if an artifact exists
-without one.
-
-Artifact names are code spans rather than links until the file exists — a
-markdown link to an unwritten artifact is a dangling reference, and D-1 in
-`tests/test_docs_integrity.bats` fails on it. The skill that writes an
-artifact turns its own name into a link at the same time it fills in the
-status.
+Opening a bundle adds a row, marks it Current, and unmarks the previous
+one. Nothing else changes a row.
 
 ## Two choices ADR 002 left open
 
@@ -37,7 +24,7 @@ SKILL.md, but does not say where they go. They are at
 `~/.claude/templates/planning/<artifact>.md`, because the skills that
 follow them are injected into every project while this directory is
 per-project. See
-[`planning-skill-output-routing.md`](../designs/planning-skill-output-routing.md)
+[`0069-planning-skill-output-routing.md`](../designs/0069-planning-skill-output-routing.md)
 §Decision 1 for why, and §Consequences for what that costs.
 
 Artifact paths are unchanged — decision 2 specifies them and only the

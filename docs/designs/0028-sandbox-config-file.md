@@ -9,10 +9,10 @@ revision 1)
 ## Context
 
 `claude-sandbox` has just completed its Docker → Podman migration
-(`docs/designs/podman-migration.md`), which was explicitly step two of
+(`docs/designs/0025-podman-migration.md`), which was explicitly step two of
 three pre-merge tasks named in the testing SDD's own introduction:
 *"testing → Podman migration → config evaluation"*
-(`docs/designs/claude-sandbox-testing-module-sdd.md` line 51). This
+(`docs/designs/0011-claude-sandbox-testing-module-sdd.md` line 51). This
 document is that third task.
 
 Today, profile and runtime configuration is hardcoded and duplicated
@@ -41,7 +41,7 @@ matter for this design:
 - `dev-env` targets a **managed corporate Windows/WSL2 laptop** with a
   security team that gates registry approval and reviews `config.toml`
   changes against an ADR/SDD. `claude-sandbox` targets a single-user
-  local workstation (`docs/claude_code_security_plan.md`, Scope) — there
+  local workstation (`docs/claude-code-security-plan.md`, Scope) — there
   is no external reviewing body and no registry-approval control in its
   existing threat model.
 - `dev-env`'s `run.sh` constructs its `podman run` command in a way that
@@ -87,8 +87,8 @@ that's under code review.
 |---|---|---|
 | Per-profile block shape (`containerfile_dir`, `image_name`, `image_version`, optional `base` dependency edge) | **Yes** | Directly maps onto `build.sh`'s existing base/crypto/systems/research hierarchy; removes the two-file duplication that motivated this change. |
 | A single source of truth read by both build and run scripts | **Yes** | Same problem dev-env solved (`setup.sh`/`run.sh` never hand-hardcode profile data); this is the core reusable idea, independent of file format. |
-| `[defaults]` username / workspace_mount | **No** | `claude-sandbox`'s user (`claude-agent`) and mount point (`/workspace`) are baked into the Dockerfiles and referenced directly by `start.sh`/`ARCHITECTURE.md`; there's no second consumer that needs them centralized, and `--userns=keep-id:uid=1000,gid=1000` already hardcodes the UID convention per `podman-migration.md` §3.A. |
-| `[registry] allowed[] / default` | **No** | This is a corporate approved-registry control gated by a security team review process `claude-sandbox` doesn't have. `claude-sandbox`'s equivalent control is digest-pinning the base image (`podman-migration.md` §5.3), a different and already-implemented mechanism. |
+| `[defaults]` username / workspace_mount | **No** | `claude-sandbox`'s user (`claude-agent`) and mount point (`/workspace`) are baked into the Dockerfiles and referenced directly by `start.sh`/`ARCHITECTURE.md`; there's no second consumer that needs them centralized, and `--userns=keep-id:uid=1000,gid=1000` already hardcodes the UID convention per `0025-podman-migration.md` §3.A. |
+| `[registry] allowed[] / default` | **No** | This is a corporate approved-registry control gated by a security team review process `claude-sandbox` doesn't have. `claude-sandbox`'s equivalent control is digest-pinning the base image (`0025-podman-migration.md` §5.3), a different and already-implemented mechanism. |
 | `runtime.forbidden_flags[]` + `check-forbidden-flags` guard | **No** | No analogue: `start.sh` never assembles its container-run command from project- or user-supplied flags, so there's nothing to check against a denylist. |
 | `[projects.<name>]` registry + `$PROJECT_BASE` | **No (v1)** | Confirmed out of scope with the operator — `start.sh`'s positional `<project_dir>` interface stays as-is. |
 | `helpers.py` as a Python CLI layer | **No** | See format decision below — introducing Python as a new host dependency isn't justified here. |
@@ -237,7 +237,7 @@ committed normally (not ignored).
 Claude Code writing outside the project directory — a different threat
 (a runaway agent action) from an operator manually `git add`-ing a file
 that they, not Claude, created and control. This project's own threat
-model scope (`docs/claude_code_security_plan.md`) is a single-user local
+model scope (`docs/claude-code-security-plan.md`) is a single-user local
 workstation with no external reviewer — a `.gitignore` entry (plus, if
 it's ever committed by accident, `git rm --cached` and the normal review
 process catching an unexpected diff) is proportionate. Building a
@@ -261,10 +261,10 @@ memory limit."
 
 **Stays exactly as it is, out of scope for v1:**
 - `squid/squid.conf`'s domain allowlist — explicitly deferred per
-  `squid-proxy-integration.md` §3/§9 and reaffirmed in
-  `podman-migration.md` §3.C; this document doesn't reopen it.
+  `0012-squid-proxy-integration.md` §3/§9 and reaffirmed in
+  `0025-podman-migration.md` §3.C; this document doesn't reopen it.
 - The `global-claude/` / `global-<profile>/` overlay mechanism
-  (`docs/designs/global-layer-injection.md`) — `config.sh`'s profile
+  (`docs/designs/0003-global-layer-injection.md`) — `config.sh`'s profile
   block adds *build* metadata (Dockerfile dir, image name, base). It does
   not touch, replace, or duplicate the overlay-injection logic, which
   keeps discovering `global-<profile>/` by directory presence exactly as
@@ -307,7 +307,7 @@ that time, since it would then be altering runtime security posture.
 - Resource limits and log options become named, documented,
   version-controlled values instead of literals buried in `start.sh`'s
   `run` invocation — easier to review and to cite in future STRIDE
-  updates to `claude_code_security_plan.md`.
+  updates to `claude-code-security-plan.md`.
 - `ARCHITECTURE.md`'s Strategy A workflow ("add to the relevant
   Dockerfile, rebuild") gets a small, natural extension: also add the
   profile to `config.sh`.

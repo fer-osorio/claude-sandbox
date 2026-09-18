@@ -83,7 +83,7 @@ issue references a document; a document is committed alongside the code.
 | **Planning artifact** | `docs/planning/` (opt-in) | Scope, prior-art, feasibility, and charter documents from a project's Planning phase | Permanent once scaffolded |
 | **`BUILDING.md`** | Repo root | How to build and run the project locally | Living document |
 | **`ARCHITECTURE.md`** | Repo root | High-level system overview | Living document |
-| **User guide** | `docs/user_guide.md` | Task-oriented day-to-day usage; defers build commands to `BUILDING.md` and internals to `ARCHITECTURE.md` | Living document |
+| **User guide** | `docs/user-guide.md` | Task-oriented day-to-day usage; defers build commands to `BUILDING.md` and internals to `ARCHITECTURE.md` | Living document |
 | **Security/threat model document** | `docs/` | STRIDE analysis and controls coverage for system components | Living document |
 | **Operational guide** | `docs/` | Setup and operational procedures for infrastructure components | Living document |
 
@@ -98,28 +98,38 @@ repo-root/
       001-<decision-slug>.md
       002-<decision-slug>.md
     designs/
-      <feature-slug>.md
+      <NNNN>-<feature-slug>.md
     plans/
-      <YYYY-MM>-<feature-slug>-v<N>.md
+      <NNNN>-<feature-slug>-v<N>.md
     <security-or-ops-guide>.md
 ```
+
+`<NNNN>` is the tracking issue number, zero-padded to four digits, or the
+introducing PR's number when there is no issue. Slugs are lowercase
+kebab-case. ADRs keep their own sequence, and this document keeps its fixed
+path. The full rule and its reasoning are in
+`docs/designs/0105-file-naming-convention.md`. D-12 in
+`tests/test_docs_integrity.bats` enforces it.
 
 `docs/planning/` is not part of the default layout above — it is scaffolded
 only when the injected `project-planning` skill is asked to begin planning
 for this project, and its presence opts every Planning skill in the
 repository into the contract `docs/adr/002-planning-artifact-contract.md`
-defines. Once scaffolded it holds:
+defines, laid out per run by `docs/adr/008-per-bundle-planning-directories.md`.
+Once scaffolded it holds:
 
 ```
 docs/planning/
-  README.md
-  scope.md
-  prior-art.md
-  feasibility.md
-  charter.md
+  README.md              # bundle index; one row marked Current
+  <NNNN>-<slug>/
+    README.md
+    scope.md
+    prior-art.md
+    feasibility.md
+    charter.md
 ```
 
-See `docs/designs/project-planning-skill.md` §3 for why scaffolding is
+See `docs/designs/0069-project-planning-skill.md` §3 for why scaffolding is
 gated on an explicit request rather than happening as a side effect of
 another task.
 
@@ -197,8 +207,8 @@ into an ADR as the final step.
 gh issue create --title "<type>: <short description>"
 
 # First commit: the design
-cp draft.md docs/designs/<feature-slug>.md
-git add docs/designs/<feature-slug>.md
+cp draft.md docs/designs/<NNNN>-<feature-slug>.md
+git add docs/designs/<NNNN>-<feature-slug>.md
 git commit -m "docs: design for <feature> (#<issue-number>)"
 
 # Code commits (one logical step per commit)
@@ -214,7 +224,7 @@ which is the single declared format. Per [ADR 007](../adr/007-shared-template-co
 decision 5, a format an injected skill already carries is cited here rather
 than copied.
 
-**Artifacts produced:** GitHub Issue, `docs/designs/<slug>.md`,
+**Artifacts produced:** GitHub Issue, `docs/designs/<NNNN>-<slug>.md`,
 optionally `docs/adr/00N-<slug>.md`.
 
 ---
@@ -239,7 +249,7 @@ ADRs are **never rewritten**. If a decision is reversed, a new ADR is
 written with status `Supersedes ADR 00N`.
 
 **Artifacts produced:** GitHub Issue, `docs/adr/00N-<slug>.md`,
-optionally `docs/plans/<date>-<slug>-v<N>.md`.
+optionally `docs/plans/<NNNN>-<slug>-v<N>.md`.
 
 ---
 
@@ -258,7 +268,7 @@ Case B, C, or D — the STRIDE analysis is additive.
 1. Open a GitHub Issue as in Case B or C, depending on scope.
 2. Either produce or update a design document (Case C path) that includes
    a STRIDE impact section, or append a STRIDE impact section directly to
-   `docs/claude_code_security_plan.md` if the change is narrow.
+   `docs/claude-code-security-plan.md` if the change is narrow.
 3. The STRIDE analysis must cover:
    - Which STRIDE categories are affected.
    - Which surfaces changed (added, removed, or modified).
@@ -344,5 +354,5 @@ text files rather than manual procedures.
 
 **STRIDE:** A threat-modeling framework covering Spoofing, Tampering,
 Repudiation, Information Disclosure, Denial of Service, and Elevation of
-Privilege. Used in `docs/claude_code_security_plan.md` to analyze the
+Privilege. Used in `docs/claude-code-security-plan.md` to analyze the
 security posture of the sandbox.

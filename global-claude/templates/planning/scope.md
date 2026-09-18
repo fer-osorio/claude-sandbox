@@ -1,6 +1,6 @@
 ---
 template-tier: contract
-artifact: docs/planning/scope.md
+artifact: <bundle>/scope.md
 owner: project-planning
 phase: planning
 ceiling-tldr-words: 54
@@ -10,7 +10,7 @@ ceiling-non-goals-words: 108
 ceiling-definition-of-done-words: 90
 ---
 
-<!-- Template for docs/planning/scope.md. Copy, fill, delete these
+<!-- Template for <bundle>/scope.md. Copy, fill, delete these
      comments. The frontmatter the artifact carries is status/date/phase/
      owner — not the ceiling-* keys, which stay here.
 

@@ -1,6 +1,6 @@
 ---
 name: project-feasibility
-description: "Judge whether a scoped project should start — technical, operational and effort feasibility, plus a risk inventory — and write docs/planning/feasibility.md as go/no-go material for a human gate. Trigger on a Planning-phase feasibility assessment, or when docs/planning/scope.md exists and the open question is whether to proceed. Mutually exclusive with swe-prior-art-research — resolve by what the answer must conclude, not by keyword: \"should this project start\" routes here and produces a committed artifact, while \"does this already exist, and is the approach viable\" routes to swe-prior-art-research, whose findings are an input to this judgment. Requires docs/planning/scope.md and declines without it."
+description: "Judge whether a scoped project should start — technical, operational and effort feasibility, plus a risk inventory — and write feasibility.md in the current Planning bundle as go/no-go material for a human gate. Trigger on a Planning-phase feasibility assessment, or when the current bundle's scope.md exists and the open question is whether to proceed. Mutually exclusive with swe-prior-art-research — resolve by what the answer must conclude, not by keyword: \"should this project start\" routes here and produces a committed artifact, while \"does this already exist, and is the approach viable\" routes to swe-prior-art-research, whose findings are an input to this judgment. Requires that scope.md and declines without it."
 ---
 
 # Project Feasibility
@@ -16,18 +16,23 @@ the evidence, state the confidence, stop.
 
 ## Input contract
 
-**Required — `docs/planning/scope.md`.** If it is absent, say so and stop.
+**`<bundle>`** is the directory the **Current** row of
+`docs/planning/README.md` names, `docs/planning/<NNNN>-<slug>/`. If the
+index names none, say so and stop; never pick one from the directory
+listing (ADR 008 of the claude-sandbox project).
+
+**Required — `<bundle>/scope.md`.** If it is absent, say so and stop.
 Do not derive the problem statement, the constraints or the non-goals from
 the conversation. A verdict measured against invented constraints is
 indistinguishable, in the finished artifact, from one measured against
 given ones — and the artifact is committed, indexed, and read later by
 someone who was not here.
 
-**Optional — `docs/planning/prior-art.md`.** Proceed without it, and name
+**Optional — `<bundle>/prior-art.md`.** Proceed without it, and name
 its absence in Confidence by dimension. Missing prior art usually means
 higher risk rather than opportunity.
 
-Cite both as `docs/planning/scope.md §Constraints`. Never restate what
+Cite both as `<bundle>/scope.md §Constraints`. Never restate what
 they say; a citation names a path and a section.
 
 **Do not run web research.** `swe-prior-art-research` owns that step and
@@ -81,14 +86,14 @@ write nothing.
    their order are the contract, and the `ceiling-<section>-words:` keys in its
    frontmatter are hard word limits per section. What does not fit does
    not belong in this artifact.
-2. Write `docs/planning/feasibility.md`. Frontmatter carries `status`
+2. Write `<bundle>/feasibility.md`. Frontmatter carries `status`
    (`Draft`, `Approved`, or `Superseded by <path>`), `date`, `phase` and
    `owner`; the `ceiling-*` and `artifact` keys stay in the template.
    Delete the template's authoring comments from the output. Set
    `status: Approved` when the document is complete — `status` records the
    document's lifecycle, not the verdict it carries, so completeness is
    this skill's call. Do not ask the operator to approve it.
-3. Update the `feasibility.md` row in `docs/planning/README.md`: set the
+3. Update the `feasibility.md` row in `<bundle>/README.md`: set the
    status cell, and change the artifact name from a code span to a
    markdown link now that the file exists. **That row only.** Every other
    row and every other path under `docs/planning/` belongs to another
@@ -110,6 +115,8 @@ write nothing.
 
 ## Changelog
 
+- **0.3 (draft)** — Paths resolve through the Current bundle (ADR 008 of the
+  claude-sandbox project); no Current bundle means stop, not guess.
 - **0.2 (draft)** — Named the owner of `status: Approved`. The first real
   run left it unset because no sentence said who set it, and the operator
   had to ask. Lifecycle is not verdict — ADR 004 of the claude-sandbox

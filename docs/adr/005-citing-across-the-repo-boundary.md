@@ -175,9 +175,9 @@ injected layer, not a repo-local file — so it grows unchecked.
 
 - [ADR 003](003-where-a-behavioural-rule-goes.md) — decision 4, qualified here
 - Issue #104 — the instances and the proposed rule
-- [`docs/planning/charter.md`](../planning/charter.md) — the Go this
+- [`docs/planning/0102-instruction-layer-silent-failures/charter.md`](../planning/0102-instruction-layer-silent-failures/charter.md) — the Go this
   implements; §Open questions on the repo-local `CLAUDE.md`
-- [`docs/planning/prior-art.md`](../planning/prior-art.md) §Findings — the
+- [`docs/planning/0102-instruction-layer-silent-failures/prior-art.md`](../planning/0102-instruction-layer-silent-failures/prior-art.md) §Findings — the
   scoping alternative
 - `global-claude/templates/planning-index.md` — the one file already following
   the rule

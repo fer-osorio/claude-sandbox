@@ -2,7 +2,7 @@
 
 > **Document type:** Software Design Document (SDD)
 > **Status:** Accepted
-> **Relates to:** `claude_code_security_plan.md` (Phase 5, Audit Logging; STRIDE coverage map),
+> **Relates to:** `claude-code-security-plan.md` (Phase 5, Audit Logging; STRIDE coverage map),
 > `global_layer_injection_sdd.md` / `global_layer_injection_impl.md` (entrypoint mechanism this
 > design extends), `ARCHITECTURE.md` (Strategy A / Strategy B dependency management)
 > **Audience:** The engineer maintaining this sandbox — assumes familiarity with the entrypoint
@@ -67,7 +67,7 @@ Two design properties combined to produce a silent failure mode:
 
 - **Containers are ephemeral; `/workspace` is the one persistent surface.** This is correct and
   intentional — it's the control that prevents cross-session contamination (Phase 6,
-  `claude_code_security_plan.md`: "Ephemeral containers cannot carry contamination between
+  `claude-code-security-plan.md`: "Ephemeral containers cannot carry contamination between
   sessions"). But it means anything written to `/workspace` that encodes an assumption about the
   container's installed state outlives the container that made that assumption true.
 - **Strategy B is correct policy, with an unstated boundary.** `ARCHITECTURE.md` correctly scopes
@@ -249,10 +249,10 @@ itself does not have — the artifact will outlive the container, the tool will 
 
 ### 5.4 Documentation trail
 
-A changelog entry follows the existing convention in `docs/claude_code_security_plan.md`
+A changelog entry follows the existing convention in `docs/claude-code-security-plan.md`
 (the next entry is Change 13 — the file currently ends at Change 12), recording: what changed,
 why, STRIDE mapping. There is no separate `security_plan_changelog.md`; all entries go directly
-into `docs/claude_code_security_plan.md`. Drafted at implementation time per §8, not duplicated
+into `docs/claude-code-security-plan.md`. Drafted at implementation time per §8, not duplicated
 here.
 
 ---
@@ -360,7 +360,7 @@ Each step maps to a single commit, consistent with project convention.
    window as short as possible (ideally: squash Steps 1–4 into one commit, or run them
    back-to-back in a single sitting).
 5. **Add the Strategy A/B boundary note to `ARCHITECTURE.md`** — the addition in §5.3.
-6. **Add a changelog entry** to `docs/claude_code_security_plan.md` as Change 13, recording
+6. **Add a changelog entry** to `docs/claude-code-security-plan.md` as Change 13, recording
    this change in the established format: what changed, why, STRIDE mapping — using §6 of this
    document as source material.
 
@@ -406,7 +406,7 @@ merged into `ARCHITECTURE.md` at the repo root. Changes:
    ("Strategy B — Ephemeral Install") is unchanged in the target file; §5.3's addition target
    was clarified to name the exact insertion point (end of the "Security note" paragraph).
 2. **Stale changelog references fixed (§5.4):** removed the nonexistent
-   `docs/security_plan_changelog.md` reference; corrected to `docs/claude_code_security_plan.md`
+   `docs/security_plan_changelog.md` reference; corrected to `docs/claude-code-security-plan.md`
    and noted that the next entry is Change 13 (file currently ends at Change 12).
 3. **Steps 2 and 3 documented as operator-only (§8):** added inline callouts explaining why
    each step cannot be executed by Claude Code — Docker daemon not accessible from inside the

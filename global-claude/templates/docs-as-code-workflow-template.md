@@ -134,15 +134,18 @@ repo-root/
 `docs/planning/` is not part of the default layout above — it is scaffolded
 only when the injected `project-planning` skill is asked to begin planning
 for this project, and its presence opts every injected Planning skill into
-the contract that skill enforces. Once scaffolded it holds:
+the contract that skill enforces. Once scaffolded it holds one directory
+per Planning run, and an index naming the Current one:
 
 ```
 docs/planning/
   README.md
-  scope.md
-  prior-art.md
-  feasibility.md
-  charter.md
+  <NNNN>-<slug>/
+    README.md
+    scope.md
+    prior-art.md
+    feasibility.md
+    charter.md
 ```
 
 ### 2.3 How components relate

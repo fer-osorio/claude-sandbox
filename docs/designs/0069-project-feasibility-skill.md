@@ -64,7 +64,7 @@ reasoning pass rather than needing separate loadable content.
 The global/per-project boundary is settled and not re-derived here:
 templates in the global layer, artifacts per-project, routing gated on
 `docs/planning/` existing. See
-[`planning-skill-output-routing.md`](planning-skill-output-routing.md)
+[`0069-planning-skill-output-routing.md`](0069-planning-skill-output-routing.md)
 §Decision 1 and §Decision 2.
 
 One difference from `swe-prior-art-research` is load-bearing. That skill

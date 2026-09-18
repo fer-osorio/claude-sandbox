@@ -442,7 +442,7 @@ rather than from a one-off, and the rule at the wrong path remains
 indistinguishable from no rule at all.
 
 The move itself, its STRIDE delta, and the G-6 rewrite that now asserts the
-location are recorded as Change 22 in `docs/claude_code_security_plan.md`.
+location are recorded as Change 22 in `docs/claude-code-security-plan.md`.
 
 Scope of the claim: this concerns *this repository's own* `settings.json`. Phase
 3 instructs operators to create `.claude/settings.json` per project, so an
@@ -693,7 +693,7 @@ All five round-trip tests originally listed here are now resolved.
 - The validator's mechanism — deferred pending Q-3.
 - Anything about write-back or memory promotion ("Option B"), which remains
   out of scope and retains the objection recorded in
-  `global-layer-injection.md` §9.
+  `0003-global-layer-injection.md` §9.
 - The STRIDE impact of the entrypoint and `settings.json` changes, which
   belongs in the SDD — including the pre-existing exposure noted above.
 
@@ -703,9 +703,9 @@ All five round-trip tests originally listed here are now resolved.
   supports, exported from an earlier claude.ai session. Kept untracked in the
   repository root, and deleted 2026-09-04 once superseded; it is not
   recoverable from this repository. What survives of it is secondhand: the
-  three points `auto-memory-seeding.md`'s v1.0 changelog entry records itself
+  three points `0065-auto-memory-seeding.md`'s v1.0 changelog entry records itself
   as overturning, and whatever of the proposal this document quotes directly.
-- `docs/designs/global-layer-injection.md` §9 — the standing decision
+- `docs/designs/0003-global-layer-injection.md` §9 — the standing decision
   against write-back persistence.
 - `docs/designs/docs-as-code-workflow.md` §3 — Case E obligations.
 - `check-auto-memory.sh` (repo root) — the diagnostic used here.
@@ -727,6 +727,6 @@ All five round-trip tests originally listed here are now resolved.
   the negative control; arm D produced the finding tracked as issue #64.
   Automated as `check-auto-memory.sh deny-scope`, all three arms including
   the negative control.
-- `docs/designs/auto-memory-seeding.md` — the SDD this pass now feeds.
+- `docs/designs/0065-auto-memory-seeding.md` — the SDD this pass now feeds.
 - Issue #64 — this repository's `permissions.deny` rules sit at a path
   Claude Code does not read.

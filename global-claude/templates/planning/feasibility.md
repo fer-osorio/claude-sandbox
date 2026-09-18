@@ -1,6 +1,6 @@
 ---
 template-tier: contract
-artifact: docs/planning/feasibility.md
+artifact: <bundle>/feasibility.md
 owner: project-feasibility
 phase: planning
 ceiling-tldr-words: 54
@@ -11,10 +11,10 @@ ceiling-risk-inventory-words: 180
 ceiling-confidence-by-dimension-words: 108
 ---
 
-<!-- Template for docs/planning/feasibility.md. Copy, fill, delete these
+<!-- Template for <bundle>/feasibility.md. Copy, fill, delete these
      comments.
 
-     Reads docs/planning/scope.md and docs/planning/prior-art.md. Cite them
+     Reads <bundle>/scope.md and <bundle>/prior-art.md. Cite them
      by path and section; do not restate their findings.
 
      The three dimensions below do not have equal epistemic standing, and

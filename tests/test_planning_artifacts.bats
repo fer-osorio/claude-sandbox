@@ -114,7 +114,7 @@ PLANNING_DIR="${SANDBOX_DIR}/docs/planning"
 # Templates live in the injected global layer, not beside the artifacts they
 # govern: the skills that follow them are global and reach every project,
 # while docs/planning/ is per-project. See
-# docs/designs/planning-skill-output-routing.md §Decision 1. This path is
+# docs/designs/0069-planning-skill-output-routing.md §Decision 1. This path is
 # load-bearing — an empty TEMPLATE_DIR makes P-1, P-3, P-5 and P-6 pass over
 # nothing rather than fail, so P-0 asserts the set is non-empty.
 #
@@ -143,10 +143,23 @@ _fm_value() {
     _frontmatter "$1" | sed -n "s/^$2:[[:space:]]*//p" | head -1
 }
 
-# Artifacts are docs/planning/*.md excluding the index. Templates live in
-# the global layer (see TEMPLATE_DIR above) and are never artifacts.
+# One directory per Planning run (ADR 008). Artifacts are the *.md files in
+# each bundle, excluding its index. Templates live in the global layer (see
+# TEMPLATE_DIR above) and are never artifacts.
+_bundles() {
+    find "$PLANNING_DIR" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort
+}
+
 _artifacts() {
-    find "$PLANNING_DIR" -maxdepth 1 -name '*.md' ! -name 'README.md' 2>/dev/null | sort
+    find "$PLANNING_DIR" -mindepth 2 -maxdepth 2 -name '*.md' ! -name 'README.md' 2>/dev/null | sort
+}
+
+# A template's artifact: is "<bundle>/<name>.md"; an artifact matches it on
+# <name>.md, since every bundle carries the same fixed names.
+_template_for() {
+    for t in $(_templates_of_tier contract); do
+        [ "$(basename "$(_fm_value "$t" artifact)")" = "$(basename "$1")" ] && echo "$t"
+    done
 }
 
 _templates() {
@@ -266,22 +279,44 @@ _p2_invalid_status() {
 }
 
 _p3_missing_index_rows() {
+    for b in $(_bundles); do
+        index="${b}/README.md"
+        brel="${b#${SANDBOX_DIR}/}"
+        # Every artifact name a template claims, plus every artifact that
+        # exists in this bundle.
+        { for t in $(_templates_of_tier contract); do basename "$(_fm_value "$t" artifact)"; done
+          for a in "$b"/*.md; do [ -e "$a" ] && basename "$a"; done
+        } | grep -vx 'README.md' | sort -u | while IFS= read -r name; do
+            [ -n "$name" ] || continue
+            [ -f "$index" ] && grep -q "$name" "$index" \
+                || echo "${brel}/${name}: no row in ${brel}/README.md"
+        done
+    done
+}
+
+# ADR 008 decision 2: the top-level index lists every bundle and marks
+# exactly one Current, and that one exists. A stale or missing pointer is
+# the new state ADR 008 introduced, so it is checked rather than trusted.
+_p9_bad_current_bundle() {
     index="${PLANNING_DIR}/README.md"
-    # Every artifact path a template claims, plus every artifact that exists.
-    { for t in $(_templates_of_tier contract); do _fm_value "$t" artifact; done
-      for a in $(_artifacts); do echo "docs/planning/$(basename "$a")"; done
-    } | sort -u | while IFS= read -r path; do
-        [ -n "$path" ] || continue
-        grep -q "$(basename "$path")" "$index" \
-            || echo "${path}: no row in docs/planning/README.md"
+    [ -d "$PLANNING_DIR" ] || return 0
+    [ -f "$index" ] || { echo "docs/planning/README.md: missing"; return 0; }
+    current="$(grep -F '**Current**' "$index" | grep -oE '[0-9]{4}-[a-z0-9-]+' | sort -u)"
+    n="$(printf '%s' "$current" | grep -c .)"
+    [ "$n" -eq 1 ] || echo "docs/planning/README.md: ${n} bundles marked Current — expected exactly one"
+    for c in $current; do
+        [ -d "${PLANNING_DIR}/${c}" ] || echo "docs/planning/README.md: Current names '${c}', which is not a directory"
+    done
+    for b in $(_bundles); do
+        grep -qF "$(basename "$b")" "$index" \
+            || echo "docs/planning/$(basename "$b"): no row in docs/planning/README.md"
     done
 }
 
 _p4_ceiling_violations() {
     for a in $(_artifacts); do
-        rel="docs/planning/$(basename "$a")"
-        for t in $(_templates_of_tier contract); do
-            [ "$(_fm_value "$t" artifact)" = "$rel" ] || continue
+        rel="${a#${SANDBOX_DIR}/}"
+        for t in $(_template_for "$a"); do
             _frontmatter "$t" | sed -n 's/^ceiling-\([a-z0-9-]*\)-words:[[:space:]]*\([0-9]*\)/\1 \2/p' \
             | while read -r section limit; do
                 actual="$(_section_words "$a" "$section")"
@@ -371,7 +406,7 @@ _p6_dead_ceiling_keys() {
 # they made can be placed in time against the artifacts it was made on.
 _p8_undated_decisions() {
     for a in $(_artifacts); do
-        rel="docs/planning/$(basename "$a")"
+        rel="${a#${SANDBOX_DIR}/}"
         body="$(_section_body "$a" decision)"
         [ -n "$body" ] || continue
         printf '%s\n' "$body" | grep -qE '[0-9]{4}-[0-9]{2}-[0-9]{2}' \
@@ -493,5 +528,13 @@ _report() {
     run _p8_undated_decisions
     [ "$status" -eq 0 ]
     _report "$output" "decisions with no date"
+    [ -z "$output" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "P-9: the bundle index names exactly one existing Current bundle" {
+    run _p9_bad_current_bundle
+    [ "$status" -eq 0 ]
+    _report "$output" "bundle index out of step with docs/planning/"
     [ -z "$output" ]
 }

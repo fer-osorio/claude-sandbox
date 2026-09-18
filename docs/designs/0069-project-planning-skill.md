@@ -63,7 +63,7 @@ because each is a question about the skill rather than about the interface:
    orchestrator could branch on — no exit status, no sentinel, and
    deliberately no outcome field, since decision 7 keeps outcome out of
    `status`.
-3. [`planning-skill-output-routing.md`](planning-skill-output-routing.md)
+3. [`0069-planning-skill-output-routing.md`](0069-planning-skill-output-routing.md)
    §Decision 5 assigns scaffolding `docs/planning/` to Phase 4, while
    §Decision 2 makes the presence of that directory the opt-in signal every
    Planning skill reads. A skill that creates the directory grants the opt-in
@@ -83,9 +83,9 @@ already carry their own reasoning, and there is no second loadable mode.
 The global/per-project boundary is settled and not re-derived here —
 templates in the global layer, artifacts per-project, routing gated on
 `docs/planning/` existing. See
-[`planning-skill-output-routing.md`](planning-skill-output-routing.md)
+[`0069-planning-skill-output-routing.md`](0069-planning-skill-output-routing.md)
 §Decision 1 and §Decision 2, and
-[`project-feasibility-skill.md`](project-feasibility-skill.md) §Decision 1
+[`0069-project-feasibility-skill.md`](0069-project-feasibility-skill.md) §Decision 1
 for the precedent this follows.
 
 The sequence is scope → prior-art → feasibility → charter, delegating the
@@ -175,7 +175,7 @@ carrying.
 
 **The scaffolded index carries no relative links out of `docs/planning/`.**
 This repository's own index links to `../adr/002-...` and to
-`../designs/planning-skill-output-routing.md`; neither path exists in an
+`../designs/0069-planning-skill-output-routing.md`; neither path exists in an
 arbitrary project, and D-1 would not catch it, because D-1 walks
 `git ls-files` in *this* repository only. The template names ADR 002 in
 prose and links to nothing. This is the same global-layer / per-project
@@ -328,7 +328,7 @@ otherwise would be the exact overstatement the suite's header was rewritten
 to prevent.
 
 **A fifth template contradicts a statement in a Draft design.**
-`planning-skill-output-routing.md:190` records that "Phases 3 and 4 add no
+`0069-planning-skill-output-routing.md:190` records that "Phases 3 and 4 add no
 templates, so this is the whole cost of the Planning contract." Decision 3
 adds one. That document is Draft, not an ADR, so the statement is
 changeable — but it is changed here explicitly rather than left to be

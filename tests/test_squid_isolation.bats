@@ -26,7 +26,7 @@
 #
 # Requires a squid/ directory (Dockerfile + squid.conf) as a sibling of
 # base/crypto/systems/research. That directory is committed: it landed in
-# 9269ddb, the commit Change 15 of docs/claude_code_security_plan.md
+# 9269ddb, the commit Change 15 of docs/claude-code-security-plan.md
 # records as closing the gap where Layer 4 of the five-layer defense was
 # documentation only. So this suite builds claude-squid:test from the
 # tracked config — the same file a real session's proxy runs on, which is
@@ -59,7 +59,7 @@ setup_file() {
 
     if [ ! -f "${SQUID_DIR}/Dockerfile" ] || [ ! -f "${SQUID_DIR}/squid.conf" ]; then
         echo "squid/ not found at ${SQUID_DIR} — create it first per" >&2
-        echo "docs/squid_proxy_guide.md Part 3, Steps 1-2 (squid.conf + Dockerfile)" >&2
+        echo "docs/squid-proxy-guide.md Part 3, Steps 1-2 (squid.conf + Dockerfile)" >&2
         return 1
     fi
 

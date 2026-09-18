@@ -17,7 +17,9 @@
 #   - Backtick-quoted repo paths (`docs/AGENTS.md`, `base/entrypoint.sh`).
 #     Six such paths in the tracked docs are illustrative examples rather
 #     than real references, so checking them would produce false positives.
-#     Only markdown links are checked.
+#     D-1 checks only markdown links; D-11 checks docs/*.md tokens, with
+#     the illustrative ones exempted by name. Other directories are not
+#     covered.
 #   - Anchor fragments. A link to a real file with a #heading that no longer
 #     exists still passes D-1.
 #   - Skill references that are not backtick-quoted, including the ones in
@@ -182,7 +184,7 @@ _skill_dirs_without_manifest() {
 
 # The global layer is copied into ~/.claude in every session, so its size is
 # a permanent context-window cost paid by every task. docs/designs/
-# global-layer-injection.md §5.2 names "Global layer size discipline" as the
+# 0003-global-layer-injection.md §5.2 names "Global layer size discipline" as the
 # Denial of Service control and puts a 200-line CLAUDE.md at "significant but
 # acceptable" — but named the control without giving it a mechanism, so
 # nothing has ever observed it fail. D-6 and D-7 are that mechanism.
@@ -381,6 +383,110 @@ _bats_pin_mismatch() {
     )
 }
 
+# D-1 checks markdown links only, but most citations of a document in this
+# repository are bare paths: start.sh comments, bats file headers, prose in
+# backticks. Renaming a document (#105) breaks every one of them silently.
+# This check closes that gap for docs/*.md tokens in every tracked file
+# outside the global layer — D-9 governs that, and its planning paths are
+# target-relative by design — and outside the untracked docs/tmp/.
+#
+# Some unresolved tokens are deliberate: illustrative examples, or paths a
+# design proposed and never created. They are exempt per file and path, as
+# in D-9, so each exemption is a judgment that shows up in a diff. A rename
+# that moves one of these files must move its entry too. This file is not
+# scanned: the list above would report itself.
+_D11_ALLOWED_PAIRS="docs/adr/003-where-a-behavioural-rule-goes.md:docs/planning/templates/scope.md
+docs/designs/0006-interpreter-presence-health-check.md:docs/AGENTS.md
+docs/designs/0006-interpreter-presence-health-check.md:docs/security_plan_changelog.md
+docs/designs/0069-planning-skill-output-routing.md:docs/planning/templates/prior-art.md
+docs/designs/0069-planning-skill-output-routing.md:docs/planning/templates/scope.md
+docs/designs/0069-project-planning-skill.md:docs/plans/2026-09-planning-phase-handoff.md
+docs/designs/0012-squid-proxy-integration.md:docs/claude-sandbox-memory.md
+docs/designs/0047-user-guide-session-start-check.md:docs/USER_GUIDE.md
+docs/designs/0007-workspace-artifact-staleness.md:docs/AGENTS.md
+docs/engineering-principles-by-lifecycle-phase.md:docs/angular_commit_convention.md"
+
+# Files that describe the Planning contract as it stood before ADR 008 moved
+# its artifacts into per-run bundles. There, docs/planning/<name>.md names
+# the contract path of that time, not a file in this tree, and rewriting
+# them would falsify the record. Exempt for those five names only; a
+# citation of an actual artifact belongs under its bundle.
+_D11_FLAT_PLANNING_FILES="docs/adr/002-planning-artifact-contract.md
+docs/adr/004-planning-to-design-handoff.md
+docs/adr/005-citing-across-the-repo-boundary.md
+docs/designs/0069-planning-skill-output-routing.md
+docs/designs/0069-project-feasibility-skill.md
+docs/designs/0069-project-planning-skill.md
+docs/claude-code-security-plan.md
+squid/squid.conf"
+
+# The naming convention in docs/designs/0105-file-naming-convention.md, as
+# a check rather than as prose someone is supposed to remember. Series are
+# prefixed with their tracking issue or PR number; reference documents are
+# plain kebab-case. Slugs are lowercase, because a case-insensitive host
+# filesystem collides names that differ only in case.
+#
+# ADR numbers are still a sequence, and two branches can draw the same one
+# (see the design doc's Consequences). git merges 008-a.md and 008-b.md
+# without a conflict, since the names differ, so a duplicate number is
+# checked here rather than left for review.
+_D12_EXEMPT="docs/designs/docs-as-code-workflow.md"
+_D12_SLUG='[a-z0-9]+(-[a-z0-9]+)*'
+
+_misnamed_docs() {
+    (
+        cd "$SANDBOX_DIR" || exit 1
+        git ls-files 'docs/*.md' | grep -v '^docs/tmp/' | while IFS= read -r f; do
+            case " ${_D12_EXEMPT} " in *" ${f} "*) continue ;; esac
+            b="$(basename "$f")"
+            case "$f" in
+                docs/designs/*) re="^[0-9]{4}-${_D12_SLUG}\.md$" ;;
+                docs/plans/*)   re="^[0-9]{4}-${_D12_SLUG}-v[0-9]+\.md$" ;;
+                docs/adr/*)     re="^[0-9]{3}-${_D12_SLUG}\.md$" ;;
+                docs/planning/*) continue ;;
+                docs/*/*)       continue ;;
+                *)              re="^${_D12_SLUG}\.md$" ;;
+            esac
+            printf '%s\n' "$b" | grep -qE "$re" || echo "${f}: name does not match ${re}"
+        done
+        for d in docs/planning/*/; do
+            [ -d "$d" ] || continue
+            b="$(basename "$d")"
+            printf '%s\n' "$b" | grep -qE "^[0-9]{4}-${_D12_SLUG}$" \
+                || echo "docs/planning/${b}/: bundle name does not match <NNNN>-<slug>"
+        done
+        git ls-files 'docs/adr/*.md' | sed -nE 's#^docs/adr/([0-9]{3})-.*#\1#p' | sort | uniq -d \
+        | while IFS= read -r n; do
+            echo "docs/adr/${n}-*: more than one ADR carries number ${n}"
+        done
+    )
+}
+
+_unresolved_doc_paths() {
+    (
+        cd "$SANDBOX_DIR" || exit 1
+        git ls-files | grep -vE '^(global-claude|docs/tmp)/|^tests/test_docs_integrity\.bats$' | while IFS= read -r f; do
+            [ -f "$f" ] || continue
+            # Same leading-character capture as D-9: keeps ~/... and /abs/...
+            # from matching, and is stripped before the path is tested.
+            grep -noE '(^|[^~/A-Za-z0-9_.-])docs/[A-Za-z0-9_./-]*\.md' "$f" \
+            | while IFS=: read -r ln tok; do
+                case "$tok" in
+                    docs/*) path="$tok" ;;
+                    *) path="${tok#?}" ;;
+                esac
+                [ -e "$path" ] && continue
+                printf '%s\n' "$_D11_ALLOWED_PAIRS" | grep -qxF "${f}:${path}" && continue
+                case "$path" in
+                    docs/planning/README.md|docs/planning/scope.md|docs/planning/prior-art.md|docs/planning/feasibility.md|docs/planning/charter.md)
+                        printf '%s\n' "$_D11_FLAT_PLANNING_FILES" | grep -qxF "$f" && continue ;;
+                esac
+                echo "${f}:${ln}: cites '${path}', which does not exist"
+            done
+        done
+    )
+}
+
 # bats test_tags=fast, hostonly
 @test "D-1: every relative markdown link in a tracked document resolves" {
     run _unresolved_markdown_links
@@ -486,6 +592,28 @@ _bats_pin_mismatch() {
     [ "$status" -eq 0 ]
     if [ -n "$output" ]; then
         echo "--- a session and the authoritative gate would run different bats ---" >&2
+        echo "$output" >&2
+    fi
+    [ -z "$output" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "D-11: every docs/ path cited outside the global layer resolves" {
+    run _unresolved_doc_paths
+    [ "$status" -eq 0 ]
+    if [ -n "$output" ]; then
+        echo "--- a bare path D-1 cannot see; renamed or never created ---" >&2
+        echo "$output" >&2
+    fi
+    [ -z "$output" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "D-12: documentation names follow the convention, and ADR numbers are unique" {
+    run _misnamed_docs
+    [ "$status" -eq 0 ]
+    if [ -n "$output" ]; then
+        echo "--- see docs/designs/0105-file-naming-convention.md ---" >&2
         echo "$output" >&2
     fi
     [ -z "$output" ]

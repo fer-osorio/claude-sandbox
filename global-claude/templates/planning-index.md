@@ -6,8 +6,8 @@ unowned-because: ADR 002 of the claude-sandbox project assigns this index
   owns the file.
 ---
 
-<!-- Template for docs/planning/README.md, written once when the
-     Planning directory is scaffolded. Copy, then delete these comments.
+<!-- Template for <bundle>/README.md, written once when project-planning
+     opens a bundle. Copy, then delete these comments.
 
      Deliberately carries no relative links. This file is written into an
      arbitrary project, where the paths this sandbox uses for its own ADRs
@@ -15,7 +15,7 @@ unowned-because: ADR 002 of the claude-sandbox project assigns this index
 
 # Planning artifacts
 
-Index for the Planning phase. One row per artifact: what it is, who writes
+Index for one Planning run. One row per artifact: what it is, who writes
 it, and whether it is current. A reader looking for one thing reads this
 table and then opens one file — that is what the index is for.
 

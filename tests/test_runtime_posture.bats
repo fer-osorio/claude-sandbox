@@ -111,8 +111,8 @@ teardown() {
 # bats test_tags=fast
 @test "R-6: cgroups memory limit is actually enforced, not just accepted" {
     #
-    # Regression test for a real finding (podman-migration.md §6.2-D,
-    # claude_code_security_plan.md Change 17): under a WSL2 host without
+    # Regression test for a real finding (0025-podman-migration.md §6.2-D,
+    # claude-code-security-plan.md Change 17): under a WSL2 host without
     # cgroups v2 "memory" delegated to the user session, Podman accepted
     # --memory without error but never actually enforced it. A --memory
     # flag that's merely accepted, not enforced, is a silent
@@ -126,7 +126,7 @@ teardown() {
     # never emits an "oom" event or sets OOMKilled under this host's
     # nested rootless cgroup layout (.../user@<uid>.service/user.slice/
     # libpod-<id>.scope/container), so that field can't be trusted here.
-    # See podman-migration.md §6.2-D follow-up.
+    # See 0025-podman-migration.md §6.2-D follow-up.
     register_container "$CONTAINER_NAME"
 
     userns_args=()
@@ -144,8 +144,8 @@ teardown() {
 # bats test_tags=fast
 @test "R-7: /workspace bind mount is genuinely readable and writable under SELinux" {
     #
-    # Regression test for a real finding (claude_code_security_plan.md
-    # Change 19, podman-migration.md §6.2 Tampering follow-up): a bind
+    # Regression test for a real finding (claude-code-security-plan.md
+    # Change 19, 0025-podman-migration.md §6.2 Tampering follow-up): a bind
     # mount with correct POSIX bits (0755, owned by claude-agent) was fully
     # unreadable and unwritable from inside a Podman container on an
     # SELinux-enforcing host, because start.sh's --mount invocations never

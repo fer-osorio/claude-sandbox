@@ -20,11 +20,11 @@
 # Profile list, image prefix, and engine default come from config.sh (and
 # optionally config.local.sh, gitignored, per-machine). Precedence:
 # hardcoded defaults below < config.sh < config.local.sh < env var.
-# See docs/designs/sandbox-config-file.md.
+# See docs/designs/0028-sandbox-config-file.md.
 #
 # Engine:
 #   ENGINE=podman (default) or ENGINE=docker selects which container engine
-#   binary is invoked. See docs/designs/podman-migration.md. HOST_UID is only
+#   binary is invoked. See docs/designs/0025-podman-migration.md. HOST_UID is only
 #   passed as a build-arg under Docker — the Podman path relies on the
 #   Dockerfiles' baked default (1000) plus --userns=keep-id at run time
 #   instead (see start.sh).

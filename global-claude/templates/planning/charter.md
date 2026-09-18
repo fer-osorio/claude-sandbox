@@ -1,6 +1,6 @@
 ---
 template-tier: contract
-artifact: docs/planning/charter.md
+artifact: <bundle>/charter.md
 owner: project-planning
 phase: planning
 ceiling-tldr-words: 54
@@ -10,7 +10,7 @@ ceiling-open-questions-words: 108
 ceiling-decision-words: 72
 ---
 
-<!-- Template for docs/planning/charter.md. Copy, fill, delete these
+<!-- Template for <bundle>/charter.md. Copy, fill, delete these
      comments.
 
      Reads all three preceding artifacts and cites them by path and

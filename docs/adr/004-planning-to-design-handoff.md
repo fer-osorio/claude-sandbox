@@ -34,7 +34,7 @@ global layer and are present in every repository the sandbox is pointed at,
 while `docs/planning/` is per-project. A rule that assumes the directory
 exists does not fail loudly where it does not — it invents. Phase 2 of #69
 was reclassified Case A → Case C on exactly that discovery, and
-[`planning-skill-output-routing.md`](../designs/planning-skill-output-routing.md)
+[`0069-planning-skill-output-routing.md`](../designs/0069-planning-skill-output-routing.md)
 §Decision 2 settled the general form: presence of `docs/planning/` is the
 opt-in signal.
 
@@ -266,7 +266,7 @@ Phase 4 already carries four unsettled mechanics of its own.
   1–3 and Step 7, the entry path and gate decisions 4–6 constrain
 - [`docs-as-code-workflow.md`](../designs/docs-as-code-workflow.md) —
   Case A–E routing decision 5 preserves
-- [`planning-skill-output-routing.md`](../designs/planning-skill-output-routing.md)
+- [`0069-planning-skill-output-routing.md`](../designs/0069-planning-skill-output-routing.md)
   — §Decision 2, the opt-in signal decision 4 reuses; §Decision 5, the
   scaffolding responsibility Phase 4 inherits
 - [`docs/planning/README.md`](../planning/README.md) — the artifact index

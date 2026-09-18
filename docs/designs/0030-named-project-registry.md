@@ -5,7 +5,7 @@ Draft
 
 ## Context
 
-`docs/designs/sandbox-config-file.md` centralized profile, image, engine,
+`docs/designs/0028-sandbox-config-file.md` centralized profile, image, engine,
 and resource configuration into `config.sh`, layered four ways
 (`default_values ← config.sh ← config.local.sh ← env var`). That document
 explicitly scoped out one element of the `dev-env` config pattern it drew
@@ -13,7 +13,7 @@ from — a named project registry:
 
 > | `[projects.<name>]` registry + `$PROJECT_BASE` | **No (v1)** | Confirmed out of scope with the operator — `start.sh`'s positional `<project_dir>` interface stays as-is. |
 >
-> — `sandbox-config-file.md` line 93, reaffirmed at line 275
+> — `0028-sandbox-config-file.md` line 93, reaffirmed at line 275
 
 That row is worth re-reading against its neighbours. Every other declined
 element in that table carries a substantive argument: `runtime.forbidden_flags`
@@ -73,7 +73,7 @@ one-token bypass documents intent; it does not enforce it.
 Making it an actual control would require a strict mode that rejects
 unregistered paths. That is rejected below — it is the wrong shape for a
 single-user local workstation whose threat model
-(`docs/claude_code_security_plan.md`, Scope) has no external reviewing
+(`docs/claude-code-security-plan.md`, Scope) has no external reviewing
 body, and it would break the ad-hoc workflow the tool is used for daily.
 
 ## Decision
@@ -184,7 +184,7 @@ rule, no collision case:
 ```
 
 It also keeps `start.sh`'s interface **purely positional**, which matters:
-`sandbox-config-file.md` lines 186–187 records that the no-flag-parsing
+`0028-sandbox-config-file.md` lines 186–187 records that the no-flag-parsing
 decision was confirmed with the operator, on the grounds that the
 interface has been positional since the project began. A `--project`
 flag would reopen that decision; `@` does not. The sigil is additionally
@@ -276,7 +276,7 @@ resolution path as any committed entry.
 **What's not allowed:** `config.local.sh` redefining a name `config.sh`
 already registers. This is not the same hazard class as `dev-env`'s
 `[registry]`/`runtime.forbidden_flags` protection — claude-sandbox has no
-analogue to either (see the carry-over table in `sandbox-config-file.md`).
+analogue to either (see the carry-over table in `0028-sandbox-config-file.md`).
 The hazard here is identity, not a key namespace: a name an operator
 trusts because it's committed and reviewed silently resolving to a
 different, unreviewed path is the same silent-wrong-mount failure the `@`
@@ -355,7 +355,7 @@ Three deliberate choices in that mechanism:
 - **No `build.sh` change.** `build.sh` contains no reference to projects
   and gains none — it builds images, which are project-independent.
 - **No `Makefile` or `helpers.py`-equivalent CLI.** Rejected in
-  `sandbox-config-file.md` lines 277–280 for reasons unaffected by this
+  `0028-sandbox-config-file.md` lines 277–280 for reasons unaffected by this
   change.
 
 ### Case classification (docs-as-code-workflow.md)
@@ -371,7 +371,7 @@ security control") — and this change touches none of them.
 
 That said, the trigger being a file list rather than a substance test
 deserves an explicit note here, because this change *does* touch how the
-`/workspace` mount path is resolved, and `sandbox-config-file.md` lines
+`/workspace` mount path is resolved, and `0028-sandbox-config-file.md` lines
 288–298 set the precedent of arguing this boundary rather than assuming
 it. Three reasons no STRIDE section is required:
 
@@ -459,7 +459,7 @@ be re-evaluated against Case E at that time.
   acceptable cost for saving one character.
 - **`--project mylib` / `-p mylib` flag.** Rejected: reopens the
   no-flag-parsing decision confirmed with the operator twice
-  (`sandbox-config-file.md` lines 186–187, and the same doc's rejection of
+  (`0028-sandbox-config-file.md` lines 186–187, and the same doc's rejection of
   CLI flags for layer 4), and requires introducing argument parsing to a
   script that has never had it. The sigil achieves the same
   disambiguation with no interface-model change.
@@ -488,14 +488,14 @@ be re-evaluated against Case E at that time.
   the registry from documentation into enforcement, but at the cost of
   breaking ad-hoc use, which is a primary workflow for a single-user
   local tool. The threat model
-  (`docs/claude_code_security_plan.md`, Scope) has no external reviewer
+  (`docs/claude-code-security-plan.md`, Scope) has no external reviewer
   whose assurance would justify that trade.
 - **Single array with a delimiter** (`[mylib]="crypto:${PROJECT_BASE}/mylib"`).
   Rejected: requires parsing, and breaks on any path containing the
   delimiter. Two keyed arrays plus an explicit sync check is simpler to
   read and to validate.
 - **TOML + a parser, matching `dev-env` directly.** Rejected for the
-  reasons already settled in `sandbox-config-file.md` lines 349–359 —
+  reasons already settled in `0028-sandbox-config-file.md` lines 349–359 —
   introducing Python or `yq` as a host prerequisite for a pure-Bash
   project. Nothing about a project registry changes that calculus; if
   anything the two-array shape is the last piece of config simple enough
@@ -552,7 +552,7 @@ to be substituted once the tracking issue is open.
    `docs(config): document project registry additions in config.local.sh (#N)`
 
 6. **Documentation** — `ARCHITECTURE.md` (directory-layout description of
-   `config.sh`, and a Cheat Sheet entry for `@name`), `docs/user_guide.md`
+   `config.sh`, and a Cheat Sheet entry for `@name`), `docs/user-guide.md`
    (the everyday invocation form and the add-only `config.local.sh`
    extension), and `BUILDING.md` if `PROJECT_BASE` warrants a mention in
    setup. Tightly coupled — one commit.
@@ -561,5 +561,5 @@ to be substituted once the tracking issue is open.
 No ADR is proposed. The binding architectural decisions this change rests
 on — sourced Bash over a parsed format, positional-only interface,
 `config.sh`/`config.local.sh` layering — were all made in
-`sandbox-config-file.md`; this document applies them rather than deciding
+`0028-sandbox-config-file.md`; this document applies them rather than deciding
 anything new of that weight. `docs/adr/` remains empty, as it is today.

@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-`../sdlc_reference_guide.md` describes seven phases staffed by project
+`../sdlc-reference-guide.md` describes seven phases staffed by project
 managers, business analysts, C-suite sponsors, financial controllers, a
 release manager, a change-management team, and training specialists.
 claude-sandbox has one operator. The phases are portable; the staffing is
@@ -111,7 +111,7 @@ than by decision. An unstated boundary cannot be violated, so it cannot be
 enforced, and each level gets built because it is next rather than because
 it is needed.
 
-**Chose:** keep `sdlc_reference_guide.md` as-is and record the mapping here.
+**Chose:** keep `sdlc-reference-guide.md` as-is and record the mapping here.
 **Rejected:** rewrite the guide to fit a single operator.
 **Why the rejected option is attractive:** a guide with nothing inapplicable
 in it is faster to read and harder to misapply.
@@ -123,6 +123,6 @@ in the wrong place.
 
 ## References
 
-- [`sdlc_reference_guide.md`](../sdlc_reference_guide.md) — phase vocabulary and artifact lists
+- [`sdlc-reference-guide.md`](../sdlc-reference-guide.md) — phase vocabulary and artifact lists
 - [`engineering-principles-by-lifecycle-phase.md`](../engineering-principles-by-lifecycle-phase.md) — "name your anti-goals", "prefer narrowing to accumulating"
 - [`docs-as-code-workflow.md`](../designs/docs-as-code-workflow.md) — Case A–E routing this decision preserves

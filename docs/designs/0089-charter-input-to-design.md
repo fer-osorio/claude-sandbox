@@ -13,7 +13,7 @@ constrain `global-claude/skills/design/SKILL.md`. That file is unchanged.
 The ADR specifies a target state nothing implements, which #89 opened to
 track and #106 finding 4 confirmed against a real run.
 
-It is no longer abstract. `docs/planning/charter.md` is a committed
+It is no longer abstract. `docs/planning/0102-instruction-layer-silent-failures/charter.md` is a committed
 artifact with `status: Approved`, written by the first real Planning run on
 2026-09-11. The next `/design` invocation in this repository will not read
 it.
@@ -175,7 +175,7 @@ in a minority of projects. Every project without `docs/planning/` pays
 those lines in injected context for a step that immediately falls through.
 That cost is accepted because the alternative — gating on configuration
 rather than on the directory — is what
-[`planning-skill-output-routing.md`](planning-skill-output-routing.md)
+[`0069-planning-skill-output-routing.md`](0069-planning-skill-output-routing.md)
 §Decision 2 already rejected, on the grounds that a flag is a second thing
 to keep in sync and a project with the directory but not the flag fails
 silently.
@@ -267,7 +267,7 @@ placements, reviewable on its own.
   ladder behind decision 3
 - [ADR 005](../adr/005-citing-across-the-repo-boundary.md) — why no ADR
   number appears in the skill
-- [`planning-skill-output-routing.md`](planning-skill-output-routing.md)
+- [`0069-planning-skill-output-routing.md`](0069-planning-skill-output-routing.md)
   §Decision 2 — the opt-in signal this reuses
 - `global-claude/skills/design/SKILL.md` — Steps 1, 2 and 7
 - #88, #113 — the enforcement and CI-evidence gaps this does not close

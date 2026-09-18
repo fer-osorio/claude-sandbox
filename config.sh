@@ -14,7 +14,7 @@
 #
 # Security-relevant values (resource limits, log options) are
 # version-controlled here; treat changes to this file with the same care
-# as a Dockerfile change. See docs/designs/sandbox-config-file.md.
+# as a Dockerfile change. See docs/designs/0028-sandbox-config-file.md.
 
 # Profiles start.sh accepts and build.sh knows how to build. "base" has no
 # entry in PROFILE_BASE below — it builds directly, not on top of anything.
@@ -44,7 +44,7 @@ PROXY_LOG_MAX_FILE="3"
 # ── Project Registry ─────────────────────────────────────────────
 # Maps a project name to its path and its default profile. Addressed
 # from start.sh as "@<name>" (e.g. ./start.sh @mylib). See
-# docs/designs/named-project-registry.md.
+# docs/designs/0030-named-project-registry.md.
 #
 # ${PROJECT_BASE} keeps this file portable across machines: it is the
 # one machine-specific value, and it is resolved from the environment

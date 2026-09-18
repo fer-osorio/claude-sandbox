@@ -11,7 +11,7 @@ inspection, and only one is worth building.
 
 **`config.local.sh` — declined.** `config.local.sh.example` is already
 committed and `BUILDING.md` documents it, so discovery is covered. The
-four-layer design in `docs/designs/sandbox-config-file.md` makes the file
+four-layer design in `docs/designs/0028-sandbox-config-file.md` makes the file
 optional by construction — the hardcoded defaults work without it. A prompt
 on every session start for an optional file is noise, and noise gets tuned
 out, alongside `base/entrypoint.sh`'s existing genuine advisory warnings
@@ -19,7 +19,7 @@ out, alongside `base/entrypoint.sh`'s existing genuine advisory warnings
 record of that decision; no code or separate design doc follows from it.
 
 **User guide — the real subject of this document.** `claude-sandbox` already
-has `docs/user_guide.md`, so a check against *this* repository would never
+has `docs/user-guide.md`, so a check against *this* repository would never
 fire. The useful version inspects whatever project is mounted at
 `/workspace` — unknown conventions, unknown existing docs, unknown whether a
 guide is warranted at all. "Does this project warrant a guide, and what
@@ -56,7 +56,7 @@ Code applies it to whichever project is mounted — not only `claude-sandbox`
 itself, which is the point.
 
 The script does one thing: check whether a user-guide-shaped file exists
-under the mounted project (exact candidate path list — `docs/user_guide.md`,
+under the mounted project (exact candidate path list — `docs/user-guide.md`,
 `docs/USER_GUIDE.md`, `USER_GUIDE.md`, `GUIDE.md`, or similar — to be fixed
 at implementation) and report the finding as plain stdout, which Claude Code
 reads as session context. It is read-only against the mounted project and

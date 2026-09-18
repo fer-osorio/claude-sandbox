@@ -9,7 +9,7 @@ owner: swe-prior-art-research
 
 ## TL;DR
 
-Adequate prior art exists for each sub-problem separately — rootless-cgroups delegation, assumption and RAID logs, AGENTS.md-style shared instruction files — but nothing found addresses the combination in `docs/planning/scope.md §Problem statement`. #103 and #104 are novel combinations of known components, not novel problems. #102's cgroups gap traces to an unresolved upstream regression, raising its priority.
+Adequate prior art exists for each sub-problem separately — rootless-cgroups delegation, assumption and RAID logs, AGENTS.md-style shared instruction files — but nothing found addresses the combination in `docs/planning/0102-instruction-layer-silent-failures/scope.md §Problem statement`. #103 and #104 are novel combinations of known components, not novel problems. #102's cgroups gap traces to an unresolved upstream regression, raising its priority.
 
 ## Findings
 

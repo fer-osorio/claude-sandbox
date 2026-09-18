@@ -20,7 +20,7 @@ academic, and the cost has already been paid twice.
 
 **An author facing three declared document structures produced a document
 drawing on all three.**
-[`auto-memory-seeding.md`](../designs/auto-memory-seeding.md), committed
+[`0065-auto-memory-seeding.md`](../designs/0065-auto-memory-seeding.md), committed
 2026-09-03, runs numbered sections 1–9 with a `## Changelog` — the shape no
 document declares — while taking §2 "Current Structure" and §3 "Target
 Structure" from `docs-as-code-workflow.md` §3 Case C and §6 "Consequences"
@@ -347,7 +347,7 @@ silently for months.
 - [ADR 005](005-citing-across-the-repo-boundary.md) — decision 1, which
   permits `~/.claude/…` paths and which this ADR follows in qualifying an
   earlier decision rather than rewriting it
-- [`auto-memory-seeding.md`](../designs/auto-memory-seeding.md) — the
+- [`0065-auto-memory-seeding.md`](../designs/0065-auto-memory-seeding.md) — the
   document that drew on all three structures
 - `tests/test_planning_artifacts.bats` — P-0 through P-8, and
   `TEMPLATE_DIR`

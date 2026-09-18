@@ -896,7 +896,7 @@ five-layer defense described in §3 was a no-op against the tracked tree. This w
 `squid/` is now committed, `build.sh` builds `claude-squid` as a new target, and `start.sh`
 starts the proxy before the main container, injects the proxy environment variables into it,
 and guarantees teardown via `trap ... EXIT` regardless of how the session ends. Full design
-and rationale: `docs/designs/squid-proxy-integration.md`.
+and rationale: `docs/designs/0012-squid-proxy-integration.md`.
 
 Two hardening decisions beyond what Phase 2.8–2.9 originally specified:
 
@@ -941,20 +941,20 @@ supported as a fallback). Three changes travel with the engine swap:
 - **Explicit, size-capped log drivers on both containers, both engines.**
   `--log-driver json-file --log-opt max-size=... --log-opt max-file=...` is now present
   on the proxy container (closing the hygiene gap noted but not implemented in
-  `squid-proxy-integration.md` §6.2-R/§9) and on the main session container (closing
+  `0012-squid-proxy-integration.md` §6.2-R/§9) and on the main session container (closing
   the gap between this document's Phase 5 and the tracked `start.sh`, noted in the same
   Squid SDD passage). Pinned to `json-file` on both engines deliberately, rather than
   relying on differing per-engine defaults.
 - **`base/Dockerfile`'s `FROM debian:bookworm-slim` is now digest-pinned**, closing the
   repo-wide gap the Squid SDD deferred to this migration (§5.1).
 
-Full design and rationale: `docs/designs/podman-migration.md`.
+Full design and rationale: `docs/designs/0025-podman-migration.md`.
 
 **Why:** Podman is daemonless — no root-owned `dockerd` process runs on the host, unlike
 even "rootless" Docker's typical desktop configuration. This closes a root-daemon attack
 surface this document did not previously address. The Squid sibling-container proxy
 pattern (`claude-proxy-$$` on `claude-net`) had never been exercised under anything but
-Docker's bridge network; `squid-proxy-integration.md` §7.4 explicitly flagged this as
+Docker's bridge network; `0012-squid-proxy-integration.md` §7.4 explicitly flagged this as
 unvalidated, not merely unmigrated, and deferred its resolution to this change. It is now
 confirmed: `ENGINE=podman bats tests/` passes in full, including
 `test_squid_isolation.bats` S-1–S-3 under `slirp4netns`.
@@ -1003,7 +1003,7 @@ take effect (documented in `BUILDING.md`).
 regression from the Docker path's previously-working behavior, and — more subtly — a
 resource limit that Podman's own tooling reports as never having fired is exactly the
 kind of silently-degraded control this plan has consistently treated as unacceptable
-elsewhere (Change 12, `squid-proxy-integration.md` §6.3).
+elsewhere (Change 12, `0012-squid-proxy-integration.md` §6.3).
 
 **STRIDE mapping (delta only):**
 
@@ -1071,7 +1071,7 @@ No other STRIDE category in §5 changes as a result of this work.
 ---
 
 ### Change 19 — Podman SELinux Mount-Labeling Gap on `/workspace`
-**Affects:** Change 16 (`start.sh` mount invocations), `docs/designs/podman-migration.md` §6.2 (Tampering) and §9, `BUILDING.md`, `tests/test_runtime_posture.bats`. Date: 2026-08-14.
+**Affects:** Change 16 (`start.sh` mount invocations), `docs/designs/0025-podman-migration.md` §6.2 (Tampering) and §9, `BUILDING.md`, `tests/test_runtime_posture.bats`. Date: 2026-08-14.
 
 **What changed:**
 An operator reported that from inside a running session, `/workspace` and every file
@@ -1090,7 +1090,7 @@ invisible to `stat`/`ls -la`.
 mount block is byte-identical from before Change 16 through the merged Podman
 migration. This was a latent gap the whole time; it simply never mattered under the
 prior Docker-only default, and only became symptomatic once Change 16 flipped the
-default engine to Podman on an SELinux-enforcing host. `podman-migration.md` never
+default engine to Podman on an SELinux-enforcing host. `0025-podman-migration.md` never
 analyzed volume labeling as a Docker→Podman delta, so it wasn't caught in that review.
 
 Fix: `start.sh` now appends `,relabel=shared` to all three `--mount type=bind,...`
@@ -1121,7 +1121,7 @@ restores basic access, it doesn't newly rely on SELinux as the load-bearing cont
 The same underlying bug is presumed to still be present on that path — Docker's
 `--mount` has no equivalent to `relabel=`, so fixing it would mean diverging the
 mount-construction mechanism per engine (e.g. switching Docker to the legacy `-v
-...:z` form). Tracked as an open question in `podman-migration.md` §9, not fixed here.
+...:z` form). Tracked as an open question in `0025-podman-migration.md` §9, not fixed here.
 
 **STRIDE mapping (delta only):**
 
@@ -1260,7 +1260,7 @@ finding does not rest on the one-off run that surfaced it.
 **Why the existing checks did not catch it:**
 G-6 asserted that `Write(/run/*)` appeared in the file. That assertion cannot fail when
 the file is somewhere nothing loads it, because it never asks whether anything does. The
-smoke test in `docs/plans/2026-05-global-layer-injection-v1.md` §Phase 6 Test 6 would
+smoke test in `docs/plans/0003-global-layer-injection-v1.md` §Phase 6 Test 6 would
 have caught it, but a write to `/run/claude-global` also fails at the OS level against
 the readonly mount, so a pass there did not distinguish the application gate from the
 mount. Presence was read as function, twice.
@@ -1307,7 +1307,7 @@ evidenced change later, not a pre-emptive one now.
 ---
 
 ### Change 23 — Documented Credential Flow Replaced With the Real One
-**Affects:** this document (Phases 1 and 4), `docs/user_guide.md`. Date: 2026-09-04.
+**Affects:** this document (Phases 1 and 4), `docs/user-guide.md`. Date: 2026-09-04.
 
 **What changed:**
 Phase 1 said host credentials "will be injected into containers as environment
@@ -1362,7 +1362,7 @@ ADR 002 contract and is the only research skill wired into it. Its
 primary/technical source tier was unreachable — `WebFetch` against a cited
 paper or RFC was refused at the proxy — while `WebSearch` kept working,
 because it executes server-side and never transits this container's network
-stack (already recorded as F-6 in `auto-memory-seeding-step-zero.md`). The
+stack (already recorded as F-6 in `0035-auto-memory-seeding-step-zero.md`). The
 skill could discover sources and not read them.
 
 Two claims from the draft design behind this work were probed and
@@ -1388,7 +1388,7 @@ is what makes `squid.conf` the correct control point for this gap.
 
 | Threat (STRIDE) | Control changed |
 |---|---|
-| **Information Disclosure (I)** | Three new blind-tunnel exfiltration channels, in the same accepted-risk class already recorded for the reference tier in Change 15 and `squid-proxy-integration.md` §6.2-I: Squid sees only the CONNECT tunnel for HTTPS, so it restricts destination, never content. This is an incremental addition to an accepted risk, not a new category. It is stated rather than left implicit because "three more domains" is exactly the increment that accumulates without review. |
+| **Information Disclosure (I)** | Three new blind-tunnel exfiltration channels, in the same accepted-risk class already recorded for the reference tier in Change 15 and `0012-squid-proxy-integration.md` §6.2-I: Squid sees only the CONNECT tunnel for HTTPS, so it restricts destination, never content. This is an incremental addition to an accepted risk, not a new category. It is stated rather than left implicit because "three more domains" is exactly the increment that accumulates without review. |
 | **Repudiation (R)** | Unchanged and still one-sided. Fetches to the new domains appear in the Squid access log; the `WebSearch` queries that found them do not, and cannot, because that tool never reaches this container. Widening what is fetchable therefore widens the fetch log without widening the search log — the visibility gap named in §5 gets proportionally larger, not smaller. Nothing here closes it. |
 
 No other STRIDE category changes: no new surface is writable, no privilege

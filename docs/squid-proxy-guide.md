@@ -5,7 +5,7 @@
 ## Objectives
 
 This guide implements the network isolation layer described in Phase 2.8–2.9
-of `claude_code_security_plan.md`. It has two goals:
+of `claude-code-security-plan.md`. It has two goals:
 
 **1. Enforce a default-deny outbound network policy.** Without network
 restriction, a compromised Claude session can transmit workspace contents to
@@ -237,7 +237,7 @@ implementation.
   collide.
 - If the proxy fails to start, the script aborts and the main session
   container is never started — a fail-closed decision recorded in
-  `docs/designs/squid-proxy-integration.md` §6.3.
+  `docs/designs/0012-squid-proxy-integration.md` §6.3.
 - `HTTP_PROXY` and `HTTPS_PROXY` are injected into the main container as
   `http://claude-proxy-$$:3128`. Docker's internal DNS resolves the proxy
   container's name on the same network without any IP configuration.
@@ -247,7 +247,7 @@ implementation.
   regardless of how the script exits — normal completion, a failure in the
   main container, or an interrupt — not just the clean-exit path.
 
-See `docs/designs/squid-proxy-integration.md` for the full design and the
+See `docs/designs/0012-squid-proxy-integration.md` for the full design and the
 STRIDE analysis behind these decisions.
 
 ---
@@ -364,7 +364,7 @@ The Squid Dockerfile base image was changed from `ubuntu:24.04` to
 
 **Why:** Two reasons. First, consistency: all Claude Code sandbox images use
 `debian:bookworm-slim` following the same decision recorded in Change 3 of
-`claude_code_security_plan.md`. A mixed base-image environment creates
+`claude-code-security-plan.md`. A mixed base-image environment creates
 unnecessary complexity when auditing the full image set. Second, the slim
 variant has a smaller installed package footprint, reducing the Squid
 container's attack surface.
@@ -391,7 +391,7 @@ were removed. All explanatory text was moved into prose above the code block.
 next line. A `#` character appearing in that context does not reliably start
 a comment — the shell may silently drop the commands that follow it rather
 than producing an error. This is the same class of bug addressed across all
-Dockerfiles in Change 12 of `claude_code_security_plan.md`. In the specific
+Dockerfiles in Change 12 of `claude-code-security-plan.md`. In the specific
 case of `start.sh`, the flags after several of the inline comments —
 including `--security-opt`, `--cap-drop`, and the logging flags — were at
 risk of being silently omitted, which would have degraded the security
@@ -420,7 +420,7 @@ now includes `|| true` so that a proxy container that has already stopped
 mask the completion of the session.
 
 **Why:** The single `claude-sandbox` image no longer exists following the
-upgrade described in Change 10 of `claude_code_security_plan.md`. A script
+upgrade described in Change 10 of `claude-code-security-plan.md`. A script
 referencing it would fail immediately. The `|| true` guard is a robustness
 improvement with no security implications.
 
@@ -480,7 +480,7 @@ separate restart step.
 **Why:** `test_squid_isolation.bats` (Group 3, S-1–S-3) failed at
 `setup_file()` because `squid/` was never committed — this guide's own claim
 that "the current `start.sh` already incorporates Squid" was false against
-the tracked tree. See `docs/designs/squid-proxy-integration.md` for the full
+the tracked tree. See `docs/designs/0012-squid-proxy-integration.md` for the full
 design, STRIDE analysis, and rationale (fail-closed startup, non-root proxy
 execution, digest pinning).
 
@@ -498,7 +498,7 @@ sessions ran with unrestricted egress on `claude-net`, constrained only by
 Smoke testing (per Change 6) found the proxy container exiting immediately after start, with
 `docker logs` showing `FATAL: failed to open /run/squid.pid: (13) Permission denied`. Running
 Squid entirely as the non-root `proxy` user (introduced beyond this guide's original design —
-see `docs/designs/squid-proxy-integration.md` §6.4) means it never holds root privileges to
+see `docs/designs/0012-squid-proxy-integration.md` §6.4) means it never holds root privileges to
 open the root-owned `/run/squid.pid`, unlike Squid's normal pattern of opening privileged
 resources as root before dropping to its effective user. `pid_filename none` was added to
 `squid.conf`, telling Squid not to write a PID file at all.

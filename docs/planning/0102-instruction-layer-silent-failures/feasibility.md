@@ -9,13 +9,13 @@ owner: project-feasibility
 
 ## TL;DR
 
-Yes, buildable at low-to-moderate cost. #102 and #104 are straightforward documentation and test changes with strong prior art; #103 is the highest-risk item — a decision about the Planning process this run is the first to exercise, with no external precedent. All three degrade silently (`docs/planning/scope.md §Problem statement`), and risk compounds with every session.
+Yes, buildable at low-to-moderate cost. #102 and #104 are straightforward documentation and test changes with strong prior art; #103 is the highest-risk item — a decision about the Planning process this run is the first to exercise, with no external precedent. All three degrade silently (`docs/planning/0102-instruction-layer-silent-failures/scope.md §Problem statement`), and risk compounds with every session.
 
 ## Technical
 
-Nothing here requires new infrastructure, dependencies, or runtime mechanism — `docs/planning/scope.md §Constraints` already excludes container-security files entirely.
+Nothing here requires new infrastructure, dependencies, or runtime mechanism — `docs/planning/0102-instruction-layer-silent-failures/scope.md §Constraints` already excludes container-security files entirely.
 
-- **#102**: trivial. Content-only; the facts to document are independently verifiable (`BUILDING.md`, `start.sh`, `tests/test_runtime_posture.bats`, and the external precedent in `docs/planning/prior-art.md §Findings`). No new mechanism required — `scope.md §Non-goals` excludes building an enforcement check.
+- **#102**: trivial. Content-only; the facts to document are independently verifiable (`BUILDING.md`, `start.sh`, `tests/test_runtime_posture.bats`, and the external precedent in `docs/planning/0102-instruction-layer-silent-failures/prior-art.md §Findings`). No new mechanism required — `scope.md §Non-goals` excludes building an enforcement check.
 - **#103**: buildable, with technical risk concentrated in decision 2. Decision 1 (ledger) has direct precedent (`prior-art.md §Findings`: RAID logs, arXiv:1210.7101) — low-risk once approved. Decision 2 (entry test) has no comparable prior art (`prior-art.md §Findings`); "buildable" here means a document can be written, not that the boundary is proven correct.
 - **#104**: buildable. The fix (name-by-document-and-project citation form) is already demonstrated correctly in this repo (`global-claude/templates/planning-index.md`, this very `docs/planning/README.md`'s own ADR 002 citation) — a known-good pattern being generalized, not invented. The proposed static check matches the existing `D-1`/`D-2` idiom in `tests/test_docs_integrity.bats` exactly.
 

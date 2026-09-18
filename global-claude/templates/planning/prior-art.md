@@ -1,6 +1,6 @@
 ---
 template-tier: contract
-artifact: docs/planning/prior-art.md
+artifact: <bundle>/prior-art.md
 owner: swe-prior-art-research
 phase: planning
 ceiling-tldr-words: 54
@@ -9,10 +9,10 @@ ceiling-build-vs-adopt-words: 135
 ceiling-confidence-words: 72
 ---
 
-<!-- Template for docs/planning/prior-art.md. Copy, fill, delete these
+<!-- Template for <bundle>/prior-art.md. Copy, fill, delete these
      comments.
 
-     Reads docs/planning/scope.md. Cite it as `docs/planning/scope.md
+     Reads <bundle>/scope.md. Cite it as `<bundle>/scope.md
      §Problem statement` — do not restate the problem here. -->
 
 # Prior art

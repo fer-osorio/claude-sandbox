@@ -188,7 +188,7 @@ and it is a weak one.
 The global layer grows by 199 lines against a 3000-line ceiling that D-7
 describes as a bound on unnoticed growth rather than a target. Phase 3 adds
 no template; Phase 4 adds one, placed beside this directory rather than in
-it — see [`project-planning-skill.md`](project-planning-skill.md)
+it — see [`0069-project-planning-skill.md`](0069-project-planning-skill.md)
 §Decision 3.
 
 Decision 2 makes the capability invisible until a project opts in, and there

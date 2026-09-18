@@ -91,7 +91,7 @@ Build a single image and its dependencies:
 Docker images are immutable snapshots. When you run a container, you get a
 perfectly reproducible copy of the image — every time, on every machine.
 This is the property that makes the security guarantees in
-`claude_code_security_plan.md` meaningful: there's nothing to drift, nothing
+`claude-code-security-plan.md` meaningful: there's nothing to drift, nothing
 to accidentally update, no state from a previous session that can carry
 contamination forward.
 

@@ -22,6 +22,7 @@ set -u
 PROJECT_DIR="/workspace"
 
 CANDIDATES=(
+    "docs/user-guide.md"
     "docs/user_guide.md"
     "docs/USER_GUIDE.md"
     "USER_GUIDE.md"

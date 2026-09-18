@@ -73,7 +73,7 @@ one-token bypass documents intent; it does not enforce it.
 Making it an actual control would require a strict mode that rejects
 unregistered paths. That is rejected below — it is the wrong shape for a
 single-user local workstation whose threat model
-(`docs/claude_code_security_plan.md`, Scope) has no external reviewing
+(`docs/claude-code-security-plan.md`, Scope) has no external reviewing
 body, and it would break the ad-hoc workflow the tool is used for daily.
 
 ## Decision
@@ -488,7 +488,7 @@ be re-evaluated against Case E at that time.
   the registry from documentation into enforcement, but at the cost of
   breaking ad-hoc use, which is a primary workflow for a single-user
   local tool. The threat model
-  (`docs/claude_code_security_plan.md`, Scope) has no external reviewer
+  (`docs/claude-code-security-plan.md`, Scope) has no external reviewer
   whose assurance would justify that trade.
 - **Single array with a delimiter** (`[mylib]="crypto:${PROJECT_BASE}/mylib"`).
   Rejected: requires parsing, and breaks on any path containing the
@@ -552,7 +552,7 @@ to be substituted once the tracking issue is open.
    `docs(config): document project registry additions in config.local.sh (#N)`
 
 6. **Documentation** — `ARCHITECTURE.md` (directory-layout description of
-   `config.sh`, and a Cheat Sheet entry for `@name`), `docs/user_guide.md`
+   `config.sh`, and a Cheat Sheet entry for `@name`), `docs/user-guide.md`
    (the everyday invocation form and the add-only `config.local.sh`
    extension), and `BUILDING.md` if `PROJECT_BASE` warrants a mention in
    setup. Tightly coupled — one commit.

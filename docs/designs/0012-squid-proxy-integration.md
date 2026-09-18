@@ -2,8 +2,8 @@
 
 > **Document type:** Software Design Document (SDD)
 > **Status:** Accepted
-> **Relates to:** `docs/claude_code_security_plan.md` (Phase 2.8–2.9, Phase 5 Audit Logging,
-> STRIDE coverage map), `docs/squid_proxy_guide.md` (source guide this design implements and
+> **Relates to:** `docs/claude-code-security-plan.md` (Phase 2.8–2.9, Phase 5 Audit Logging,
+> STRIDE coverage map), `docs/squid-proxy-guide.md` (source guide this design implements and
 > corrects), `ARCHITECTURE.md`, `docs/designs/docs-as-code-workflow.md` (Case E trigger),
 > `docs/designs/0011-claude-sandbox-testing-module-sdd.md` (Test Group 3, S-1–S-3 — currently unable
 > to run; this design is the prerequisite)
@@ -12,7 +12,7 @@
 > this project's documentation.
 > **Trigger:** Two gaps identified while investigating `test_squid_isolation.bats` setup
 > failures: (1) `squid/Dockerfile` and `squid/squid.conf` are described in
-> `docs/squid_proxy_guide.md` but were never committed to the repository; (2) the tracked
+> `docs/squid-proxy-guide.md` but were never committed to the repository; (2) the tracked
 > `start.sh` contains no proxy lifecycle, no `HTTP_PROXY`/`HTTPS_PROXY` injection, and no
 > reference to Squid at all — contradicting the guide's own claim that "the current `start.sh`
 > already incorporates Squid." Layer 4 of the five-layer defense (network egress allowlisting)
@@ -23,12 +23,12 @@
 ## 1. Purpose and Scope
 
 This document designs the actual implementation of Squid-based network egress enforcement for
-`claude-sandbox` — closing the gap between what `docs/squid_proxy_guide.md` describes and what
+`claude-sandbox` — closing the gap between what `docs/squid-proxy-guide.md` describes and what
 is committed and wired into `build.sh`/`start.sh`.
 
 ### 1.1 What currently exists vs. what is claimed
 
-| Claimed by `squid_proxy_guide.md` | Actually true of the tracked tree |
+| Claimed by `squid-proxy-guide.md` | Actually true of the tracked tree |
 |---|---|
 | `squid/Dockerfile`, `squid/squid.conf` exist under `~/.claude-sandbox/squid/` | Neither file is tracked anywhere in the repo |
 | "The Squid image is built by `build.sh` alongside the Claude Code images" | `build.sh` builds only `base`/`crypto`/`systems`/`research` |
@@ -52,7 +52,7 @@ This document covers:
   `NO_PROXY` injection, and guaranteed teardown via `trap ... EXIT`
 - The allowlist design: `dstdomain` as the primary mechanism, `dstdom_regex` as a narrowly
   scoped exception, and a curated reference-documentation tier
-- Corrections to `docs/squid_proxy_guide.md` Part 3 Step 4 and Part 5 to match what is actually
+- Corrections to `docs/squid-proxy-guide.md` Part 3 Step 4 and Part 5 to match what is actually
   implemented
 - Two hardening additions beyond the original guide: non-root execution inside the proxy
   container, and runtime hardening flags (`--cap-drop=ALL`, `--security-opt=no-new-privileges`)
@@ -104,7 +104,7 @@ mechanisms — see §3.
 seconds during review; a page of regex requires mentally executing each pattern against edge
 cases. The failure mode also differs in the direction that matters: a missing list entry fails
 loudly (connection denied, add the domain), while an unanchored or overly broad regex fails
-silently-permissive — the same class of bug as `squid_proxy_guide.md`'s own Change 2 (a syntax
+silently-permissive — the same class of bug as `squid-proxy-guide.md`'s own Change 2 (a syntax
 error that silently dropped `--cap-drop=ALL`), just at the policy layer instead of the shell
 layer.
 
@@ -129,11 +129,11 @@ only in the number of viable channels. Documented explicitly in §6 rather than 
 **Reference-tier curation: authoritative, low-user-generated-content sources only.** Official
 project documentation, not Q&A/forum sites. Two independent reasons, not one: (a) a Q&A site is
 a *larger* plausible-looking blind-exfil channel than an official docs domain, and (b) unmoderated
-third-party text is prompt-injection surface — `docs/claude_code_security_plan.md` Phase 6
+third-party text is prompt-injection surface — `docs/claude-code-security-plan.md` Phase 6
 already flags exactly this risk category for any externally-sourced content a session reads.
 
 **Unanticipated mid-session access needs are handled procedurally, not by loosening default
-policy.** `squid_proxy_guide.md` Part 5 already documents the mechanism: edit `squid.conf`,
+policy.** `squid-proxy-guide.md` Part 5 already documents the mechanism: edit `squid.conf`,
 rebuild only the Squid image (`squid/` has no toolchain — a Debian+Squid rebuild is seconds), and
 restart only the proxy. Formalized here as a named operational habit (§7.4), not solved by
 widening the default allowlist under time pressure.
@@ -145,7 +145,7 @@ breakage for any tool doing certificate pinning, and a direct contradiction of t
 Scope explosion relative to the problem it solves.
 
 **Proxy container lifecycle is ephemeral and 1:1 with the session, not a shared long-running
-service.** Matches `squid_proxy_guide.md`'s own reference `start.sh` implementation (per-session
+service.** Matches `squid-proxy-guide.md`'s own reference `start.sh` implementation (per-session
 unique naming) and extends this project's existing "one project, one container, one session"
 operational habit to the proxy. Considered alternative: a single long-running proxy shared across
 concurrent sessions, which would reduce container-startup overhead slightly but adds a
@@ -182,7 +182,7 @@ HOST
 │   ├── Dockerfile
 │   └── squid.conf
 ├── base/ crypto/ systems/ research/   ← unchanged
-└── docs/squid_proxy_guide.md ← corrected: Part 3 Step 4, Part 5
+└── docs/squid-proxy-guide.md ← corrected: Part 3 Step 4, Part 5
 
 CONTAINER (per session)
     ┌────────────────────────────┐   ┌──────────────────────────────┐
@@ -415,7 +415,7 @@ The existing `docker run` for the main container gains three env vars, no other 
 `--cap-drop=ALL`/`--security-opt=no-new-privileges` on the proxy container's own invocation are
 an addition beyond the original guide — see §6.4.
 
-### 5.5 `docs/squid_proxy_guide.md` corrections
+### 5.5 `docs/squid-proxy-guide.md` corrections
 
 - Part 3, Step 4: replace the stale reference `start.sh` sample (which also predates the
   global-layer-injection mount logic, a second, independent staleness) with a pointer to the
@@ -458,7 +458,7 @@ default has no size limit; adding `--log-opt max-size=10m --log-opt max-file=3` 
 hygiene addition worth including at implementation time, though it is not filling a functional
 gap — logs are captured either way). Note, found in passing: the tracked `start.sh` does not
 currently pass `--log-driver json-file --log-opt ...` to the *main* session container either,
-despite `docs/claude_code_security_plan.md` Phase 5 documenting this as standard practice. This
+despite `docs/claude-code-security-plan.md` Phase 5 documenting this as standard practice. This
 is a separate, pre-existing gap, orthogonal to Squid — flagged here per the same "no silent
 scope expansion" principle the original issue report itself applied, not fixed as part of this
 change.
@@ -504,7 +504,7 @@ control against Information Disclosure; the asymmetry does not hold here.
 
 ### 6.4 Decision record: non-root execution and runtime hardening for the proxy container
 
-Not present in the original `squid_proxy_guide.md`. Two related findings from reviewing the
+Not present in the original `squid-proxy-guide.md`. Two related findings from reviewing the
 guide's Dockerfile and reference `start.sh` against this project's own stated principles:
 
 1. The guide's `Dockerfile` has no `USER` directive, and its `squid.conf` does not set
@@ -588,7 +588,7 @@ Each step maps to a single commit, per project convention.
    `all`.
 3. **Modify `start.sh`** — §5.4: image-existence preflight, `trap cleanup EXIT`, proxy startup
    with fail-closed behavior, `--env` additions to the main container invocation.
-4. **Correct `docs/squid_proxy_guide.md`** — §5.5: Part 3 Step 4 and Part 5, per the corrections
+4. **Correct `docs/squid-proxy-guide.md`** — §5.5: Part 3 Step 4 and Part 5, per the corrections
    described above. Add a changelog entry to the guide following its own established convention
    (Change 6).
 5. **Rebuild and smoke test** — `./build.sh squid`, then a manual session start confirming: proxy
@@ -599,7 +599,7 @@ Each step maps to a single commit, per project convention.
 6. **Run `test_squid_isolation.bats`** — `bats --filter-tags slow tests/test_squid_isolation.bats`
    (or the full slow tier) — S-1/S-2/S-3 should now pass against the real `squid/` directory
    rather than failing at `setup_file()`.
-7. **Add a changelog entry** to `docs/claude_code_security_plan.md`, following the established
+7. **Add a changelog entry** to `docs/claude-code-security-plan.md`, following the established
    Change-N format, using §6 of this document as source material.
 
 ---
@@ -647,7 +647,7 @@ mechanism, so Squid's own PID file serves no purpose in this setup.
 Initial draft. Derived from the design discussion between the operator and Claude Sonnet 5,
 triggered by `test_squid_isolation.bats` setup failures surfacing that `squid/` was never
 committed and `start.sh` was never actually wired to use it, contradicting
-`docs/squid_proxy_guide.md`'s claims. Establishes `dstdomain`-primary/`dstdom_regex`-exception
+`docs/squid-proxy-guide.md`'s claims. Establishes `dstdomain`-primary/`dstdom_regex`-exception
 allowlist design, a curated reference-documentation tier, fail-closed proxy startup, and two
 hardening additions beyond the original guide (non-root proxy execution, runtime hardening flags
 on the proxy container).
@@ -672,7 +672,7 @@ Step 6 (`test_squid_isolation.bats`) failed S-1 and S-3 against a proxy confirme
 functional by manual testing — a complete CONNECT tunnel, TLS handshake, and correct HTTP
 response from `api.anthropic.com`. Root cause: `access_log stdio:/dev/stdout combined` (§5.2)
 uses Squid's NCSA-style `combined` format (`TCP_TUNNEL:HIER_DIRECT`), not the native `squid`
-format (`TCP_TUNNEL/200`) that both Part 4 of `docs/squid_proxy_guide.md` and the bats
+format (`TCP_TUNNEL/200`) that both Part 4 of `docs/squid-proxy-guide.md` and the bats
 assertions assume — an inconsistency present in the guide since its first version, invisible
 without comparing an actual emitted log line against the documented example. S-2 passed
 regardless, on a substring match loose enough to survive either format. Fixed by changing the

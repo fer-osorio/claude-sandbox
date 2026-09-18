@@ -41,7 +41,7 @@ matter for this design:
 - `dev-env` targets a **managed corporate Windows/WSL2 laptop** with a
   security team that gates registry approval and reviews `config.toml`
   changes against an ADR/SDD. `claude-sandbox` targets a single-user
-  local workstation (`docs/claude_code_security_plan.md`, Scope) — there
+  local workstation (`docs/claude-code-security-plan.md`, Scope) — there
   is no external reviewing body and no registry-approval control in its
   existing threat model.
 - `dev-env`'s `run.sh` constructs its `podman run` command in a way that
@@ -237,7 +237,7 @@ committed normally (not ignored).
 Claude Code writing outside the project directory — a different threat
 (a runaway agent action) from an operator manually `git add`-ing a file
 that they, not Claude, created and control. This project's own threat
-model scope (`docs/claude_code_security_plan.md`) is a single-user local
+model scope (`docs/claude-code-security-plan.md`) is a single-user local
 workstation with no external reviewer — a `.gitignore` entry (plus, if
 it's ever committed by accident, `git rm --cached` and the normal review
 process catching an unexpected diff) is proportionate. Building a
@@ -307,7 +307,7 @@ that time, since it would then be altering runtime security posture.
 - Resource limits and log options become named, documented,
   version-controlled values instead of literals buried in `start.sh`'s
   `run` invocation — easier to review and to cite in future STRIDE
-  updates to `claude_code_security_plan.md`.
+  updates to `claude-code-security-plan.md`.
 - `ARCHITECTURE.md`'s Strategy A workflow ("add to the relevant
   Dockerfile, rebuild") gets a small, natural extension: also add the
   profile to `config.sh`.

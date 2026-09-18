@@ -1307,7 +1307,7 @@ evidenced change later, not a pre-emptive one now.
 ---
 
 ### Change 23 — Documented Credential Flow Replaced With the Real One
-**Affects:** this document (Phases 1 and 4), `docs/user_guide.md`. Date: 2026-09-04.
+**Affects:** this document (Phases 1 and 4), `docs/user-guide.md`. Date: 2026-09-04.
 
 **What changed:**
 Phase 1 said host credentials "will be injected into containers as environment

@@ -286,4 +286,4 @@ teardown() {
 # in-container would need both trees bind-mounted at host-identical paths — more
 # fixture machinery than the assertion is worth. It is verified against the
 # extracted entrypoint block on the host instead, and recorded in
-# docs/claude_code_security_plan.md Change 21.
+# docs/claude-code-security-plan.md Change 21.

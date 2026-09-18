@@ -5,7 +5,7 @@
 ## Objectives
 
 This guide implements the network isolation layer described in Phase 2.8–2.9
-of `claude_code_security_plan.md`. It has two goals:
+of `claude-code-security-plan.md`. It has two goals:
 
 **1. Enforce a default-deny outbound network policy.** Without network
 restriction, a compromised Claude session can transmit workspace contents to
@@ -364,7 +364,7 @@ The Squid Dockerfile base image was changed from `ubuntu:24.04` to
 
 **Why:** Two reasons. First, consistency: all Claude Code sandbox images use
 `debian:bookworm-slim` following the same decision recorded in Change 3 of
-`claude_code_security_plan.md`. A mixed base-image environment creates
+`claude-code-security-plan.md`. A mixed base-image environment creates
 unnecessary complexity when auditing the full image set. Second, the slim
 variant has a smaller installed package footprint, reducing the Squid
 container's attack surface.
@@ -391,7 +391,7 @@ were removed. All explanatory text was moved into prose above the code block.
 next line. A `#` character appearing in that context does not reliably start
 a comment — the shell may silently drop the commands that follow it rather
 than producing an error. This is the same class of bug addressed across all
-Dockerfiles in Change 12 of `claude_code_security_plan.md`. In the specific
+Dockerfiles in Change 12 of `claude-code-security-plan.md`. In the specific
 case of `start.sh`, the flags after several of the inline comments —
 including `--security-opt`, `--cap-drop`, and the logging flags — were at
 risk of being silently omitted, which would have degraded the security
@@ -420,7 +420,7 @@ now includes `|| true` so that a proxy container that has already stopped
 mask the completion of the session.
 
 **Why:** The single `claude-sandbox` image no longer exists following the
-upgrade described in Change 10 of `claude_code_security_plan.md`. A script
+upgrade described in Change 10 of `claude-code-security-plan.md`. A script
 referencing it would fail immediately. The `|| true` guard is a robustness
 improvement with no security implications.
 

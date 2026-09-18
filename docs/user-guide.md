@@ -38,8 +38,8 @@ outbound network restricted to an allowlist (Anthropic API + package
 registries), and the container is removed when the session ends. Nothing
 in the container's own filesystem persists to the next session — only your
 project directory does. See
-[`docs/claude_code_security_plan.md`](claude_code_security_plan.md) for the
-full threat model and [`docs/squid_proxy_guide.md`](squid_proxy_guide.md)
+[`docs/claude-code-security-plan.md`](claude-code-security-plan.md) for the
+full threat model and [`docs/squid-proxy-guide.md`](squid-proxy-guide.md)
 for the network allowlist mechanics.
 
 ## Authenticating a session

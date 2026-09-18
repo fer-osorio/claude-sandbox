@@ -11,7 +11,7 @@
 | **Author** | Fernando |
 | **Reviewers** | Security Team |
 | **Supersedes** | — (no prior testing SDD exists for claude-sandbox) |
-| **Relates to** | `docs/claude_code_security_plan.md`, `docs/squid_proxy_guide.md`, `docs/designs/0003-global-layer-injection.md`, `docs/plans/0003-global-layer-injection-v1.md`, `ARCHITECTURE.md`, `docs/designs/0028-sandbox-config-file.md`, `docs/adr/002-planning-artifact-contract.md` |
+| **Relates to** | `docs/claude-code-security-plan.md`, `docs/squid-proxy-guide.md`, `docs/designs/0003-global-layer-injection.md`, `docs/plans/0003-global-layer-injection-v1.md`, `ARCHITECTURE.md`, `docs/designs/0028-sandbox-config-file.md`, `docs/adr/002-planning-artifact-contract.md` |
 
 ---
 
@@ -47,7 +47,7 @@
 
 ### 1.1 Purpose
 
-This document specifies a `bats-core` integration test harness for `claude-sandbox`. It converts the prose Testing Strategy and Security Validation tables already present in `docs/claude_code_security_plan.md`, and the six manually-executed smoke tests in `docs/plans/0003-global-layer-injection-v1.md` Phase 6, into an executable, version-controlled suite. No such harness currently exists — every verification step in the source documents is a manual procedure.
+This document specifies a `bats-core` integration test harness for `claude-sandbox`. It converts the prose Testing Strategy and Security Validation tables already present in `docs/claude-code-security-plan.md`, and the six manually-executed smoke tests in `docs/plans/0003-global-layer-injection-v1.md` Phase 6, into an executable, version-controlled suite. No such harness currently exists — every verification step in the source documents is a manual procedure.
 
 This work is scoped as the first of three pre-merge tasks (testing → Podman migration → config evaluation), serving as the regression baseline for the migration that follows it.
 
@@ -58,7 +58,7 @@ Covers the design of a test suite for `claude-sandbox` only. The developer-conta
 This document does **not** cover:
 - Implementation of the Podman migration itself
 - The dispatcher/meta-CLI merge design
-- CI/CD integration (explicitly out of scope per `docs/claude_code_security_plan.md` §"Scope")
+- CI/CD integration (explicitly out of scope per `docs/claude-code-security-plan.md` §"Scope")
 - Container-in-container test execution (evaluated and rejected — see §3.4 and §10)
 
 ### 1.3 Intended Audience
@@ -73,8 +73,8 @@ This document does **not** cover:
 
 | Document | Relationship |
 |---|---|
-| `docs/claude_code_security_plan.md` | Source of the Testing Strategy and Security Validation tables this suite implements |
-| `docs/squid_proxy_guide.md` | Source of the manual proxy isolation test procedure (Part 3, Step 5) that Test Group 3 automates |
+| `docs/claude-code-security-plan.md` | Source of the Testing Strategy and Security Validation tables this suite implements |
+| `docs/squid-proxy-guide.md` | Source of the manual proxy isolation test procedure (Part 3, Step 5) that Test Group 3 automates |
 | `docs/designs/0003-global-layer-injection.md` | Source SDD for the global layer injection mechanism Test Group 4 validates |
 | `docs/plans/0003-global-layer-injection-v1.md` | Source of the six Phase 6 smoke tests that Test Group 4 automates verbatim in intent |
 | `ARCHITECTURE.md` | Governs how tools are added to images (Strategy A/B); this document assumes that dependency-management workflow is unchanged |
@@ -104,7 +104,7 @@ In priority order:
 
 - **No container-in-container execution.** See §3.4.
 - **Host-level execution only**, using the same engine binary (`docker` today, `podman` post-migration) the scripts themselves invoke.
-- **No CI/CD dependency.** Per `docs/claude_code_security_plan.md`'s explicit scope exclusion, this suite runs locally, on demand.
+- **No CI/CD dependency.** Per `docs/claude-code-security-plan.md`'s explicit scope exclusion, this suite runs locally, on demand.
 - **No modification to `build.sh` / `start.sh` / Dockerfiles** as part of this effort. This is a testing module, not a refactor. Any defect the suite surfaces is documented as a finding, not silently fixed in passing.
 - **No real credentials.** Detailed in §7.2.
 
@@ -217,7 +217,7 @@ Test bodies call `engine_run`, `engine_build`, etc. Migrating the suite to valid
 | S-5 | `code.claude.com` reachable | Reference-tier allowlist addition from issue #32 resolves and tunnels |
 | S-6 | `mintcdn.com` reachable | The `dstdom_regex` CDN exception from issue #32, curled at the bare apex — Mintlify's CSP documentation lists plain `mintcdn.com` as required, so it is a directly-addressable host and not merely a wildcard zone |
 
-Mirrors `docs/squid_proxy_guide.md` Part 3 Step 5 exactly, wrapped as assertions instead of manual `docker logs` inspection.
+Mirrors `docs/squid-proxy-guide.md` Part 3 Step 5 exactly, wrapped as assertions instead of manual `docker logs` inspection.
 
 ### 4.4 Group 4 — Global Layer Injection
 
@@ -341,7 +341,7 @@ These conventions are binding for every test group above; a test that doesn't fo
 Groups 6, 7 and 8 are additionally host-only: they need no engine and no image
 at all, which is a stronger property than being fast. See §6.2.
 
-Mirrors the Component Tests / Integration Tests split already present in `docs/claude_code_security_plan.md`'s own Testing Strategy section. Groups 3 and 5 are slow because they require either multi-container network setup (Squid) or full toolchain installation (LaTeX, CMake+GTest compilation) — not something you want gating every quick iteration.
+Mirrors the Component Tests / Integration Tests split already present in `docs/claude-code-security-plan.md`'s own Testing Strategy section. Groups 3 and 5 are slow because they require either multi-container network setup (Squid) or full toolchain installation (LaTeX, CMake+GTest compilation) — not something you want gating every quick iteration.
 
 ### 6.2 bats Tagging
 
@@ -431,16 +431,16 @@ Consistent with the fail-fast philosophy already established in `setup.sh` / `ru
 
 | Source document | Section | Test IDs |
 |---|---|---|
-| `docs/claude_code_security_plan.md` | §5, "Complete STRIDE Coverage Map" | R-1, R-2, R-3 |
-| `docs/claude_code_security_plan.md` | Quick Reference Card, "What is protected" list | B-1 through T-3 (full suite) |
-| `docs/squid_proxy_guide.md` | Part 3, Step 5 | S-1, S-2, S-3 |
-| `docs/squid_proxy_guide.md` | Changelog, Change 2 | R-2, R-3 (direct regression coverage) |
+| `docs/claude-code-security-plan.md` | §5, "Complete STRIDE Coverage Map" | R-1, R-2, R-3 |
+| `docs/claude-code-security-plan.md` | Quick Reference Card, "What is protected" list | B-1 through T-3 (full suite) |
+| `docs/squid-proxy-guide.md` | Part 3, Step 5 | S-1, S-2, S-3 |
+| `docs/squid-proxy-guide.md` | Changelog, Change 2 | R-2, R-3 (direct regression coverage) |
 | `docs/designs/0003-global-layer-injection.md` | §5, STRIDE analysis of new surfaces | G-1 through G-6 |
 | `docs/plans/0003-global-layer-injection-v1.md` | Phase 6, Tests 1–6 | G-1 through G-6 |
-| `docs/claude_code_security_plan.md` | Changelog, Change 7 (UID matching) | B-2 |
-| `docs/claude_code_security_plan.md` | Changelog, Change 17 (cgroups v2 delegation) | R-6 |
+| `docs/claude-code-security-plan.md` | Changelog, Change 7 (UID matching) | B-2 |
+| `docs/claude-code-security-plan.md` | Changelog, Change 17 (cgroups v2 delegation) | R-6 |
 | `docs/designs/0025-podman-migration.md` | §6.2, STRIDE analysis (Denial of Service) | R-6 |
-| `docs/claude_code_security_plan.md` | Changelog, Change 19 (SELinux mount relabeling) | R-7, R-8 |
+| `docs/claude-code-security-plan.md` | Changelog, Change 19 (SELinux mount relabeling) | R-7, R-8 |
 | `docs/designs/0025-podman-migration.md` | §6.2, STRIDE analysis (Tampering, follow-up finding) | R-7, R-8 |
 | `docs/designs/0028-sandbox-config-file.md` | Layered precedence model and `@name` registry | C-1 through C-13 |
 | `docs/adr/002-planning-artifact-contract.md` | Decision 7, "enforced by a test, not by a reviewer" | P-1 through P-6 |

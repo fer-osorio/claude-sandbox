@@ -171,7 +171,7 @@ require you to think about directly:
   delegate it to user sessions by default on many distros), `--memory`
   limits will be silently unenforced: a container can be killed by some
   other, unscoped boundary without Podman's own `OOMKilled` bookkeeping
-  ever reflecting it (see `docs/claude_code_security_plan.md` Change 17).
+  ever reflecting it (see `docs/claude-code-security-plan.md` Change 17).
   Fix it:
 
   ```bash
@@ -215,7 +215,7 @@ access at the MAC layer regardless of correct POSIX permissions — you'd see
 mode.
 
 `start.sh` handles this automatically as of
-`docs/claude_code_security_plan.md` Change 19: under `ENGINE=podman`, its
+`docs/claude-code-security-plan.md` Change 19: under `ENGINE=podman`, its
 bind mounts carry a `relabel=shared` option, which is a no-op on hosts where
 SELinux isn't enforcing. You shouldn't need to do anything for a normal
 `./start.sh` session.
@@ -238,9 +238,9 @@ there on an SELinux-enforcing host. See
 ## Authentication
 
 Log in from inside the session, through Claude Code's own OAuth flow, the
-first time you use it after `./start.sh`. See `docs/user_guide.md`
+first time you use it after `./start.sh`. See `docs/user-guide.md`
 §Authenticating a session, and Change 23 in
-`docs/claude_code_security_plan.md` for why the `ANTHROPIC_API_KEY` flow is
+`docs/claude-code-security-plan.md` for why the `ANTHROPIC_API_KEY` flow is
 deliberately not used.
 
 ## Running the test suite
@@ -316,6 +316,6 @@ group covers and why.
 ## See also
 
 - `ARCHITECTURE.md` — image hierarchy and dependency management strategy
-- `docs/claude_code_security_plan.md` — threat model and security controls
-- `docs/squid_proxy_guide.md` — outbound network policy via Squid proxy
+- `docs/claude-code-security-plan.md` — threat model and security controls
+- `docs/squid-proxy-guide.md` — outbound network policy via Squid proxy
 - `docs/designs/0011-claude-sandbox-testing-module-sdd.md` — bats-core test harness design

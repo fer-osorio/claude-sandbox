@@ -10,7 +10,7 @@
 | **Author** | Fernando |
 | **Reviewers** | Security Team |
 | **Supersedes** | — |
-| **Relates to** | `docs/claude_code_security_plan.md`, `docs/designs/0012-squid-proxy-integration.md`, `docs/designs/0011-claude-sandbox-testing-module-sdd.md`, `ARCHITECTURE.md`, `BUILDING.md`, `tests/lib/engine.bash` |
+| **Relates to** | `docs/claude-code-security-plan.md`, `docs/designs/0012-squid-proxy-integration.md`, `docs/designs/0011-claude-sandbox-testing-module-sdd.md`, `ARCHITECTURE.md`, `BUILDING.md`, `tests/lib/engine.bash` |
 
 ---
 
@@ -77,14 +77,14 @@ Explicitly out of scope:
   separate, already-analyzed and rejected question, unrelated to swapping which host
   engine `build.sh`/`start.sh` shell out to.
 - CI/CD integration — out of scope for the whole project per
-  `docs/claude_code_security_plan.md`.
+  `docs/claude-code-security-plan.md`.
 
 ---
 
 ## 2. Context
 
 `claude-sandbox` currently targets rootless Docker on a single-user local workstation
-(`docs/claude_code_security_plan.md`, Scope). Only one file in the repository routes
+(`docs/claude-code-security-plan.md`, Scope). Only one file in the repository routes
 through an engine abstraction today — `tests/lib/engine.bash`, added by the testing
 SDD specifically so `ENGINE=podman bats tests/` would validate a future migration
 without rewriting test logic. `build.sh` and `start.sh` still call `docker` literally
@@ -146,7 +146,7 @@ UID-handling code paths mid-migration for no benefit.
 
 The Squid SDD flagged, and deliberately did not fix (§6.2-R, §9), that `start.sh`'s
 main session container `run` invocation lacks `--log-driver`/`--log-opt` despite
-`docs/claude_code_security_plan.md` Phase 5 documenting this as standard practice. It
+`docs/claude-code-security-plan.md` Phase 5 documenting this as standard practice. It
 also recommended, but did not implement, `--log-opt max-size=10m --log-opt max-file=3`
 for the proxy container specifically.
 
@@ -157,7 +157,7 @@ default varies by configuration — `journald` is common but not guaranteed avai
 under a minimal WSL2 systemd setup):
 
 - Main session container: `--log-driver json-file --log-opt max-size=50m --log-opt max-file=5`
-  (the exact values already documented in `claude_code_security_plan.md` Phase 5).
+  (the exact values already documented in `claude-code-security-plan.md` Phase 5).
 - Proxy container: `--log-driver json-file --log-opt max-size=10m --log-opt max-file=3`
   (the exact values already recommended in `0012-squid-proxy-integration.md` §6.2-R).
 
@@ -266,7 +266,7 @@ MAIN_LOG_ARGS=(--log-driver json-file --log-opt max-size=50m --log-opt max-file=
 - Fail-closed behavior on proxy startup failure (`0012-squid-proxy-integration.md` §6.3) is
   unchanged — still aborts before starting the main container.
 
-**Post-merge addendum (`claude_code_security_plan.md` Change 19):** the pre-existing
+**Post-merge addendum (`claude-code-security-plan.md` Change 19):** the pre-existing
 `MOUNT_ARGS` bind mounts (`/workspace`, `/run/claude-global`, `/run/claude-overlay`),
 not shown above because they weren't touched by this migration, needed a follow-up
 fix — see the §6.2 Tampering follow-up finding above.
@@ -357,12 +357,12 @@ under the prior Docker-only default and only became symptomatic once Change 16
 flipped the default engine to Podman on an SELinux-enforcing host. Fix: `start.sh`
 now appends `,relabel=shared` to all three `--mount type=bind,...` strings, gated on
 `ENGINE=podman` (Docker's `--mount` has no relabel suboption). See
-`claude_code_security_plan.md` Change 19; `tests/test_runtime_posture.bats` R-7/R-8;
+`claude-code-security-plan.md` Change 19; `tests/test_runtime_posture.bats` R-7/R-8;
 open question on the still-unfixed Docker path in §9 below.
 
 **Repudiation (R).** Net improvement (§3.B): both containers now carry explicit,
 size-capped log drivers, closing the previously-flagged main-container gap
-(`claude_code_security_plan.md` Phase 5 vs. reality) and the previously-recommended
+(`claude-code-security-plan.md` Phase 5 vs. reality) and the previously-recommended
 proxy hygiene addition (`0012-squid-proxy-integration.md` §6.2-R) in the same pass, pinned
 to `json-file` on both engines to avoid depending on Podman's less predictable default.
 Open question: rootless Podman's `json-file` log storage path/permissions under WSL2
@@ -397,7 +397,7 @@ change.
    delegation, the container's own `memory.max` cgroup limit is never actually wired up;
    the kill that was observed came from a different, unscoped boundary (not the
    container's own cgroup), which is also why Podman's own per-container bookkeeping
-   never recorded an OOM event for it. Fix and regression test: `claude_code_security_plan.md`
+   never recorded an OOM event for it. Fix and regression test: `claude-code-security-plan.md`
    Change 17; `tests/test_runtime_posture.bats` R-6.
 
    **Follow-up finding, delegation confirmed fully fixed:** after the Change 17 fix,
@@ -418,7 +418,7 @@ change.
    finds it. This is a path-resolution bug in OOM-marker placement, not a failure to
    detect the OOM — no further delegation fixes it. R-6 was corrected to assert only on
    the kernel-verified signal (`exit 137`), not on `.State.OOMKilled`. Fix and
-   regression test: `claude_code_security_plan.md` Change 18;
+   regression test: `claude-code-security-plan.md` Change 18;
    `tests/test_runtime_posture.bats` R-6.
 2. The fail-closed proxy-startup decision (`0012-squid-proxy-integration.md` §6.3) is
    unchanged — still the primary DoS trade-off for proxy unavailability, engine-agnostic.
@@ -426,7 +426,7 @@ change.
 **Elevation of Privilege (E).** Rootless Podman's in-container "root" (or, here,
 `claude-agent`) is structurally an unprivileged host user by construction — similar in
 effect to what UID-matching already gave the current Docker setup
-(`claude_code_security_plan.md` Change 7), but achieved as a property of the engine
+(`claude-code-security-plan.md` Change 7), but achieved as a property of the engine
 itself rather than a specific build-time choice. This changes what
 `--cap-drop=ALL`/`--security-opt=no-new-privileges` are actually buying: they no
 longer contribute to preventing a *host* root escape (rootless already prevents that
@@ -535,10 +535,10 @@ operator-executed (not a repo change).
    surfaced a second, distinct gap — `conmon` correctly detects the OOM kill (kernel
    `dmesg` confirms enforcement is genuinely correct) but writes its `oom` marker file
    to the wrong working directory under this host's rootless setup, so `.State.OOMKilled`
-   never reflects it. See §6.2-D follow-up and `claude_code_security_plan.md` Change 18.
+   never reflects it. See §6.2-D follow-up and `claude-code-security-plan.md` Change 18.
 9. **Update `ARCHITECTURE.md`/`BUILDING.md`** to document `$ENGINE`, the Podman
    prerequisites now proven necessary by step 5/6, and (once flipped) the new default.
-10. **Add a changelog entry to `docs/claude_code_security_plan.md`** documenting the
+10. **Add a changelog entry to `docs/claude-code-security-plan.md`** documenting the
     engine swap and its STRIDE deltas (§6), following the established Change-N format
     — the same closing pattern used by the Squid SDD's own implementation plan.
 11. **Flip the default `ENGINE` value** in `build.sh`/`start.sh` from `docker` to
@@ -569,7 +569,7 @@ scope is landing Podman as an option and eventually the default, not removing Do
 
 **Q: Does the Docker fallback path need the same SELinux relabeling fix as Change 19?**
 
-Not decided/fixed here. `claude_code_security_plan.md` Change 19 fixed `start.sh`'s
+Not decided/fixed here. `claude-code-security-plan.md` Change 19 fixed `start.sh`'s
 bind mounts under `ENGINE=podman` (`,relabel=shared` on `--mount type=bind,...`), but
 Docker's `--mount` has no equivalent relabel suboption — only the legacy `-v
 host:container:z` syntax supports it. The Scope section of the security plan lists

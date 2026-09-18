@@ -83,7 +83,7 @@ issue references a document; a document is committed alongside the code.
 | **Planning artifact** | `docs/planning/` (opt-in) | Scope, prior-art, feasibility, and charter documents from a project's Planning phase | Permanent once scaffolded |
 | **`BUILDING.md`** | Repo root | How to build and run the project locally | Living document |
 | **`ARCHITECTURE.md`** | Repo root | High-level system overview | Living document |
-| **User guide** | `docs/user_guide.md` | Task-oriented day-to-day usage; defers build commands to `BUILDING.md` and internals to `ARCHITECTURE.md` | Living document |
+| **User guide** | `docs/user-guide.md` | Task-oriented day-to-day usage; defers build commands to `BUILDING.md` and internals to `ARCHITECTURE.md` | Living document |
 | **Security/threat model document** | `docs/` | STRIDE analysis and controls coverage for system components | Living document |
 | **Operational guide** | `docs/` | Setup and operational procedures for infrastructure components | Living document |
 
@@ -258,7 +258,7 @@ Case B, C, or D — the STRIDE analysis is additive.
 1. Open a GitHub Issue as in Case B or C, depending on scope.
 2. Either produce or update a design document (Case C path) that includes
    a STRIDE impact section, or append a STRIDE impact section directly to
-   `docs/claude_code_security_plan.md` if the change is narrow.
+   `docs/claude-code-security-plan.md` if the change is narrow.
 3. The STRIDE analysis must cover:
    - Which STRIDE categories are affected.
    - Which surfaces changed (added, removed, or modified).
@@ -344,5 +344,5 @@ text files rather than manual procedures.
 
 **STRIDE:** A threat-modeling framework covering Spoofing, Tampering,
 Repudiation, Information Disclosure, Denial of Service, and Elevation of
-Privilege. Used in `docs/claude_code_security_plan.md` to analyze the
+Privilege. Used in `docs/claude-code-security-plan.md` to analyze the
 security posture of the sandbox.

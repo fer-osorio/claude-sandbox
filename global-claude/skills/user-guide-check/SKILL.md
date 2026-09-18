@@ -59,7 +59,7 @@ session is.
    docs-as-code setup path already performs for its own trigger.
 3. Save it to the location the project's own docs-as-code workflow
    document names for a user guide, if it has one; otherwise place it as
-   `user_guide.md` under a top-level `docs` directory, matching the
+   `user-guide.md` under a top-level `docs` directory, matching the
    convention this template itself follows.
 4. Propose a commit seeding it, following this session's standing Git
    Workflow conventions (branch first, no commit on `main`).

@@ -23,7 +23,7 @@ nearest row, "Operational guide", covers setup and operational procedures for
 infrastructure components, which is not the same document. A row states a
 location and a lifespan; neither can be assumed.
 
-**`docs/user_guide.md` is entirely sandbox-specific in content, and its
+**`docs/user-guide.md` is entirely sandbox-specific in content, and its
 shape is not.** All seven of its sections and all twelve of its relative
 links describe claude-sandbox: profiles, `start.sh`, the global instruction
 layer, Strategy A/B. Nothing in it addresses a project mounted at
@@ -35,7 +35,7 @@ to say.
 **A template shipped in `global-claude/` cannot carry repo-relative links.**
 [ADR 005](../adr/005-citing-across-the-repo-boundary.md) decision 1 permits
 only target-relative paths or paths inside the injected layer. All twelve of
-`docs/user_guide.md`'s links die under that rule, so the template is not a
+`docs/user-guide.md`'s links die under that rule, so the template is not a
 copy of that document with the specifics removed — the links are structural,
 not incidental, and the template must be written without them.
 
@@ -85,7 +85,7 @@ this does not make.
 
 ### 3. The section list
 
-Derived from `docs/user_guide.md` by keeping what survives generalisation:
+Derived from `docs/user-guide.md` by keeping what survives generalisation:
 
 | Section | Kept because |
 |---|---|
@@ -112,7 +112,7 @@ The location column states a directory rather than a path because the tier
 says the project chooses. That is the same fact `unowned-because:` records,
 in the place a reader of the workflow document will look.
 
-### 5. `docs/user_guide.md` is not reconciled here
+### 5. `docs/user-guide.md` is not reconciled here
 
 Deriving the template from it is in scope. Editing it to match is a separate
 logical change, and bundling the two would make the diff argue for itself.

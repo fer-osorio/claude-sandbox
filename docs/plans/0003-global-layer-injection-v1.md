@@ -2,7 +2,7 @@
 
 > **Document type:** Implementation Guide
 > **Companion document:** `docs/designs/0003-global-layer-injection.md`
-> **Prerequisite reading:** `claude_code_security_plan.md`, `squid_proxy_guide.md`
+> **Prerequisite reading:** `claude-code-security-plan.md`, `squid-proxy-guide.md`
 > **Audience:** The engineer implementing the design described in the companion SDD. Steps are
 > ordered for a clean first-time implementation. A rollback note appears at the end of each
 > phase for safe incremental application.
@@ -482,7 +482,7 @@ template in `~/.claude-sandbox/` and copy it when starting a new project.
 > origin of the defect. Nothing copies a root-level `settings.json` into
 > `.claude/` — not `start.sh`, not `base/entrypoint.sh`. The file has to be at
 > `<project>/.claude/settings.json` to be read at all. Left in place because
-> this plan is a record of what was executed; see `docs/claude_code_security_plan.md`
+> this plan is a record of what was executed; see `docs/claude-code-security-plan.md`
 > Change 22 for the fix.
 
 ---

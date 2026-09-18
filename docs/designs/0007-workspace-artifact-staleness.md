@@ -2,7 +2,7 @@
 
 > **Document type:** Software Design Document (SDD)
 > **Status:** Accepted
-> **Relates to:** `claude_code_security_plan.md` (Phase 5, Audit Logging; STRIDE coverage map),
+> **Relates to:** `claude-code-security-plan.md` (Phase 5, Audit Logging; STRIDE coverage map),
 > `0006-interpreter-presence-health-check.md` (companion SDD; handles the Python venv case that
 > motivated this generalization), `global_layer_injection_sdd.md` (entrypoint mechanism this
 > design extends), `ARCHITECTURE.md` (Strategy A / Strategy B distinction)
@@ -422,7 +422,7 @@ Each step maps to a single commit.
 6. **Add the Tier 2 ceiling and Tier 3 limit to `ARCHITECTURE.md`** — an explicit subsection
    under "What Not to Do" documenting the `ldd` ruling and the boundary of the Node presence
    warning.
-7. **Add a changelog entry** to `docs/claude_code_security_plan.md` as Change 14, recording
+7. **Add a changelog entry** to `docs/claude-code-security-plan.md` as Change 14, recording
    this change in the established format, using §6.4 and §6.3 as source material.
 
 ---

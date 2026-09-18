@@ -7,7 +7,7 @@
 > **Classification:** Case E (container security control) + Case C (multi-component feature)
 > **Relates to:** `0035-auto-memory-seeding-step-zero.md` (evidence base),
 > `0003-global-layer-injection.md` (the mechanism this extends),
-> `docs/claude_code_security_plan.md` (STRIDE coverage map)
+> `docs/claude-code-security-plan.md` (STRIDE coverage map)
 > **Audience:** The engineer maintaining this sandbox — assumes the global
 > layer's copy-on-start model and the existing STRIDE coverage map are known.
 
@@ -322,7 +322,7 @@ already carries, and is stated rather than left implicit.
 ## 5. STRIDE Impact
 
 Case E obligation. Delta against the coverage map in
-`docs/claude_code_security_plan.md` §5.
+`docs/claude-code-security-plan.md` §5.
 
 ### 5.1 Surfaces changed
 
@@ -560,8 +560,8 @@ One logical change per commit, on a branch, referencing the issue.
 6. **`test: cover auto-memory seeding and its startup checks (#65)`** — G-10
    through G-15 plus fixtures.
 7. **`docs: record auto-memory seeding as Change 22 (#65)`** — the §5 STRIDE delta
-   into `docs/claude_code_security_plan.md`, in the established Change format.
-8. **`docs: document memory seeding for operators (closes #65)`** — `user_guide.md`
+   into `docs/claude-code-security-plan.md`, in the established Change format.
+8. **`docs: document memory seeding for operators (closes #65)`** — `user-guide.md`
    and `ARCHITECTURE.md`.
 
 Steps 3–6 are each independently revertible. Step 2 gates all of them.

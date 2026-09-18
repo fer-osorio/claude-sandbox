@@ -442,7 +442,7 @@ rather than from a one-off, and the rule at the wrong path remains
 indistinguishable from no rule at all.
 
 The move itself, its STRIDE delta, and the G-6 rewrite that now asserts the
-location are recorded as Change 22 in `docs/claude_code_security_plan.md`.
+location are recorded as Change 22 in `docs/claude-code-security-plan.md`.
 
 Scope of the claim: this concerns *this repository's own* `settings.json`. Phase
 3 instructs operators to create `.claude/settings.json` per project, so an

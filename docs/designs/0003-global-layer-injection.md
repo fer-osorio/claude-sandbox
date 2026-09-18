@@ -2,7 +2,7 @@
 
 > **Document type:** Software Design Document (SDD)
 > **Status:** Approved for implementation
-> **Relates to:** `claude_code_security_plan.md` (Phases 2–6), `squid_proxy_guide.md`
+> **Relates to:** `claude-code-security-plan.md` (Phases 2–6), `squid-proxy-guide.md`
 > **Audience:** The engineer maintaining this sandbox — assumes familiarity with the existing
 > threat model, STRIDE categories, and the image hierarchy already documented in the security plan.
 
@@ -294,7 +294,7 @@ Dockerfiles.
 
 ## 5. Threat Model
 
-This section extends the STRIDE coverage map from `claude_code_security_plan.md` to account
+This section extends the STRIDE coverage map from `claude-code-security-plan.md` to account
 for the new surfaces introduced by this design.
 
 ### 5.1 New surfaces
@@ -452,8 +452,8 @@ The complete `~/.claude-sandbox/` tree after this design is implemented:
 │   ├── Dockerfile
 │   └── squid.conf
 └── docs/
-    ├── claude_code_security_plan.md
-    ├── squid_proxy_guide.md
+    ├── claude-code-security-plan.md
+    ├── squid-proxy-guide.md
     ├── adr/
     └── designs/
         └── 0003-global-layer-injection.md    ← this document

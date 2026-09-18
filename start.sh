@@ -209,7 +209,7 @@ echo ""
 # bind-mounted host directory keeps its original SELinux context on an
 # SELinux-enforcing host, and the confined container process gets EACCES on
 # it regardless of correct POSIX bits (a MAC layer above standard Unix
-# permissions) — see docs/claude_code_security_plan.md Change 19. "shared"
+# permissions) — see docs/claude-code-security-plan.md Change 19. "shared"
 # (not "private"/:Z) because GLOBAL_BASE/GLOBAL_OVERLAY are mounted by every
 # concurrent session and /workspace itself can be mounted by two sessions
 # against the same project dir; "private" relabeling is exclusive per
@@ -278,7 +278,7 @@ fi
 # driver regardless of engine rather than relying on differing defaults
 # (Podman's default varies by configuration). Closes the proxy hygiene gap
 # noted in 0012-squid-proxy-integration.md §6.2-R and the main-container gap noted
-# in claude_code_security_plan.md Phase 5. See 0025-podman-migration.md §3.B.
+# in claude-code-security-plan.md Phase 5. See 0025-podman-migration.md §3.B.
 # Size/count values come from config.sh (see header) — same defaults as
 # before this became config-driven.
 PROXY_LOG_ARGS=(--log-driver json-file --log-opt "max-size=${PROXY_LOG_MAX_SIZE}" --log-opt "max-file=${PROXY_LOG_MAX_FILE}")

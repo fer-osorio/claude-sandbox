@@ -132,8 +132,14 @@ unmanageable set.
 - `creds.sh init` generates an X25519 identity, writes the public key to
   `recipient.pub` in the clear, and wraps the private identity with a
   passphrase into `identity.age`.
-- Every credential file is encrypted to `recipient.pub`. **Adding a credential
-  therefore never needs the passphrase** — only decryption does.
+- Every credential file is encrypted to `recipient.pub`, so **writing needs
+  only the public key**. Adding the *first* credential for a project prompts
+  for nothing. Adding a second one does prompt, because a project's
+  credentials share one file and the existing ciphertext has to be read before
+  it can be rewritten. One file per credential would avoid that, at the cost
+  of unwrapping the identity once per credential at launch — the wrong side of
+  the trade, since launch is the hot path and the identity would have to be
+  held in a variable to be reused.
 - `start.sh` unlocks `identity.age` through process substitution and pipes it
   straight into the decryption of `<hash>.age`. The unwrapped identity exists
   only as a file descriptor in `start.sh`'s process; it is never written to

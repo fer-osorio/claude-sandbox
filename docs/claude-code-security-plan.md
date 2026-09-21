@@ -323,12 +323,22 @@ The path is load-bearing and is not interchangeable with `settings.json` at the 
 
 Never place key material or credentials as plaintext files in a project directory that Claude can read. Instead:
 
-**How a session authenticates, in this project:** interactively, from inside the container. You run `./start.sh`, and the first thing you do in the session is log in through Claude Code's own OAuth flow. `start.sh` passes exactly one credential into a container, `GH_TOKEN`, and only when it is already set in your shell.
+**How a session authenticates, in this project:** interactively, from inside the container. You run `./start.sh`, and the first thing you do in the session is log in through Claude Code's own OAuth flow. No Anthropic credential is passed into a container by any path.
+
+**How a session gets its other credentials:** from a per-project store, encrypted at rest on the host with `age` and decrypted by `start.sh` at launch. Values reach the container the way `GH_TOKEN` always has — `-e NAME`, name only, so no value appears in host argv, in `ps`, or in shell history. An ambient `GH_TOKEN` in the launching shell is still forwarded, so the old path keeps working; the store is where the value should come from instead. See `docs/designs/0129-encrypted-credential-store.md`, and `creds.sh` for managing it.
+
+Three properties are worth stating because they are what the design buys:
+
+- **The store is never mounted.** It lives outside this repository by default, for the reason given at the end of this phase: a store inside it would be bind-mounted at `/workspace` by any session opened on claude-sandbox itself. `start.sh` aborts rather than launching if the resolved store lies inside the project directory.
+- **Failure is closed, except where silence is the existing contract.** A project with no credential file starts silently, exactly as before. A file that is present but cannot be decrypted aborts the session, as does a missing `age` binary — a silent skip there would be indistinguishable from having no credentials at all.
+- **What the store holds is a policy question, not a capability one.** The mechanism moves arbitrary bytes into an environment variable. `docs/designs/0129-encrypted-credential-store.md` §Sensitivity tiering policy is what decides whether a given credential belongs in it, and SSH private keys are named there as a tier that does not.
+
+**What this does not do:** it does not stop the agent reading the value. A decrypted credential lands in the container's environment, where `echo $NAME` reaches it and `podman inspect` shows it. That is unchanged from `GH_TOKEN`'s exposure before this existed, and it is accepted knowingly rather than solved — see Change 26's residual list, and the proxy-substitution follow-up named there.
 
 Two consequences follow, and neither is a defect:
 
 - **A login does not survive the session.** Containers run with `--rm` and `~/.claude` inside them is not persisted anywhere, so every session begins with a login. This is the cost of ephemerality, paid knowingly.
-- **The host's credential is never in the container.** There is no API key in the container's environment, no credential file mounted from the host, and nothing in `start.sh` that could put one there.
+- **The host's Anthropic credential is never in the container.** There is no API key in the container's environment, no credential file mounted from the host, and nothing in `start.sh` that could put one there. The credential store above does not change this: it forwards project credentials, and the identity protecting it never leaves the host process.
 
 **On the API-key alternative:** Claude Code also accepts `ANTHROPIC_API_KEY` from the environment, and an earlier version of this document presented that as the mechanism:
 
@@ -339,6 +349,8 @@ docker run ... --env ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" claude-sandbox
 This project does not do that, and never did. It is recorded here as a road not taken rather than deleted, because it is a genuine option with a different trade: it removes the per-session login, and in exchange puts a long-lived credential into container environment state, readable by any process in the container and visible in the engine's inspect output. Adopting it would be a change to the launch path and would need its own STRIDE analysis. It is also a different billing and trust model — API-key access is not the subscription the interactive flow uses.
 
 **For your research key material**, the rule is simpler: *never mount the directory containing it*. Your `~/.gnupg`, your HSM interface directory, your private key store — these directories are not in `$PROJECT_DIR` and therefore not mounted. The container literally cannot see them. This is the strongest possible control: not a permission check that could be misconfigured, but a physical absence of the data from the container's filesystem namespace.
+
+The credential store obeys the same rule, and it is the rule that placed it. An earlier scoping put it in a `credentials/` directory inside this repository, gitignored. That is safe until someone opens a session on claude-sandbox itself, which is routine — `$PROJECT_DIR` is then the repository, and the store is mounted at `/workspace/credentials` with the wrapped identity and the project index beside the ciphertext. `.gitignore` governs tracking; the exposure here is mounting. Defaulting the store outside the repository restores physical absence, and the in-mount abort in `start.sh` turns an operator override into a refusal rather than a silent leak.
 
 **Threat model note:** This directly mitigates **Information Disclosure (I)** for your most critical assets. No permission system is needed if the data is simply not present.
 
@@ -1506,3 +1518,82 @@ and no resource limit is affected.
   floating; the asymmetry is deliberate only in that it was out of scope.
 - **Image size grows for every profile**, including the two that will never
   invoke it.
+
+---
+
+### Change 26 — Per-Project Encrypted Credential Store
+**Affects:** §4 (Phase 4, rewritten), §5 (STRIDE Coverage Map, delta only),
+`start.sh`, `creds.sh`, `.gitignore`, `BUILDING.md`,
+`tests/test_config.bats`. Date: 2026-09-21. Issue #129.
+
+**What changed:**
+`start.sh` no longer takes its credentials from whatever the launching shell
+holds. A per-project file, encrypted with `age` to a single X25519 identity
+and named for the SHA-256 of the resolved `PROJECT_DIR`, is decrypted on the
+host at launch; each `KEY=value` is exported into `start.sh`'s own process and
+forwarded by name. The identity is passphrase-wrapped at rest and is unwrapped
+only into a file descriptor — never a variable, never a file. `creds.sh`
+manages the store. The ambient `GH_TOKEN` path is untouched.
+
+**Why:**
+One credential, unscoped, unencrypted, and with nowhere to put a second. The
+container's exposure was never the problem and is deliberately unchanged; the
+problem was the source. See
+`docs/planning/0129-encrypted-credential-store/scope.md` §Problem statement.
+
+**Where the store lives, and why it moved:**
+The Planning scope put it at `credentials/` inside this repository,
+gitignored. Design rejected that. `$PROJECT_DIR` is bind-mounted at
+`/workspace`, and opening a session on claude-sandbox itself — routine — makes
+the repository the project, so the store would be mounted and read by the
+agent's own Bash tool: ciphertext, wrapped identity and the project index
+together. `.gitignore` governs tracking, not mounting. The store now defaults
+outside the repository, and `start.sh` aborts if the resolved store lies
+inside the project directory.
+
+**On Case E:** `start.sh` is on none of Case E's four trigger paths, so this
+is Case C and the STRIDE analysis here is owed rather than triggered — Phase 4
+described a `GH_TOKEN`-only flow that this change falsifies. Whether the
+trigger list should name `start.sh`, which decides what enters a container's
+environment, is the same open question Change 25 raised one layer down about
+profile `Dockerfile`s. This change does not settle it either.
+
+**STRIDE mapping (delta only):**
+
+| Threat (STRIDE) | Control changed |
+|---|---|
+| **Information Disclosure (I)** | **Improved, on the host side only.** Credentials leave the operator's shell environment and shell history and sit encrypted at rest under a passphrase-wrapped identity. Scoping per project also bounds what one session can reach: a compromised session sees that project's credentials, not everything the shell happened to export. **Unchanged inside the container** — see residual. |
+| **Tampering (T)** | **Improved.** A credential file that has been altered fails to decrypt, and a decrypt failure aborts the launch rather than starting a session with partial or absent credentials. Silence remains only for a project that has no file at all, which is the pre-existing contract. |
+| **Elevation of Privilege (E)** | **Improved, marginally, against operator error.** Decrypted names are exported into `start.sh`'s own process before it invokes the engine, so a credential named `PATH`, `LD_PRELOAD` or `ENGINE` would change how the launcher runs. Both `start.sh` and `creds.sh` refuse a denylist of such names, and C-20 fails if the two lists drift. This is a control against mistakes, not against an attacker: a hostile store implies a compromised host, which is out of scope. |
+| **Spoofing (S)** | **No change.** No new authentication path. The identity authenticates nothing; it only decrypts. |
+
+No other category changes: no new mount, no new network surface, no change to
+`base/entrypoint.sh` or to any image, and the container's interface is the
+same named environment variables it already received.
+
+**Residual, not yet closed:**
+- **The agent can still read every injected value.** `echo $NAME` reaches it
+  and `podman inspect` shows it. This is not a regression — `GH_TOKEN` has had
+  this exposure for as long as it has existed — but encryption at rest closes
+  nothing here, and the artifacts say so rather than implying otherwise. The
+  structural fix is proxy substitution, where the proxy holds the credential
+  and the container never does; it is a named follow-up, not this change.
+- **The identity is a single point of failure.** Losing it, or forgetting the
+  passphrase, makes the whole store unrecoverable rather than merely leaked.
+  The only mitigation is a backup procedure a person must actually perform;
+  `creds.sh init` refuses to finish without printing it, which is a prompt,
+  not a guarantee.
+- **The tiering policy is prose, not a check.** Nothing stops an operator
+  storing an org-wide token that the policy places in tier Never. The
+  enforcement ladder's rung-2 problem, and known as such.
+- **The divergence from mainstream container-secrets guidance is argued, not
+  neutral.** OWASP prefers file mounts to environment variables. That guidance
+  assumes a human attacker with daemon access; here the adversary is the
+  process inside the container, for which a mounted file is worse. The
+  reasoning is written down precisely because the conclusion looks wrong
+  against the standard advice.
+- **Seven new tests join the `hostonly` tier**, which does run in CI. The 34
+  engine-gated tests that do not are still #101's problem.
+- **The real `age` path is unexercised by the suite.** Every new test drives a
+  stub, because `age` is a host dependency CI does not have. Encrypt-decrypt
+  round-tripping is verified by hand, not by a gate.

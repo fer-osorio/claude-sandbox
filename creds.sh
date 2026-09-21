@@ -62,7 +62,7 @@ INDEX_FILE="${CREDENTIALS_DIR}/index"
 # Key names that would change how start.sh or its shell behaves, rather than
 # being handed to the container as a credential. Duplicated verbatim in
 # start.sh, which is the enforcement point — this copy only buys a better
-# error message at add time. C-18 fails if the two drift apart.
+# error message at add time. C-20 fails if the two drift apart.
 DENIED_KEYS=(
     PATH LD_PRELOAD LD_LIBRARY_PATH IFS BASH_ENV ENV SHELLOPTS BASHOPTS
     HOME HTTP_PROXY HTTPS_PROXY NO_PROXY

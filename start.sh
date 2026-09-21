@@ -289,7 +289,7 @@ if [ -f "$CRED_FILE" ]; then
 
     # Names that would change how this script or its shell behaves rather than
     # being handed to the container. Duplicated from creds.sh's DENIED_KEYS;
-    # C-18 fails if the two drift apart. This copy is the enforcement point —
+    # C-20 fails if the two drift apart. This copy is the enforcement point —
     # a file written by an older creds.sh still passes through here.
     DENIED_CRED_KEYS=(
         PATH LD_PRELOAD LD_LIBRARY_PATH IFS BASH_ENV ENV SHELLOPTS BASHOPTS

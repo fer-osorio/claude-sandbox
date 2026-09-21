@@ -339,6 +339,11 @@ EOF
         bash start.sh "'"${REG_TMPDIR}"'/proj" 2>&1'
     [ "$status" -ne 0 ]
     [[ "$output" == *"has stored credentials but 'age' is not installed"* ]]
+    # The point of this guard is that the abort happens *here*, not three
+    # lines later as a decrypt failure. Without this assertion the test passes
+    # with the guard removed, because the decrypt branch catches the missing
+    # binary too and reports something an operator cannot act on.
+    [[ "$output" != *"failed to decrypt"* ]]
     [[ "$output" != *"Starting Squid proxy"* ]]
 }
 

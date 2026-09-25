@@ -151,8 +151,8 @@ with no credential file prompts for nothing, so the common case is unchanged.
 ### `start.sh` integration
 
 A new block immediately after the `ENV_ARGS` construction at
-`start.sh:235-238` and before the global-layer mounts at `:240`. It sits
-before `trap cleanup EXIT` at `:265` deliberately: an abort there has no proxy
+`start.sh:242-245` and before the global-layer mounts at `:347`. It sits
+before `trap cleanup EXIT` at `:372` deliberately: an abort there has no proxy
 container to tear down.
 
 1. Compute `CRED_FILE` from the hash of `PROJECT_DIR`.
@@ -165,14 +165,77 @@ container to tear down.
    — the risk `docs/planning/0129-encrypted-credential-store/feasibility.md`
    §Risk inventory names.
 5. Decrypt in one command substitution, no temporary file. On failure, abort,
-   mirroring the Squid precedent at `start.sh:287-298` in shape: one `Error:`
+   mirroring the Squid precedent at `start.sh:394-405` in shape: one `Error:`
    line, one line citing the document that mandates fail-closed, `exit 1`.
 6. Parse, validate each key, `export` it, and append `("-e" "$KEY")` to
    `ENV_ARGS`.
 7. Unset the plaintext.
 
-Steps 3 through 5 are all fail-closed. Only step 2 is silent, and only because
+Steps 3 through 6 are all fail-closed. Only step 2 is silent, and only because
 silence there is the existing contract.
+
+The same flow as a picture, for the branching the list above flattens. The
+list stays because mermaid does not render in a terminal, which is where both
+the operator and an agent read this most often (issue #99 §Trade-offs on
+record).
+
+```mermaid
+flowchart TD
+    subgraph HOST["Host — operator's machine"]
+        A["./start.sh &lt;dir&gt;  |  ./start.sh @name"]
+        B["PROJECT_DIR = realpath(arg)<br/>@name resolves first, so both<br/>forms reach the same key"]
+        S[("CREDENTIALS_DIR — outside the repo,<br/>never mounted<br/>identity.age · recipient.pub · index")]
+        C{"&lt;sha256(PROJECT_DIR)&gt;.age<br/>exists?"}
+        D["Inject nothing, print nothing.<br/>Unchanged behaviour."]
+        G1{"store inside<br/>PROJECT_DIR?"}
+        L1["Abort — it would be mounted<br/>at /workspace and read"]
+        G2{"age on PATH?"}
+        L2["Abort — skipping would look<br/>like 'no credentials'"]
+        E["Prompt for the passphrase"]
+        F["Unwrap the identity into a file<br/>descriptor — never a variable,<br/>never a file, never an argument"]
+        G["Decrypt this project's file"]
+        K{"decrypted?"}
+        L3["Abort — fail closed"]
+        H{"key name usable,<br/>and not denylisted?"}
+        L4["Abort — PATH, LD_PRELOAD, ENGINE…<br/>would change how start.sh runs"]
+        I["export KEY, then append -e KEY<br/>to ENV_ARGS — name only, so no<br/>value reaches argv"]
+        BAN["Creds: N injected (…)<br/>derived from ENV_ARGS itself,<br/>printed only when non-empty"]
+        J["engine run … ENV_ARGS …"]
+    end
+
+    subgraph CONTAINER["Container — agent sandbox"]
+        M["entrypoint.sh applies the global<br/>layer, then exec claude"]
+        N["KEY sits in the container's own<br/>environment — the same exposure<br/>class GH_TOKEN always had"]
+        O["Claude's Bash tool CAN read it:<br/>echo $KEY. Accepted, not closed."]
+        P["A permitted tool call uses it,<br/>e.g. the gh CLI"]
+    end
+
+    A --> B --> C
+    S -.->|"read on the host only"| C
+    C -->|"no"| D --> BAN
+    C -->|"yes"| G1
+    G1 -->|"yes"| L1
+    G1 -->|"no"| G2
+    G2 -->|"no"| L2
+    G2 -->|"yes"| E --> F --> G --> K
+    K -->|"no"| L3
+    K -->|"yes"| H
+    H -->|"no"| L4
+    H -->|"yes"| I --> BAN
+    BAN --> J --> M --> N --> O
+    N --> P
+
+    style L1 fill:#f8d7da,stroke:#c0392b,stroke-width:2px
+    style L2 fill:#f8d7da,stroke:#c0392b,stroke-width:2px
+    style L3 fill:#f8d7da,stroke:#c0392b,stroke-width:2px
+    style L4 fill:#f8d7da,stroke:#c0392b,stroke-width:2px
+    style O fill:#fff3cd,stroke:#c9a227,stroke-width:2px
+    style S stroke-dasharray: 4 4
+```
+
+The yellow node is the residual risk §Security analysis states: everything
+left of `J` is the work, and none of it changes what the agent can read once
+the container is running.
 
 ### Operator feedback, and why it is a real assertion
 

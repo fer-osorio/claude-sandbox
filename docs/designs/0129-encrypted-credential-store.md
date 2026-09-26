@@ -19,7 +19,7 @@ and the tiering policy its §Open questions asks to decide early.
 
 ### What is missing
 
-`start.sh:235-238` builds `ENV_ARGS` as a name-only `-e GH_TOKEN`, conditional
+`start.sh:242-245` builds `ENV_ARGS` as a name-only `-e GH_TOKEN`, conditional
 on `GH_TOKEN` already being set. That mechanism is sound — the value never
 reaches host argv, so it is absent from `ps` and from shell history. The
 problem is only its source.
@@ -31,7 +31,7 @@ the store in a gitignored `credentials/` directory, and issue #129 says the
 same. **That location is unsafe for this project specifically, and this design
 rejects it.**
 
-`start.sh:231-233` bind-mounts `PROJECT_DIR` at `/workspace`. When an operator
+`start.sh:238-240` bind-mounts `PROJECT_DIR` at `/workspace`. When an operator
 opens a session on the claude-sandbox repository itself — routine, and how this
 document was written — `PROJECT_DIR` *is* `SANDBOX_DIR`. A store at
 `${SANDBOX_DIR}/credentials/` is then mounted at `/workspace/credentials/` and
@@ -108,7 +108,7 @@ cheap to make impossible.
 ### Path-hash keying
 
 The filename is `sha256sum` over the resolved `PROJECT_DIR` from
-`start.sh:146`. Because `@name` resolution at `start.sh:117-144` runs *before*
+`start.sh:153`. Because `@name` resolution at `start.sh:124-151` runs *before*
 `realpath`, `./start.sh @mylib` and `./start.sh ~/projects/mylib` land on the
 same hash with no special-casing — the property
 `docs/planning/0129-encrypted-credential-store/feasibility.md` §Technical
@@ -225,10 +225,10 @@ flowchart TD
     BAN --> J --> M --> N --> O
     N --> P
 
-    style L1 fill:#f8d7da,stroke:#c0392b,stroke-width:2px
-    style L2 fill:#f8d7da,stroke:#c0392b,stroke-width:2px
-    style L3 fill:#f8d7da,stroke:#c0392b,stroke-width:2px
-    style L4 fill:#f8d7da,stroke:#c0392b,stroke-width:2px
+    style L1 fill:#c8a7aa,stroke:#c0392b,stroke-width:2px
+    style L2 fill:#c8a7aa,stroke:#c0392b,stroke-width:2px
+    style L3 fill:#c8a7aa,stroke:#c0392b,stroke-width:2px
+    style L4 fill:#c8a7aa,stroke:#c0392b,stroke-width:2px
     style O fill:#fff3cd,stroke:#c9a227,stroke-width:2px
     style S stroke-dasharray: 4 4
 ```
@@ -252,7 +252,7 @@ follows a `-e` — rather than from a list accumulated during parsing. This is
 not a stylistic choice. `tests/test_config.bats` drives `start.sh` under
 `ENGINE=true`, which discards argv, so no `hostonly` test can observe `-e
 GH_TOKEN` reaching the engine. Deriving the banner from the array that
-`start.sh:305` expands is what makes a glob assertion on that line an
+`start.sh:412` expands is what makes a glob assertion on that line an
 assertion about the array, and what stops the two drifting apart. A banner
 built from a parallel list could report an injection that never happened.
 

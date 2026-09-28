@@ -417,7 +417,7 @@ docs/adr/005-citing-across-the-repo-boundary.md
 docs/designs/0069-planning-skill-output-routing.md
 docs/designs/0069-project-feasibility-skill.md
 docs/designs/0069-project-planning-skill.md
-docs/claude-code-security-plan.md
+docs/claude-code-security-plan-changelog.md
 squid/squid.conf"
 
 # The naming convention in docs/designs/0105-file-naming-convention.md, as

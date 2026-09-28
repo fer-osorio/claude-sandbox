@@ -13,5 +13,16 @@ check-auto-memory*.sh.out
 # Locat setting for claude code
 .claude/settings.local.json
 
-# test_runtime_posture.bats R-6;OOM-kill assertion 
+# test_runtime_posture.bats R-6;OOM-kill assertion
 oom
+
+# Credential store, if an operator points CREDENTIALS_DIR back into the repo.
+# The default location is outside it — see
+# docs/designs/0129-encrypted-credential-store.md §Store location — because
+# .gitignore governs tracking and the exposure that matters is mounting.
+credentials/
+
+# Untracked scratch. docs/tmp/ is already exempt from D-11 and D-12 in
+# tests/test_docs_integrity.bats on the grounds that it is never tracked;
+# this is what makes that true.
+docs/tmp/

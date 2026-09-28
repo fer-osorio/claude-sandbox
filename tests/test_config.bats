@@ -38,6 +38,49 @@ _reg_fixture_dir() {
     cp "${SANDBOX_DIR}/start.sh" "${REG_TMPDIR}/start.sh"
 }
 
+# A project directory plus an empty credential store, both inside REG_TMPDIR
+# so no test can reach an operator's real store at CREDENTIALS_DIR's default.
+_cred_fixture() {
+    mkdir -p "${REG_TMPDIR}/proj" "${REG_TMPDIR}/store"
+}
+
+# Plants a credential file under the name start.sh will look for. The hash is
+# recomputed here rather than read from start.sh: if the two formulas ever
+# diverge, C-16 and C-17 stop finding the file and fail, which is the signal
+# wanted.
+_cred_file_for() {
+    printf 'ciphertext\n' \
+        > "${REG_TMPDIR}/store/$(printf '%s' "$1" | sha256sum | cut -d' ' -f1).age"
+    printf 'wrapped\n' > "${REG_TMPDIR}/store/identity.age"
+}
+
+# An 'age' on PATH whose body is the argument. Used to drive the decrypt
+# branches without the real binary, which is a host dependency the CI runner
+# does not have.
+_stub_age() {
+    mkdir -p "${REG_TMPDIR}/bin"
+    {
+        printf '#!/usr/bin/env bash\n'
+        printf '%s\n' "$1"
+    } > "${REG_TMPDIR}/bin/age"
+    chmod +x "${REG_TMPDIR}/bin/age"
+}
+
+# A PATH holding everything start.sh needs before its 'age' check and nothing
+# named age, so the missing-binary branch stays reachable on a host that has
+# age installed. Echoes the directory.
+_path_without_age() {
+    local tool
+    mkdir -p "${REG_TMPDIR}/nobin"
+    for tool in bash sh realpath sha256sum cut grep sed sort tr basename \
+                dirname date mv rm cat head tail printf env; do
+        if command -v "$tool" > /dev/null 2>&1; then
+            ln -sf "$(command -v "$tool")" "${REG_TMPDIR}/nobin/${tool}"
+        fi
+    done
+    printf '%s' "${REG_TMPDIR}/nobin"
+}
+
 # bats test_tags=fast, hostonly
 @test "C-1: env var overrides config.sh's value for the same variable" {
     run env ENGINE=docker bash -c '
@@ -250,4 +293,117 @@ EOF
     [[ "$output" == *"Project:  ${REG_TMPDIR}/committed-real"* ]]
     [[ "$output" == *"Image:    claude-crypto"* ]]
     [[ "$output" != *"attempted-override"* ]]
+}
+
+# Credential store (docs/designs/0129-encrypted-credential-store.md). None of
+# these needs the real 'age': the store is a host dependency and CI's runner
+# has none, so the decrypt branches are driven through a stub on PATH.
+
+# bats test_tags=fast, hostonly
+@test "C-14: a project with no credential file starts silently, as it always has" {
+    _reg_fixture_dir
+    _cred_fixture
+
+    run bash -c 'cd "'"${REG_TMPDIR}"'" && env -u GH_TOKEN ENGINE=true \
+        CREDENTIALS_DIR="'"${REG_TMPDIR}"'/store" \
+        bash start.sh "'"${REG_TMPDIR}"'/proj" 2>&1'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Project:  ${REG_TMPDIR}/proj"* ]]
+    [[ "$output" != *"Creds:"* ]]
+    [[ "$output" == *"Starting Squid proxy"* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-15: the banner reports the names in ENV_ARGS, covering the ambient GH_TOKEN path" {
+    _reg_fixture_dir
+    _cred_fixture
+
+    run bash -c 'cd "'"${REG_TMPDIR}"'" && ENGINE=true GH_TOKEN=unused-by-this-test \
+        CREDENTIALS_DIR="'"${REG_TMPDIR}"'/store" \
+        bash start.sh "'"${REG_TMPDIR}"'/proj" 2>&1'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Creds:    1 injected (GH_TOKEN)"* ]]
+    [[ "$output" != *"unused-by-this-test"* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-16: a credential file with no age binary aborts, distinguishably from having none" {
+    _reg_fixture_dir
+    _cred_fixture
+    _cred_file_for "${REG_TMPDIR}/proj"
+    local nobin
+    nobin="$(_path_without_age)"
+
+    run bash -c 'cd "'"${REG_TMPDIR}"'" && env -u GH_TOKEN PATH="'"${nobin}"'" ENGINE=true \
+        CREDENTIALS_DIR="'"${REG_TMPDIR}"'/store" \
+        bash start.sh "'"${REG_TMPDIR}"'/proj" 2>&1'
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"has stored credentials but 'age' is not installed"* ]]
+    # The point of this guard is that the abort happens *here*, not three
+    # lines later as a decrypt failure. Without this assertion the test passes
+    # with the guard removed, because the decrypt branch catches the missing
+    # binary too and reports something an operator cannot act on.
+    [[ "$output" != *"failed to decrypt"* ]]
+    [[ "$output" != *"Starting Squid proxy"* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-17: a credential file that fails to decrypt aborts before the proxy starts" {
+    _reg_fixture_dir
+    _cred_fixture
+    _cred_file_for "${REG_TMPDIR}/proj"
+    _stub_age 'exit 1'
+
+    run bash -c 'cd "'"${REG_TMPDIR}"'" && env -u GH_TOKEN PATH="'"${REG_TMPDIR}"'/bin:$PATH" \
+        ENGINE=true CREDENTIALS_DIR="'"${REG_TMPDIR}"'/store" \
+        bash start.sh "'"${REG_TMPDIR}"'/proj" 2>&1'
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"failed to decrypt"* ]]
+    [[ "$output" == *"Fail-closed per docs/designs/0129-encrypted-credential-store.md"* ]]
+    [[ "$output" != *"Starting Squid proxy"* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-18: a decrypted credential is injected by name, and its value is never printed" {
+    _reg_fixture_dir
+    _cred_fixture
+    _cred_file_for "${REG_TMPDIR}/proj"
+    _stub_age 'printf "GH_TOKEN=must-not-appear\nPYPI_TOKEN=also-secret\n"'
+
+    run bash -c 'cd "'"${REG_TMPDIR}"'" && env -u GH_TOKEN PATH="'"${REG_TMPDIR}"'/bin:$PATH" \
+        ENGINE=true CREDENTIALS_DIR="'"${REG_TMPDIR}"'/store" \
+        bash start.sh "'"${REG_TMPDIR}"'/proj" 2>&1'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Creds:    2 injected (GH_TOKEN, PYPI_TOKEN)"* ]]
+    [[ "$output" != *"must-not-appear"* ]]
+    [[ "$output" != *"also-secret"* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-19: a store inside the project directory aborts rather than being mounted" {
+    _reg_fixture_dir
+    _cred_fixture
+    mkdir -p "${REG_TMPDIR}/proj/credentials"
+    printf 'ciphertext\n' > "${REG_TMPDIR}/proj/credentials/$(printf '%s' "${REG_TMPDIR}/proj" | sha256sum | cut -d' ' -f1).age"
+    _stub_age 'printf "GH_TOKEN=leaked\n"'
+
+    run bash -c 'cd "'"${REG_TMPDIR}"'" && env -u GH_TOKEN PATH="'"${REG_TMPDIR}"'/bin:$PATH" \
+        ENGINE=true CREDENTIALS_DIR="'"${REG_TMPDIR}"'/proj/credentials" \
+        bash start.sh "'"${REG_TMPDIR}"'/proj" 2>&1'
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"is inside the project directory"* ]]
+    [[ "$output" != *"Starting Squid proxy"* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-20: start.sh and creds.sh deny the same credential names" {
+    local in_start in_creds
+    in_start="$(sed -n '/^    DENIED_CRED_KEYS=(/,/^    )$/p' "${SANDBOX_DIR}/start.sh" \
+        | sed '1d;$d' | tr -s ' \n' ' ')"
+    in_creds="$(sed -n '/^DENIED_KEYS=(/,/^)$/p' "${SANDBOX_DIR}/creds.sh" \
+        | sed '1d;$d' | tr -s ' \n' ' ')"
+
+    [ -n "$in_start" ]
+    [ -n "$in_creds" ]
+    [ "$in_start" = "$in_creds" ]
 }

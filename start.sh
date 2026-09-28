@@ -49,6 +49,7 @@ _ENV_MAIN_LOG_MAX_SIZE="${MAIN_LOG_MAX_SIZE:-}"
 _ENV_MAIN_LOG_MAX_FILE="${MAIN_LOG_MAX_FILE:-}"
 _ENV_PROXY_LOG_MAX_SIZE="${PROXY_LOG_MAX_SIZE:-}"
 _ENV_PROXY_LOG_MAX_FILE="${PROXY_LOG_MAX_FILE:-}"
+_ENV_CREDENTIALS_DIR="${CREDENTIALS_DIR:-}"
 
 # --- Layer 1: hardcoded defaults, so this script still works if config.sh
 # is missing.
@@ -61,6 +62,11 @@ MAIN_LOG_MAX_SIZE="50m"
 MAIN_LOG_MAX_FILE="5"
 PROXY_LOG_MAX_SIZE="10m"
 PROXY_LOG_MAX_FILE="3"
+# Outside this repository on purpose: a store inside it would be bind-mounted
+# at /workspace by any session opened on claude-sandbox itself, and be read
+# directly by the agent. See docs/designs/0129-encrypted-credential-store.md
+# §Store location.
+CREDENTIALS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/claude-sandbox/credentials"
 declare -A PROJECT_PATH=()
 declare -A PROJECT_PROFILE=()
 
@@ -106,6 +112,7 @@ MAIN_LOG_MAX_SIZE="${_ENV_MAIN_LOG_MAX_SIZE:-$MAIN_LOG_MAX_SIZE}"
 MAIN_LOG_MAX_FILE="${_ENV_MAIN_LOG_MAX_FILE:-$MAIN_LOG_MAX_FILE}"
 PROXY_LOG_MAX_SIZE="${_ENV_PROXY_LOG_MAX_SIZE:-$PROXY_LOG_MAX_SIZE}"
 PROXY_LOG_MAX_FILE="${_ENV_PROXY_LOG_MAX_FILE:-$PROXY_LOG_MAX_FILE}"
+CREDENTIALS_DIR="${_ENV_CREDENTIALS_DIR:-$CREDENTIALS_DIR}"
 
 PROJECT_ARG="${1:-$(pwd)}"
 IMAGE_TAG="${2:-}"
@@ -235,6 +242,106 @@ MOUNT_ARGS=(
 ENV_ARGS=()
 if [ -n "${GH_TOKEN:-}" ]; then
     ENV_ARGS+=("-e" "GH_TOKEN")
+fi
+
+# Per-project credentials, decrypted here on the host and forwarded by name
+# exactly as GH_TOKEN is above, so no value reaches argv. Runs before the
+# EXIT trap is installed below: an abort here has no proxy container to tear
+# down. See docs/designs/0129-encrypted-credential-store.md, and creds.sh for
+# the store's management commands.
+#
+# Keep this hash identical to creds.sh's hash_path, or a stored credential
+# becomes unreachable at launch.
+CRED_FILE="${CREDENTIALS_DIR}/$(printf '%s' "$PROJECT_DIR" | sha256sum | cut -d' ' -f1).age"
+
+# An absent file is silence, not an error: that is what a project without
+# credentials has always done, and it stays the only silent outcome here.
+if [ -f "$CRED_FILE" ]; then
+    # Resolved before comparing, so a symlink or a '..' inside CREDENTIALS_DIR
+    # cannot walk back into the bind mount.
+    CRED_DIR_REAL="$(realpath "$CREDENTIALS_DIR")"
+    case "${CRED_DIR_REAL}/" in
+        "${PROJECT_DIR}"/*)
+            echo "Error: the credential store at $CRED_DIR_REAL is inside the project directory."
+            echo "It would be mounted at /workspace, where the session could read it."
+            echo "Move it or set CREDENTIALS_DIR — see docs/designs/0129-encrypted-credential-store.md §Store location."
+            exit 1
+            ;;
+    esac
+
+    # A missing binary aborts rather than skipping. Skipping would be
+    # indistinguishable from "this project has no credentials", which is the
+    # failure docs/planning/0129-encrypted-credential-store/feasibility.md
+    # §Risk inventory names.
+    if ! command -v age > /dev/null 2>&1; then
+        echo "Error: '$PROJECT_DIR' has stored credentials but 'age' is not installed."
+        echo "Install it (BUILDING.md §Prerequisites), or remove them with ./creds.sh rm."
+        exit 1
+    fi
+
+    # The unwrapped identity exists only as a file descriptor — never a
+    # variable, never a file, never an argument.
+    if ! CRED_PLAINTEXT="$(age -d -i <(age -d "${CREDENTIALS_DIR}/identity.age") "$CRED_FILE" 2> /dev/null)"; then
+        echo "Error: the credential store for this project failed to decrypt."
+        echo "Fail-closed per docs/designs/0129-encrypted-credential-store.md §start.sh integration — aborting session."
+        exit 1
+    fi
+
+    # Names that would change how this script or its shell behaves rather than
+    # being handed to the container. Duplicated from creds.sh's DENIED_KEYS;
+    # C-20 fails if the two drift apart. This copy is the enforcement point —
+    # a file written by an older creds.sh still passes through here.
+    DENIED_CRED_KEYS=(
+        PATH LD_PRELOAD LD_LIBRARY_PATH IFS BASH_ENV ENV SHELLOPTS BASHOPTS
+        HOME HTTP_PROXY HTTPS_PROXY NO_PROXY
+        ENGINE IMAGE_PREFIX CREDENTIALS_DIR PROFILES
+        MAIN_MEMORY MAIN_CPUS MAIN_LOG_MAX_SIZE MAIN_LOG_MAX_FILE
+        PROXY_LOG_MAX_SIZE PROXY_LOG_MAX_FILE
+    )
+
+    while IFS= read -r _cred_line; do
+        [ -n "$_cred_line" ] || continue
+        case "$_cred_line" in
+            \#*) continue ;;
+        esac
+
+        _cred_key="${_cred_line%%=*}"
+        if ! [[ "$_cred_key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+            echo "Error: stored credential name '$_cred_key' is not a usable variable name."
+            echo "Fix it with ./creds.sh, then start again."
+            exit 1
+        fi
+        for _denied in "${DENIED_CRED_KEYS[@]}"; do
+            if [ "$_cred_key" = "$_denied" ]; then
+                echo "Error: stored credential '$_cred_key' changes how start.sh itself runs."
+                echo "Remove it with: ./creds.sh rm '$PROJECT_DIR' '$_cred_key'"
+                exit 1
+            fi
+        done
+
+        export "${_cred_key}=${_cred_line#*=}"
+        ENV_ARGS+=("-e" "$_cred_key")
+    done <<< "$CRED_PLAINTEXT"
+
+    unset CRED_PLAINTEXT _cred_line _cred_key _denied
+fi
+
+# Derived by walking ENV_ARGS itself, not from a list accumulated while
+# parsing. ENGINE=true discards argv, so this line is the only thing a
+# hostonly test can observe; deriving it from the array that is expanded at
+# the engine invocation below is what stops the two disagreeing. Names only —
+# a value is never printed.
+CRED_NAMES=()
+for (( _i = 0; _i < ${#ENV_ARGS[@]}; _i++ )); do
+    [ "${ENV_ARGS[$_i]}" = "-e" ] || continue
+    CRED_NAMES+=("${ENV_ARGS[$(( _i + 1 ))]}")
+done
+unset _i
+
+if [ ${#CRED_NAMES[@]} -gt 0 ]; then
+    _cred_list="$(printf ', %s' "${CRED_NAMES[@]}")"
+    echo "Creds:    ${#CRED_NAMES[@]} injected (${_cred_list:2})"
+    unset _cred_list
 fi
 
 if [ -d "$GLOBAL_BASE" ]; then

@@ -487,36 +487,46 @@ _unresolved_doc_paths() {
     )
 }
 
-# The security plan's §Changelog keeps a number-and-title index; the entries
-# themselves live in docs/claude-code-security-plan-changelog.md (#132).
-# Tracked files across this repository cite changes by number alone, including
-# start.sh and three files under tests/, and those citations resolve through
-# the index — so drift leaves the index quietly wrong rather than visibly
-# broken, which is the failure D-11 cannot see: the path still exists, it just
-# no longer says what the citation claims.
+# The security plan (#132) and the Squid guide (#139) each keep a
+# number-and-title index of their changelog, with the entries themselves in a
+# separate file. Tracked files across this repository cite changes by number
+# alone, including start.sh and three files under tests/, and those citations
+# resolve through the index — so drift leaves the index quietly wrong rather
+# than visibly broken, which is the failure D-11 cannot see: the path still
+# exists, it just no longer says what the citation claims.
+#
+# Numbering is per document, and the two sequences are independent: both files
+# have a "Change 2", and they are unrelated. Each index is therefore compared
+# only against its own counterpart, never across the pair. That independence is
+# the ambiguity #139 exists to make navigable, so it is asserted here rather
+# than assumed.
+_CHANGELOG_PAIRS="docs/claude-code-security-plan.md:docs/claude-code-security-plan-changelog.md
+docs/squid-proxy-guide.md:docs/squid-proxy-guide-changelog.md"
+
 _changelog_index_drift() {
     (
         cd "$SANDBOX_DIR" || exit 1
-        plan=docs/claude-code-security-plan.md
-        log=docs/claude-code-security-plan-changelog.md
+        printf '%s\n' "$_CHANGELOG_PAIRS" | while IFS=: read -r indexed log; do
+            [ -n "$indexed" ] || continue
 
-        if [ ! -f "$log" ]; then
-            echo "${log}: missing, but ${plan} indexes it"
-            exit 0
-        fi
+            if [ ! -f "$log" ]; then
+                echo "${log}: missing, but ${indexed} indexes it"
+                continue
+            fi
 
-        entries=$(sed -n 's/^### Change \([0-9][0-9]*\) — \(.*\)$/\1	\2/p' "$log")
-        rows=$(sed -n 's/^| \([0-9][0-9]*\) | \(.*\) |$/\1	\2/p' "$plan")
+            entries=$(sed -n 's/^### Change \([0-9][0-9]*\) — \(.*\)$/\1	\2/p' "$log")
+            rows=$(sed -n 's/^| \([0-9][0-9]*\) | \(.*\) |$/\1	\2/p' "$indexed")
 
-        [ -n "$entries" ] || echo "${log}: no '### Change N — Title' entries found"
-        [ -n "$rows" ] || echo "${plan}: no changelog index rows found"
+            [ -n "$entries" ] || echo "${log}: no '### Change N — Title' entries found"
+            [ -n "$rows" ] || echo "${indexed}: no changelog index rows found"
 
-        if [ -n "$entries" ] && [ -n "$rows" ]; then
-            printf '%s\n' "$entries" > "${BATS_TEST_TMPDIR}/entries"
-            printf '%s\n' "$rows" > "${BATS_TEST_TMPDIR}/rows"
-            diff "${BATS_TEST_TMPDIR}/entries" "${BATS_TEST_TMPDIR}/rows" > /dev/null \
-                || echo "the index in ${plan} and the entries in ${log} disagree on 'Change N — Title'"
-        fi
+            if [ -n "$entries" ] && [ -n "$rows" ]; then
+                printf '%s\n' "$entries" > "${BATS_TEST_TMPDIR}/entries"
+                printf '%s\n' "$rows" > "${BATS_TEST_TMPDIR}/rows"
+                diff "${BATS_TEST_TMPDIR}/entries" "${BATS_TEST_TMPDIR}/rows" > /dev/null \
+                    || echo "the index in ${indexed} and the entries in ${log} disagree on 'Change N — Title'"
+            fi
+        done
     )
 }
 
@@ -653,7 +663,7 @@ _changelog_index_drift() {
 }
 
 # bats test_tags=fast, hostonly
-@test "D-13: the security plan's changelog index matches the changelog" {
+@test "D-13: every changelog index matches its changelog" {
     run _changelog_index_drift
     [ "$status" -eq 0 ]
     if [ -n "$output" ]; then

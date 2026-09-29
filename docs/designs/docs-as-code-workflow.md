@@ -267,8 +267,12 @@ Case B, C, or D — the STRIDE analysis is additive.
 
 1. Open a GitHub Issue as in Case B or C, depending on scope.
 2. Either produce or update a design document (Case C path) that includes
-   a STRIDE impact section, or append a STRIDE impact section directly to
-   `docs/claude-code-security-plan.md` if the change is narrow.
+   a STRIDE impact section, or, if the change is narrow, append a Change
+   entry carrying a STRIDE delta to
+   `docs/claude-code-security-plan-changelog.md` — and correct
+   `docs/claude-code-security-plan.md` itself wherever the change makes its
+   text wrong. The plan states what is true now; the changelog records what
+   changed and why.
 3. The STRIDE analysis must cover:
    - Which STRIDE categories are affected.
    - Which surfaces changed (added, removed, or modified).

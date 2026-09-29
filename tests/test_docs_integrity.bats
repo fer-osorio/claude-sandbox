@@ -417,7 +417,7 @@ docs/adr/005-citing-across-the-repo-boundary.md
 docs/designs/0069-planning-skill-output-routing.md
 docs/designs/0069-project-feasibility-skill.md
 docs/designs/0069-project-planning-skill.md
-docs/claude-code-security-plan.md
+docs/claude-code-security-plan-changelog.md
 squid/squid.conf"
 
 # The naming convention in docs/designs/0105-file-naming-convention.md, as
@@ -484,6 +484,39 @@ _unresolved_doc_paths() {
                 echo "${f}:${ln}: cites '${path}', which does not exist"
             done
         done
+    )
+}
+
+# The security plan's §Changelog keeps a number-and-title index; the entries
+# themselves live in docs/claude-code-security-plan-changelog.md (#132).
+# Tracked files across this repository cite changes by number alone, including
+# start.sh and three files under tests/, and those citations resolve through
+# the index — so drift leaves the index quietly wrong rather than visibly
+# broken, which is the failure D-11 cannot see: the path still exists, it just
+# no longer says what the citation claims.
+_changelog_index_drift() {
+    (
+        cd "$SANDBOX_DIR" || exit 1
+        plan=docs/claude-code-security-plan.md
+        log=docs/claude-code-security-plan-changelog.md
+
+        if [ ! -f "$log" ]; then
+            echo "${log}: missing, but ${plan} indexes it"
+            exit 0
+        fi
+
+        entries=$(sed -n 's/^### Change \([0-9][0-9]*\) — \(.*\)$/\1	\2/p' "$log")
+        rows=$(sed -n 's/^| \([0-9][0-9]*\) | \(.*\) |$/\1	\2/p' "$plan")
+
+        [ -n "$entries" ] || echo "${log}: no '### Change N — Title' entries found"
+        [ -n "$rows" ] || echo "${plan}: no changelog index rows found"
+
+        if [ -n "$entries" ] && [ -n "$rows" ]; then
+            printf '%s\n' "$entries" > "${BATS_TEST_TMPDIR}/entries"
+            printf '%s\n' "$rows" > "${BATS_TEST_TMPDIR}/rows"
+            diff "${BATS_TEST_TMPDIR}/entries" "${BATS_TEST_TMPDIR}/rows" > /dev/null \
+                || echo "the index in ${plan} and the entries in ${log} disagree on 'Change N — Title'"
+        fi
     )
 }
 
@@ -614,6 +647,17 @@ _unresolved_doc_paths() {
     [ "$status" -eq 0 ]
     if [ -n "$output" ]; then
         echo "--- see docs/designs/0105-file-naming-convention.md ---" >&2
+        echo "$output" >&2
+    fi
+    [ -z "$output" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "D-13: the security plan's changelog index matches the changelog" {
+    run _changelog_index_drift
+    [ "$status" -eq 0 ]
+    if [ -n "$output" ]; then
+        echo "--- citations of 'Change N' resolve through the index ---" >&2
         echo "$output" >&2
     fi
     [ -z "$output" ]

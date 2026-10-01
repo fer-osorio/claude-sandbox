@@ -19,7 +19,7 @@
 # half. Neither half is sufficient alone.
 #
 # The IDs are historical and deliberately not renumbered — G-6 and B-4 are
-# cited from docs/claude_code_security_plan.md Changes 22 and 23, from SDD
+# cited from docs/claude-code-security-plan-changelog.md Changes 22 and 23, from SDD
 # §7.3, and from the commit messages of the #64 fix. Renumbering would make
 # every one of those wrong in exchange for a prefix matching a filename. So
 # this file holds two prefixes, matching neither its name nor each other; that

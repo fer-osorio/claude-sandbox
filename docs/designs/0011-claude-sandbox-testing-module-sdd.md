@@ -356,7 +356,7 @@ alone:
 | B-4 | No `latest` tag reliance | Neither `build.sh` nor `start.sh` references `:latest` | B-1, B-3 — build against explicit tags and would fail if resolution changed |
 
 IDs are deliberately not renumbered. G-6 and B-4 are cited from
-`docs/claude_code_security_plan.md` Changes 22 and 23, from §7.3 below, and from
+`docs/claude-code-security-plan-changelog.md` Changes 22 and 23, from §7.3 below, and from
 the commit messages of the #64 fix. Renumbering would make every one of those
 citations wrong in exchange for making a prefix match a filename. The cost is
 that this file holds two prefixes matching neither its name nor each other;

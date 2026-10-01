@@ -69,15 +69,21 @@ jobs:
           cd -
           bats --version
 
-      - name: Guard against an empty test selection
+      - name: Guard the test selection against shrinking
         # A mistyped or renamed tag makes `--filter-tags` select zero tests
         # and exit 0 — a green check that asserts nothing, which is exactly
         # the failure mode this whole workflow exists to prevent elsewhere.
+        # The floor extends that to the subtler case: a test moved into a
+        # file whose setup() gates on a container engine also leaves this
+        # job green while silently dropping out of it, which is how G-6 and
+        # B-4 went uncovered for four weeks (#81).
+        env:
+          HOSTONLY_FLOOR: 47
         run: |
           count=$(bats --filter-tags hostonly --count tests/)
-          echo "hostonly tests selected: ${count}"
-          if [ "${count}" -eq 0 ]; then
-            echo "::error::No tests matched --filter-tags hostonly; the gate would pass without asserting anything." >&2
+          echo "hostonly tests selected: ${count} (floor ${HOSTONLY_FLOOR})"
+          if [ "${count}" -lt "${HOSTONLY_FLOOR}" ]; then
+            echo "::error::Selected ${count} hostonly tests, below the floor of ${HOSTONLY_FLOOR}. Either the tag broke, or a test moved into a file whose setup() gates on an engine. Lower the floor only when tests are deliberately removed." >&2
             exit 1
           fi
 

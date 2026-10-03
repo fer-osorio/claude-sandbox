@@ -414,6 +414,7 @@ docs/engineering-principles-by-lifecycle-phase.md:docs/angular_commit_convention
 _D11_FLAT_PLANNING_FILES="docs/adr/002-planning-artifact-contract.md
 docs/adr/004-planning-to-design-handoff.md
 docs/adr/005-citing-across-the-repo-boundary.md
+docs/adr/010-what-makes-a-citation-valid.md
 docs/designs/0069-planning-skill-output-routing.md
 docs/designs/0069-project-feasibility-skill.md
 docs/designs/0069-project-planning-skill.md

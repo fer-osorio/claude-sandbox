@@ -4,6 +4,28 @@
 
 Accepted
 
+## Corrections
+
+Factual corrections only; the decisions below are unchanged. The convention
+is proposed in #151.
+
+**2026-10-05 — Context overstated the evidence for decision 2.** It cites
+four §9 rows in `docs/designs/0011-claude-sandbox-testing-module-sdd.md` as
+instances of a citation whose section has moved out of the named document.
+They are not instances. Both documents split in #132 and #139 kept a
+`## Changelog` section holding a number-and-title index, and the security
+plan's own text says the index exists so that a citation of the form
+"Change 19" still lands somewhere naming what Change 19 was. All four rows
+resolve by path and by section.
+
+The class itself is coherent — a path resolves, the cited section exists,
+and the substance it named has moved elsewhere — but it has no known
+instance in this tree, and the paragraph below should be read as describing
+a possibility rather than a count. Decision 2 does not rest on it: P-10's
+third negative control in #150, which breaks a section anchor on a path
+that still resolves, establishes independently that the section half can
+fail and that no other check sees it.
+
 ## Context
 
 [ADR 002](002-planning-artifact-contract.md) decision 6 requires a citation of

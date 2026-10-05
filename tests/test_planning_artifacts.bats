@@ -70,6 +70,26 @@
 # P-0c asserts each tier is non-empty rather than trusting that a branch
 # with nothing in it would be noticed.
 #
+# P-10 was negative-controlled on 2026-10-05, when it was added. Each probe
+# was applied to the committed 0129 charter and reverted:
+#   - its only Evidence citation of scope.md rewritten to a valid citation
+#     of prior-art.md -> reported that Evidence cites nothing resolving to
+#     scope.md, with every citation still resolving. That is the control
+#     that matters for coverage: it separates "cites all three" from
+#     "cites three things".
+#   - feasibility.md -> feasibilty.md in a bare sibling citation ->
+#     reported the unresolved path.
+#   - §Findings -> §Findngs on a path that still resolves -> reported the
+#     missing section. Nothing in this repository had ever checked the
+#     section half of a citation before, so this probe is the only evidence
+#     that half fires at all.
+#   - both charters moved aside -> the vacuity guard fired. On the first
+#     attempt it did not: _p10_charters ended on its own -f test, so an
+#     empty set exited 1 and the test died on the status assertion with the
+#     diagnostic unprinted. A gate that fails for the wrong stated reason
+#     teaches the next reader the wrong thing, which is why it returns 0
+#     explicitly now.
+#
 # What that verification proves is bounded by how it was performed. bats is
 # not in the sandbox image (BUILDING.md, "Running the test suite"), so from
 # inside a session the helper functions below can be extracted and called
@@ -100,14 +120,22 @@
 #     descriptions, and its failure mode is silent.
 #   - Whether a skill honours path ownership at write time. P-5 checks
 #     that the ownership table is unambiguous, not that anyone obeys it.
-#   - Whether a citation points at a section that exists. D-1 in
-#     test_docs_integrity.bats resolves the file; nothing resolves the
-#     "§Section" part.
+#   - Whether a citation points at a section that exists, outside a
+#     charter. P-10 resolves both halves of every citation a charter makes,
+#     per ADR 010; everywhere else D-1 and D-11 resolve the file and
+#     nothing resolves the "§Section" part. Widening that to the whole tree
+#     is #111.
 #   - Sentence counts. ADR 002 asks for a three-sentence TL;DR; the
 #     ceiling is counted in lines instead. Sentence splitting breaks on
 #     abbreviations and decimals, and a check that misfires gets switched
 #     off, which is worse than a cruder check that holds. See
 #     docs/planning/README.md.
+
+# Citation resolution. It sits in lib/ rather than here because #111 widens
+# D-11 with the same rule, and a second copy in test_docs_integrity.bats is
+# how the two would drift. This is its only caller today. Engine-free, so
+# loading it keeps every test here in the host-only selection.
+load 'lib/citation'
 
 SANDBOX_DIR="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
 PLANNING_DIR="${SANDBOX_DIR}/docs/planning"
@@ -414,6 +442,72 @@ _p8_undated_decisions() {
     done
 }
 
+# The charter is the terminal step of a run: it aggregates and must not
+# re-derive (ADR 002 decision 6), and its template is explicit that a claim
+# not traceable to scope.md, prior-art.md or feasibility.md does not belong
+# in the file. Nothing asserted that until now. #96 deferred this check
+# because no charter existed to run it against, and the deferral outlived
+# its reason — two are committed.
+#
+# Two defects are reported:
+#
+#   - the Evidence section cites one of the three inputs nowhere, so the
+#     step that claims to aggregate all three demonstrably consumed fewer;
+#   - a citation anywhere in the charter does not resolve, by path or by
+#     section, under ADR 010.
+#
+# Coverage is scoped to Evidence, where decision 6's obligation falls.
+# Resolution covers the whole charter, because a citation broken in a TL;DR
+# is no less broken.
+#
+# Which input a citation names is read off the file it resolves to, never
+# off its spelling. `feasibility.md` and the full bundle-relative path are
+# the same citation under ADR 010, and a check that counted spellings would
+# miss the form the two committed charters use for 38 of their 56 citations.
+#
+# What this still leaves open is #88's question: it proves the three inputs
+# were consumed, not that prior-art.md was written before feasibility.md.
+# Sequencing between the two middle steps stays unasserted.
+_P10_REQUIRED_INPUTS="scope.md prior-art.md feasibility.md"
+
+# Separated out so the test can assert the set is non-empty before trusting
+# a clean result, the way P-0 guards the template set. An empty set here is
+# not hypothetical — it was the state #96 was opened in, and it reports a
+# pass.
+_p10_charters() {
+    for b in $(_bundles); do
+        [ -f "${b}/charter.md" ] && echo "${b}/charter.md"
+    done
+    # Explicit, because the loop's last command is the -f test: without
+    # this, an empty set exits 1 and the test fails on the status assertion
+    # instead of printing why, which is the one case the message exists for.
+    return 0
+}
+
+_p10_charter_citation_defects() {
+    for b in $(_bundles); do
+        c="${b}/charter.md"
+        [ -f "$c" ] || continue
+        rel="${c#${SANDBOX_DIR}/}"
+
+        cited="$(
+            _section_body "$c" evidence \
+            | citation_tokens \
+            | while IFS="$(printf '\t')" read -r _ path _; do
+                target="$(citation_target "$c" "$path")"
+                [ -n "$target" ] && basename "$target"
+            done | sort -u
+        )"
+
+        for want in $_P10_REQUIRED_INPUTS; do
+            printf '%s\n' "$cited" | grep -qxF "$want" \
+                || echo "${rel}: '## Evidence' cites nothing that resolves to ${want}"
+        done
+
+        citation_defects "$c" | sed "s|^${SANDBOX_DIR}/||"
+    done
+}
+
 _report() {
     if [ -n "$1" ]; then
         echo "--- $2 ---" >&2
@@ -536,5 +630,23 @@ _report() {
     run _p9_bad_current_bundle
     [ "$status" -eq 0 ]
     _report "$output" "bundle index out of step with docs/planning/"
+    [ -z "$output" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "P-10: every charter cites all three inputs, and every citation resolves" {
+    run _p10_charters
+    [ "$status" -eq 0 ]
+    if [ -z "$output" ]; then
+        echo "--- no charter under ${PLANNING_DIR} ---" >&2
+        echo "P-10 iterates over the charters it finds, so an empty set reports" >&2
+        echo "a pass while asserting nothing. That was the state #96 was opened" >&2
+        echo "in and the stated reason it waited." >&2
+    fi
+    [ -n "$output" ]
+
+    run _p10_charter_citation_defects
+    [ "$status" -eq 0 ]
+    _report "$output" "charter evidence that does not aggregate or does not resolve"
     [ -z "$output" ]
 }

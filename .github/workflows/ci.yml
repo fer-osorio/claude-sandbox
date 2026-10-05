@@ -78,7 +78,7 @@ jobs:
         # job green while silently dropping out of it, which is how G-6 and
         # B-4 went uncovered for four weeks (#81).
         env:
-          HOSTONLY_FLOOR: 47
+          HOSTONLY_FLOOR: 48
         run: |
           count=$(bats --filter-tags hostonly --count tests/)
           echo "hostonly tests selected: ${count} (floor ${HOSTONLY_FLOOR})"

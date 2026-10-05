@@ -6,8 +6,8 @@
 |---|---|
 | **Document Type** | Software Design Document (SDD) |
 | **Status** | Accepted |
-| **Version** | 1.2 |
-| **Date** | 2026-09-04 |
+| **Version** | 1.3 |
+| **Date** | 2026-10-05 |
 | **Author** | Fernando |
 | **Reviewers** | Security Team |
 | **Supersedes** | — (no prior testing SDD exists for claude-sandbox) |
@@ -23,6 +23,7 @@
 | 1.0 | 2026-07-13 | Fernando | Accepted; moved to `docs/designs/` per docs-as-code Case C convention; tracked under issue #11 |
 | 1.1 | 2026-09-02 | Fernando | Reconciled with the suite as built: Groups 6–8 added, Group 3 extended to S-6, `hostonly` tag axis documented, §9 traceability extended. Covers the drift that accumulated through R-6…R-8, S-4…S-6 and three test files added without revision entries (issue #51) |
 | 1.2 | 2026-09-04 | Fernando | Group 9 added: the engine-free assertions G-6 and B-4 move out of engine-gated files so CI selects them. §6.2 now states the placement rule its own trap implies. G-10 recorded. §4.4's G-6 row corrected — it described an enforcement assertion the test has never made (issue #81) |
+| 1.3 | 2026-10-05 | Fernando | §4.8 reconciled with the suite as built: P-0, P-0b, P-0c, P-7, P-8, P-9 were in the file and absent from the table, and the paragraph claiming no planning artifact exists had been false since 2026-09-11. P-10 added (#150). §9 traceability extended to ADR 008 and ADR 010. Same drift shape as 1.1, in one group rather than three files |
 
 ---
 
@@ -311,20 +312,28 @@ The enforcement `docs/adr/002-planning-artifact-contract.md` decision 7 names
 by path. That ADR's rules 1–6 are prose; this group is what stops them from
 holding only while convenient.
 
-Coverage is partly latent by design. No planning artifact has been written
-yet, so P-2 and P-4 have nothing to iterate over and pass trivially today;
-they bind automatically the first time a skill writes to `docs/planning/`,
-with no edit to the test file. P-1, P-3, P-5 and P-6 assert against the four
-committed templates and carry weight now.
+The latency this section described is over. Two bundles landed under
+`docs/planning/` on 2026-09-11, so P-2, P-4 and P-8 now iterate over real
+artifacts rather than passing trivially. That transition is the property
+worth having — they bound with no edit to the test file — and it is also
+what the P-0 family exists to make visible, because every check that reads
+a set degrades to silence rather than to failure when the set is empty.
 
 | ID | Test | Assertion |
 |---|---|---|
+| P-0 | The template set is non-empty | `_templates` finds at least one template, so the checks that iterate it cannot pass over nothing |
+| P-0b | The ceiling set is non-empty | At least one `ceiling-<section>-words` key parses, so P-4 cannot pass over nothing after a frontmatter rename |
+| P-0c | Both tiers are populated | Every template declares a tier ADR 007 decision 1 recognises, and neither tier is empty |
 | P-1 | Templates are self-describing | Every template declares its artifact path, its owning skill, and its section ceilings in frontmatter |
 | P-2 | Artifacts carry a status | Every artifact's frontmatter `status` is one of the values ADR 002 decision 3 allows |
-| P-3 | Artifacts are indexed | Every artifact path has a row in `docs/planning/README.md` |
-| P-4 | Ceilings hold | No artifact section exceeds the line ceiling its template declares |
+| P-3 | Artifacts are indexed | Every artifact path has a row in its bundle's `README.md` |
+| P-4 | Ceilings hold | No artifact section exceeds the word ceiling its template declares — words, not lines, per #106 finding 1 |
 | P-5 | Ownership is unambiguous | No artifact path is claimed by more than one template — the check ADR 002 decision 2's table goes stale without |
 | P-6 | Ceilings name real sections | Every declared `ceiling-<section>` key corresponds to a section the template actually contains |
+| P-7 | Declared owners resolve | Every template owner outside the exemption list names a skill committed under `global-claude/skills/` |
+| P-8 | A decision can be placed in time | A `## Decision` section that is filled in carries an ISO date |
+| P-9 | One current bundle | `docs/planning/README.md` marks exactly one existing bundle **Current**, per ADR 008 decision 2 |
+| P-10 | Charters aggregate and resolve | Every charter's `## Evidence` cites something resolving to each of `scope.md`, `prior-art.md` and `feasibility.md`, and every citation in a charter resolves by path and by section, per ADR 010 |
 
 ### 4.9 Group 9 — Control Declarations
 
@@ -514,7 +523,10 @@ Consistent with the fail-fast philosophy already established in `setup.sh` / `ru
 | `docs/designs/0025-podman-migration.md` | §6.2, STRIDE analysis (Tampering, follow-up finding) | R-7, R-8 |
 | `docs/designs/0028-sandbox-config-file.md` | Layered precedence model and `@name` registry | C-1 through C-13 |
 | `docs/claude-code-security-plan-changelog.md` | Change 22 (deny list at an unread path) | G-6, paired with `./check-auto-memory.sh deny-path` |
-| `docs/adr/002-planning-artifact-contract.md` | Decision 7, "enforced by a test, not by a reviewer" | P-1 through P-6 |
+| `docs/adr/002-planning-artifact-contract.md` | Decision 7, "enforced by a test, not by a reviewer" | P-0 through P-10 |
+| `docs/adr/002-planning-artifact-contract.md` | Decision 6, no re-derivation — cite `path §section` | P-10, as ADR 010 settles the form |
+| `docs/adr/008-per-bundle-planning-directories.md` | Decision 2, the index names exactly one Current bundle | P-9 |
+| `docs/adr/010-what-makes-a-citation-valid.md` | Decisions 1 and 2, resolution and the section half | P-10 |
 | `docs/adr/003-where-a-behavioural-rule-goes.md` | Decision 4, no restatement; the placement ladder | D-2, D-6, D-7 |
 | `docs/designs/0003-global-layer-injection.md` | §5.2, Denial of Service — "Global layer size discipline" | D-6, D-7 |
 | `docs/designs/docs-as-code-workflow.md` | §3 Case D, ADR format and Status values | D-3 |

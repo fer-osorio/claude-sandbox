@@ -1,0 +1,130 @@
+# spike-101.yml — THROWAWAY. Step 1 of the accepted container-test-tier
+# design (#101), whose document lands on its own branch; this file is
+# deliberately branched from main and cites it by name rather than by a path
+# that would not resolve here.
+#
+# Measures what that design refuses to assume: whether rootless Podman works
+# on a hosted runner at all, what four images plus Squid cost in wall-clock,
+# and what R-6, R-7 and R-8 actually do there. Nothing here is meant to be
+# merged — it exists to produce numbers and then be deleted.
+#
+# Every finding is emitted as a `::notice::` annotation, not just logged,
+# because run logs are served from hosts outside the sandbox's egress
+# allowlist and are unreadable from inside a session (#113). A spike whose
+# results only reach the log would have to be read by a human and relayed,
+# which is the gap this repository just closed.
+
+name: spike-101
+
+on:
+  push:
+    branches: [spike/101-container-tier]
+
+jobs:
+  spike:
+    name: Container tier feasibility spike
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install bats-core
+        env:
+          BATS_VERSION: v1.14.0
+          BATS_COMMIT: eb7f42f8d608ac693d7a4b67474f6714ea68cfc5
+        run: |
+          git clone --depth 1 --branch "$BATS_VERSION" \
+            https://github.com/bats-core/bats-core.git /tmp/bats-core
+          cd /tmp/bats-core
+          test "$(git rev-parse HEAD)" = "$BATS_COMMIT"
+          sudo ./install.sh /usr/local
+          cd -
+          bats --version
+
+      - name: Install Podman and report what the runner provides
+        run: |
+          set -x
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq podman
+          podman version
+          # The three environment facts the design treats as assumptions.
+          sec="$(getenforce 2>/dev/null || echo 'no getenforce')"
+          aa="$(aa-status --enabled 2>/dev/null && echo enabled || echo 'not enabled/absent')"
+          cg="$(stat -fc %T /sys/fs/cgroup)"
+          deleg="$(cat /sys/fs/cgroup/user.slice/user-$(id -u).slice/user@$(id -u).service/cgroup.controllers 2>/dev/null || echo 'no user delegation path')"
+          pv="$(podman version --format '{{.Client.Version}}')"
+          {
+            echo "podman=${pv}"
+            echo "selinux=${sec}"
+            echo "apparmor=${aa}"
+            echo "cgroup_fs=${cg}"
+            echo "delegated_controllers=${deleg}"
+          } > /tmp/env.txt
+          msg="$(sed ':a;N;$!ba;s/\n/%0A/g' /tmp/env.txt)"
+          echo "::notice title=spike env::${msg}"
+
+      - name: Create the claude-net network
+        run: |
+          if podman network create claude-net; then
+            echo "::notice title=spike network::claude-net created"
+          else
+            echo "::error title=spike network::claude-net creation failed"
+            exit 1
+          fi
+
+      - name: Build all images, timed per image
+        run: |
+          : > /tmp/build-times.txt
+          total_start=$(date +%s)
+          for target in base crypto systems research squid; do
+            s=$(date +%s)
+            if ./build.sh "$target" > "/tmp/build-${target}.log" 2>&1; then
+              r=ok
+            else
+              r=FAILED
+            fi
+            e=$(date +%s)
+            echo "${target}=$((e-s))s ${r}" >> /tmp/build-times.txt
+          done
+          total_end=$(date +%s)
+          echo "total=$((total_end-total_start))s" >> /tmp/build-times.txt
+          cat /tmp/build-times.txt
+          msg="$(sed ':a;N;$!ba;s/\n/%0A/g' /tmp/build-times.txt)"
+          echo "::notice title=spike build times::${msg}"
+          grep -q FAILED /tmp/build-times.txt && exit 1 || true
+
+      - name: Run the full suite, timed
+        run: |
+          s=$(date +%s)
+          set +e
+          bats --print-output-on-failure tests/ > /tmp/full.tap 2>&1
+          set -e
+          e=$(date +%s)
+          passed=$(grep -c '^ok ' /tmp/full.tap || true)
+          failed=$(grep -c '^not ok ' /tmp/full.tap || true)
+          skipped=$(grep -c '# skip' /tmp/full.tap || true)
+          echo "::notice title=spike suite::$((e-s))s, ${passed} passed, ${failed} failed, ${skipped} skipped"
+          # The three assertions the design excludes. Their verdict here is
+          # the whole point of the spike, so they are reported by name.
+          {
+            grep -E '^(not )?ok [0-9]+ R-6' /tmp/full.tap || echo "R-6 not in output"
+            grep -E '^(not )?ok [0-9]+ R-7' /tmp/full.tap || echo "R-7 not in output"
+            grep -E '^(not )?ok [0-9]+ R-8' /tmp/full.tap || echo "R-8 not in output"
+          } > /tmp/fidelity.txt
+          cat /tmp/fidelity.txt
+          msg="$(sed ':a;N;$!ba;s/\n/%0A/g' /tmp/fidelity.txt)"
+          echo "::notice title=spike hostfidelity verdict::${msg}"
+
+      - name: Report every failure by name
+        if: always()
+        run: |
+          if [ -s /tmp/full.tap ]; then
+            fails="$(grep '^not ok ' /tmp/full.tap | head -20 || true)"
+            if [ -n "$fails" ]; then
+              msg="$(printf '%s' "$fails" | sed ':a;N;$!ba;s/\n/%0A/g')"
+              echo "::notice title=spike failures::${msg}"
+            else
+              echo "::notice title=spike failures::none"
+            fi
+          fi

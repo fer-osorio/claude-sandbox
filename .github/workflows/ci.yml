@@ -33,11 +33,18 @@
 # on this job means the declarations survived; it has never meant more.
 #
 # The two numbers that say whether this job did what it claims — how many
-# tests were selected, and how many passed — are written to the job summary
-# as well as the log. Run logs are served from hosts outside the sandbox's
-# egress allowlist, so from inside a session the log is the one place this
-# evidence cannot be read; the summary is reachable through api.github.com
-# (#113).
+# tests were selected, and how many passed — are published twice, to two
+# audiences. Run logs are served from hosts outside the sandbox's egress
+# allowlist, so from inside a session the log is the one place this evidence
+# cannot be read (#113).
+#
+#   - the job summary, for a person reading the run in the browser;
+#   - a `::notice::` annotation, because that is what the REST API actually
+#     exposes. Measured, not assumed: on run 37482258723 the job summary was
+#     populated and `check-runs/<id>` returned `output.summary` empty, while
+#     `check-runs/<id>/annotations` returned its contents. Writing only to
+#     the summary would have left #113's gap exactly where it was while
+#     looking like it had been closed.
 
 name: CI
 
@@ -97,6 +104,7 @@ jobs:
           # reaches api.github.com, which is allowlisted.
           echo "- hostonly tests selected: **${count}** (floor ${HOSTONLY_FLOOR})" \
             >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=hostonly selection::selected ${count}, floor ${HOSTONLY_FLOOR}"
           if [ "${count}" -lt "${HOSTONLY_FLOOR}" ]; then
             echo "::error::Selected ${count} hostonly tests, below the floor of ${HOSTONLY_FLOOR}. Either the tag broke, or a test moved into a file whose setup() gates on an engine. Lower the floor only when tests are deliberately removed." >&2
             echo "- **selection is below the floor** — the gate did not run what it claims to" \
@@ -119,6 +127,7 @@ jobs:
           failed=$(grep -c '^not ok ' "$tap" || true)
           echo "- hostonly tests run: **${passed} passed, ${failed} failed**" \
             >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=hostonly result::${passed} passed, ${failed} failed"
           if [ "${failed}" -ne 0 ]; then
             {
               echo

@@ -123,8 +123,13 @@ jobs:
           bats --filter-tags hostonly --print-output-on-failure tests/ | tee "$tap"
           status=${PIPESTATUS[0]}
           set -e
-          passed=$(grep -c '^ok ' "$tap" || true)
-          failed=$(grep -c '^not ok ' "$tap" || true)
+          # Anchored on the TAP result number. An unanchored '^ok ' also
+          # matches any captured output line that happens to start that way,
+          # and --print-output-on-failure means captured output is present
+          # exactly when the counts matter. A count that is wrong only on
+          # failure is worse than no count, because it is trusted.
+          passed=$(grep -cE '^ok [0-9]+' "$tap" || true)
+          failed=$(grep -cE '^not ok [0-9]+' "$tap" || true)
           echo "- hostonly tests run: **${passed} passed, ${failed} failed**" \
             >> "$GITHUB_STEP_SUMMARY"
           echo "::notice title=hostonly result::${passed} passed, ${failed} failed"

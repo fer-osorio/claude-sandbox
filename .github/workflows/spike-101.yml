@@ -128,3 +128,24 @@ jobs:
               echo "::notice title=spike failures::none"
             fi
           fi
+
+      - name: Report the proxy access log
+        # The first run of this spike reported which S-tests failed and not
+        # why. The access log was in the run log the whole time — captured by
+        # `run proxy_logs` and printed by --print-output-on-failure — which is
+        # the one place a session cannot read (#113). Reporting the status of
+        # every CONNECT is what distinguishes "the runner cannot reach this
+        # host" from "the proxy refused it", and those lead to opposite
+        # conclusions about the shipped allowlist.
+        if: always()
+        run: |
+          if [ -s /tmp/full.tap ]; then
+            lines="$(grep -oE '[A-Z_]+/[0-9]{3}[[:space:]]+[0-9]+[[:space:]]+CONNECT[[:space:]]+[^ ]+' /tmp/full.tap \
+                     | sort -u | head -20 || true)"
+            if [ -n "$lines" ]; then
+              msg="$(printf '%s' "$lines" | sed ':a;N;$!ba;s/\n/%0A/g')"
+              echo "::notice title=spike proxy log::${msg}"
+            else
+              echo "::notice title=spike proxy log::no CONNECT lines captured"
+            fi
+          fi

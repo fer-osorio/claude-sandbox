@@ -26,3 +26,9 @@ credentials/
 # tests/test_docs_integrity.bats on the grounds that it is never tracked;
 # this is what makes that true.
 docs/tmp/
+
+# Repository-root scratch, for material that arrives from outside the repo
+# before anything is decided about it — drafts, downloads, exports. Rooted
+# with a leading slash so it cannot swallow a tmp/ anywhere else in the
+# tree. Content that earns a home is authored into one, not moved here.
+/tmp/

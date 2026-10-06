@@ -31,6 +31,20 @@
 # Every control in the security plan's §5 STRIDE map is still enforced only
 # as far as the tests above, which do not run here, establish. A green check
 # on this job means the declarations survived; it has never meant more.
+#
+# The two numbers that say whether this job did what it claims — how many
+# tests were selected, and how many passed — are published twice, to two
+# audiences. Run logs are served from hosts outside the sandbox's egress
+# allowlist, so from inside a session the log is the one place this evidence
+# cannot be read (#113).
+#
+#   - the job summary, for a person reading the run in the browser;
+#   - a `::notice::` annotation, because that is what the REST API actually
+#     exposes. Measured, not assumed: on run 37482258723 the job summary was
+#     populated and `check-runs/<id>` returned `output.summary` empty, while
+#     `check-runs/<id>/annotations` returned its contents. Writing only to
+#     the summary would have left #113's gap exactly where it was while
+#     looking like it had been closed.
 
 name: CI
 
@@ -82,10 +96,44 @@ jobs:
         run: |
           count=$(bats --filter-tags hostonly --count tests/)
           echo "hostonly tests selected: ${count} (floor ${HOSTONLY_FLOOR})"
+          # Published to the job summary as well as the log, because the log
+          # is where this number is unreadable from. Run logs are served
+          # from hosts outside the sandbox's egress allowlist, so a session
+          # that adds a check can verify its logic locally and cannot
+          # confirm the check was selected and executed (#113). The summary
+          # reaches api.github.com, which is allowlisted.
+          echo "- hostonly tests selected: **${count}** (floor ${HOSTONLY_FLOOR})" \
+            >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=hostonly selection::selected ${count}, floor ${HOSTONLY_FLOOR}"
           if [ "${count}" -lt "${HOSTONLY_FLOOR}" ]; then
             echo "::error::Selected ${count} hostonly tests, below the floor of ${HOSTONLY_FLOOR}. Either the tag broke, or a test moved into a file whose setup() gates on an engine. Lower the floor only when tests are deliberately removed." >&2
+            echo "- **selection is below the floor** — the gate did not run what it claims to" \
+              >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 
       - name: Run host-only tests
-        run: bats --filter-tags hostonly --print-output-on-failure tests/
+        # The counts go to the summary whether the run passes or fails, and
+        # the step's exit status is bats', not tee's. A failing run that
+        # reported nothing retrievable would leave a session exactly where
+        # #113 describes: knowing only that something is red.
+        run: |
+          tap="${RUNNER_TEMP}/hostonly.tap"
+          set +e
+          bats --filter-tags hostonly --print-output-on-failure tests/ | tee "$tap"
+          status=${PIPESTATUS[0]}
+          set -e
+          passed=$(grep -c '^ok ' "$tap" || true)
+          failed=$(grep -c '^not ok ' "$tap" || true)
+          echo "- hostonly tests run: **${passed} passed, ${failed} failed**" \
+            >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=hostonly result::${passed} passed, ${failed} failed"
+          if [ "${failed}" -ne 0 ]; then
+            {
+              echo
+              echo '```'
+              grep '^not ok ' "$tap"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$status"

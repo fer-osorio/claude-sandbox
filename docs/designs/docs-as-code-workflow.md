@@ -71,6 +71,11 @@ issue references a document; a document is committed alongside the code.
 | **Markdown** | Plain-text format for all documents (rendered by GitHub) |
 | **Docker** | Container build and runtime environment for sandbox images |
 
+**Diagram form** is governed by
+[ADR 011](../adr/011-diagram-form-criterion.md) decision 1 — a diagram
+earns a mermaid block only where the relationship is not expressible as an
+ordered list. The criterion and its trade-offs live there, not here.
+
 #### Document types
 
 | Type | Location | Purpose | Lifespan |

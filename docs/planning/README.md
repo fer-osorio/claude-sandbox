@@ -16,6 +16,11 @@ resolve it here and never infer it from the directory listing
 Opening a bundle adds a row, marks it Current, and unmarks the previous
 one. Nothing else changes a row.
 
+[`pipeline.md`](pipeline.md) draws how one run executes — the branching,
+the two refusal paths, and the two early stops — and tabulates which SDLC
+phases these skills reach. It is a view of the ADRs below, not a second
+source for them.
+
 ## Two choices ADR 002 left open
 
 **Templates live in the global layer, artifacts live here.** ADR 002

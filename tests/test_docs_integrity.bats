@@ -122,6 +122,52 @@ _unresolved_skill_refs() {
 # ADRs are never rewritten (docs-as-code-workflow.md §3 Case D), so a
 # missing or invalid Status is not a cosmetic problem — it is the field a
 # reader uses to tell a live decision from a superseded one.
+# A `## Corrections` section records a factual error in an ADR whose
+# decisions still stand — the case ADR 010 produced, where superseding would
+# have been wrong and leaving the error would have left a reader unable to
+# tell whether the decisions rested on it. The `design` skill's Step 6b
+# defines it.
+#
+# Two things are checkable: that the section sits directly below `## Status`,
+# so nobody reads Context before learning it has been corrected, and that
+# every entry carries an ISO date, so a correction can be placed against the
+# decision it followed. P-8 is the same shape.
+#
+# What is not checkable, stated so this is not mistaken for more: whether a
+# given correction is factual rather than a decision being quietly revised.
+# That is the whole substance of the rule and it stays a reviewer's call.
+#
+# Negative-controlled on 2026-10-05 against ADR 010, each probe reverted:
+# stripping the entry's date reported the undated entry, and inserting a
+# heading between Status and Corrections reported the displacement. Both
+# branches therefore fire; neither was seen to pass for the wrong reason.
+_misplaced_adr_corrections() {
+    (
+        cd "$SANDBOX_DIR" || exit 1
+        for f in docs/adr/*.md; do
+            [ -e "$f" ] || continue
+            grep -q '^## Corrections' "$f" || continue
+
+            prev="$(grep -nE '^## ' "$f" | grep -B1 ':## Corrections$' | head -1)"
+            case "$prev" in
+                *':## Status') ;;
+                *) echo "${f}: '## Corrections' does not sit directly below '## Status' (found after '${prev#*:}')" ;;
+            esac
+
+            # Interval syntax is spelled out rather than written {4}: not
+            # every awk honours intervals without a flag, and one that does
+            # not would make every entry here look undated. The failure
+            # would differ between a developer machine and the runner,
+            # which is the class of bug this group exists to avoid.
+            awk '/^## Corrections/{inb=1; next}
+                 inb && /^## /{exit}
+                 inb && /^\*\*/ && !/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/ {
+                     print FILENAME": a correction entry carries no ISO date: "$0
+                 }' "$f"
+        done
+    )
+}
+
 _malformed_adrs() {
     (
         cd "$SANDBOX_DIR" || exit 1
@@ -669,6 +715,17 @@ _changelog_index_drift() {
     [ "$status" -eq 0 ]
     if [ -n "$output" ]; then
         echo "--- citations of 'Change N' resolve through the index ---" >&2
+        echo "$output" >&2
+    fi
+    [ -z "$output" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "D-14: every ADR correction is placed below Status and dated" {
+    run _misplaced_adr_corrections
+    [ "$status" -eq 0 ]
+    if [ -n "$output" ]; then
+        echo "--- see the design skill, Step 6b ---" >&2
         echo "$output" >&2
     fi
     [ -z "$output" ]

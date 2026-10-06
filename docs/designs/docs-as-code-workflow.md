@@ -245,8 +245,14 @@ single declared format and carries the rationale for its mandatory
 decision 5, a format an injected skill already carries is cited here rather
 than copied.
 
-ADRs are **never rewritten**. If a decision is reversed, a new ADR is
-written with status `Supersedes ADR 00N`.
+ADRs are **never rewritten for a decision**. If a decision is reversed, a
+new ADR is written with status `Supersedes ADR 00N`. A factual error — a
+wrong count, a mis-cited path, evidence that does not hold — appends a dated
+entry to a `## Corrections` section instead, which Step 6b defines and D-14
+checks. ADR 010 is the first instance and the reason the distinction exists:
+its Context cited four rows as evidence that all resolve, while its
+decisions were unaffected, so neither superseding it nor leaving it was
+right.
 
 **Artifacts produced:** GitHub Issue, `docs/adr/00N-<slug>.md`,
 optionally `docs/plans/<NNNN>-<slug>-v<N>.md`.

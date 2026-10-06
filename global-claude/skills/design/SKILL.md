@@ -283,6 +283,9 @@ existing ADR).
 ## Status
 Proposed | Accepted | Deprecated | Supersedes ADR 00N
 
+## Corrections
+Optional, and only ever factual. See below.
+
 ## Context
 What situation forced this decision? What constraints existed?
 What was tried before?
@@ -306,8 +309,17 @@ finds it obvious — the "why the rejected option is attractive" line is the
 one people skip and the one that does the work. Since ADRs are never
 rewritten, an alternative left unrecorded is unrecoverable.
 
-ADRs are **never rewritten**. If a decision is reversed, write a new
-ADR with `Status: Supersedes ADR 00N`.
+ADRs are **never rewritten for a decision**. If a decision is reversed,
+write a new ADR with `Status: Supersedes ADR 00N`; if it needs narrowing,
+write one that qualifies it.
+
+A **factual** error is a different thing: a wrong count, a mis-cited path,
+evidence that turns out not to hold. Append a dated entry to
+`## Corrections`, directly below `## Status`, saying what was wrong, what is
+true, and whether any decision is affected. The original text stays — a
+reader who checks the evidence must be able to see both what was believed
+and what is so. A correction that would change what a decision *requires*
+is a superseding ADR, not a correction.
 
 Continue to **Step 7**.
 

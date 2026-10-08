@@ -25,6 +25,15 @@
 # a guess with no sample behind it, which is why it is overridable and why
 # the retry count is reported.
 #
+# What the failure is remains open. Three spike runs on ubuntu-latest
+# failed 3, 2 and 0 of 8 requests, so it is intermittent rather than
+# constant. A direct probe found container-side libc resolution only ~1.4%
+# lossy there (1 of 70 lookups), which does not account for the request
+# failure rate — and Squid resolves through its own internal client, not
+# libc, so that figure is a lower bound on what Squid sees rather than a
+# measurement of it. The diagnostic below exists to close that gap on the
+# next occurrence instead of inferring it.
+#
 # S-4/S-5 cover the docs.anthropic.com / code.claude.com Reference-tier
 # additions from issue #32. S-6 covers the dstdom_regex mintcdn.com CDN
 # exception added alongside them, curling the bare mintcdn.com apex —
@@ -110,8 +119,22 @@ setup_file() {
         echo "setup: no terminal access-log status after ${_S_MAX_ATTEMPTS}" >&2
         echo "attempts each for:${unanswered}" >&2
         echo "This is the harness failing to get an answer from the proxy," >&2
-        echo "not the policy refusing a host. See #160. Access log follows." >&2
+        echo "not the policy refusing a host. See #160." >&2
+        echo >&2
+        for host in $unanswered; do
+            echo "  ${host}: $(_s_failure_mode "$host")" >&2
+        done
+        echo >&2
+        echo "--- access log ---" >&2
         proxy_logs >&2
+        # Squid's own diagnostics do not reach stdout: squid.conf sets no
+        # cache_log, so the default file path applies and a resolver error
+        # appears nowhere in the access log above. Read from the container
+        # rather than redirecting it in the config — the suite asserts on
+        # the shipped config, so the harness is where the reading belongs.
+        echo "--- cache.log (Squid's own diagnostics) ---" >&2
+        engine_exec "$proxy_name" cat /var/log/squid/cache.log >&2 2>&1 \
+            || echo "(cache.log unreadable)" >&2
         return 1
     fi
 
@@ -167,8 +190,32 @@ _s_terminal() {
         "(TCP_TUNNEL/200|TCP_DENIED/403)[[:space:]]+[0-9]+[[:space:]]+CONNECT[[:space:]]+${host_re}:443"
 }
 
-# The same predicate, allowing a line _S_LOG_SETTLE seconds to show up. On a
-# healthy host the first check succeeds and nothing sleeps, so this is free
+# Which shape a failure took. The two point at different causes and would
+# need different fixes, and the #101 spike produced both:
+#
+#   no line at all — the request never reached the proxy, so curl could not
+#   resolve the proxy's own container name. That is aardvark-dns answering
+#   authoritatively for claude-net, and a fresh curl container on each
+#   attempt re-resolves it, so a short retry is the right response.
+#
+#   a non-terminal line — the proxy parsed the request and reached no
+#   decision (NONE_NONE/500 in both spike runs that showed it). Squid 5.7
+#   caches a failed resolution for negative_dns_ttl, 60s by default and
+#   unset in squid.conf, so a retry inside that window may be answered from
+#   the negative cache and fail identically. Whether that is what is
+#   happening is exactly what cache.log will say; the backoff is not
+#   lengthened on the guess.
+_s_failure_mode() {
+    local host_re="${1//./\\.}"
+    if proxy_logs | grep -qE "CONNECT[[:space:]]+${host_re}:443"; then
+        echo "non-terminal log line present — proxy reached no decision"
+    else
+        echo "no log line at all — the request never reached the proxy"
+    fi
+}
+
+# The terminal predicate, allowing a line _S_LOG_SETTLE seconds to show up. On
+# a healthy host the first check succeeds and nothing sleeps, so this is free
 # where it does not apply.
 _s_terminal_settled() {
     local waited=0

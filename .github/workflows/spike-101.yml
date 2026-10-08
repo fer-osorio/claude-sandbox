@@ -94,6 +94,56 @@ jobs:
           echo "::notice title=spike build times::${msg}"
           grep -q FAILED /tmp/build-times.txt && exit 1 || true
 
+      - name: Probe the DNS stack and stress resolution (#160)
+        # The S-suite reports different failures on each run here and never on
+        # the operator's host (0 of 64 requests over 8 runs, recorded on #160).
+        # The leading hypothesis is the Podman version delta — 4.9.3 here
+        # against 5.4.2 there — making this the container DNS resolver rather
+        # than Squid or the allowlist.
+        #
+        # The access log cannot separate those. NONE_NONE/500 says Squid never
+        # established an upstream connection; it does not say whether the name
+        # failed to resolve, whether Squid's own resolver gave up, or whether
+        # the upstream refused this address range. So this probe takes Squid
+        # out of the path entirely and resolves the same names directly from a
+        # container on claude-net.
+        #
+        # The lookups loop INSIDE one container on purpose. Seventy container
+        # starts would measure container startup; one process making successive
+        # lookups is what Squid actually does.
+        run: |
+          echo "--- host-side DNS stack ---" > /tmp/dns.txt
+          echo "backend=$(podman info --format '{{.Host.NetworkBackend}}' 2>/dev/null || echo unknown)" >> /tmp/dns.txt
+          for b in aardvark-dns netavark; do
+            p="$(command -v "$b" 2>/dev/null \
+                 || ls /usr/lib/podman/"$b" /usr/libexec/podman/"$b" 2>/dev/null | head -1)"
+            if [ -n "$p" ]; then
+              echo "${b}=$("$p" --version 2>&1 | head -1)" >> /tmp/dns.txt
+            else
+              echo "${b}=not found" >> /tmp/dns.txt
+            fi
+          done
+
+          # `|| true`: a probe that fails must not mask the suite result below.
+          podman run --rm -i --network claude-net claude-squid:latest sh -s >> /tmp/dns.txt 2>&1 <<'PROBE' || true
+          set -u
+          echo "--- container /etc/resolv.conf ---"
+          cat /etc/resolv.conf
+          echo "--- 10 lookups per host ---"
+          for h in api.anthropic.com docs.anthropic.com code.claude.com \
+                   mintcdn.com arxiv.org datatracker.ietf.org www.rfc-editor.org; do
+              fail=0
+              for _ in 1 2 3 4 5 6 7 8 9 10; do
+                  getent hosts "$h" > /dev/null 2>&1 || fail=$((fail + 1))
+              done
+              echo "${h}=${fail}/10 failed"
+          done
+          PROBE
+
+          cat /tmp/dns.txt
+          msg="$(sed ':a;N;$!ba;s/\n/%0A/g' /tmp/dns.txt)"
+          echo "::notice title=spike dns probe::${msg}"
+
       - name: Run the full suite, timed
         run: |
           s=$(date +%s)

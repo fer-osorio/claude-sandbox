@@ -4,6 +4,11 @@
 # production image tags, read-only (SDD §5); fixture sources are bind-mounted
 # readonly, builds happen in a separate writable scratch directory.
 
+# Every assertion in this file needs a container engine, a built image,
+# or both, which is what the tag selects on — not speed. See #101 and
+# docs/designs/0101-container-test-tier-in-ci.md.
+# bats file_tags=container
+
 load 'lib/engine'
 load 'lib/teardown'
 

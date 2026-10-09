@@ -5,6 +5,11 @@
 # tests prove what a developer's actual session enforces, not a synthetic
 # stand-in.
 
+# Every assertion in this file needs a container engine, a built image,
+# or both, which is what the tag selects on — not speed. See #101 and
+# docs/designs/0101-container-test-tier-in-ci.md.
+# bats file_tags=container
+
 load 'lib/engine'
 load 'lib/teardown'
 
@@ -116,7 +121,14 @@ teardown() {
     ! engine_inspect "claude-${target}" > /dev/null 2>&1
 }
 
-# bats test_tags=fast
+# hostfidelity: this assertion depends on the host's cgroup layout and cannot
+# be made faithfully on a hosted runner. It fails on ubuntu-latest in all three
+# #101 spike runs even with "memory" present in the delegated controller set,
+# so delegation is not the sufficient condition one would expect. The container
+# tier excludes it by this tag and the operator verifies it instead; the
+# ceiling of one in ci.yml is what stops the tag becoming an escape hatch for
+# any container test that happens to be failing.
+# bats test_tags=fast,hostfidelity
 @test "R-6: cgroups memory limit is actually enforced, not just accepted" {
     #
     # Regression test for a real finding (0025-podman-migration.md §6.2-D,

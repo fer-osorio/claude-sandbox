@@ -9,6 +9,11 @@
 # content — no global-crypto/ overlay exists in the repo yet, so G-2 uses a
 # synthetic fixture overlay instead of assuming one.
 
+# Every assertion in this file needs a container engine, a built image,
+# or both, which is what the tag selects on — not speed. See #101 and
+# docs/designs/0101-container-test-tier-in-ci.md.
+# bats file_tags=container
+
 load 'lib/engine'
 load 'lib/teardown'
 

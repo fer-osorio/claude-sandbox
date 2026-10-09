@@ -1,0 +1,194 @@
+# container.yml — the second tier of the gate, per
+# docs/designs/0101-container-test-tier-in-ci.md (#101).
+#
+# Runs the 32 tests that ci.yml's `hostonly` selection can never reach: egress
+# policy, container runtime flags, global-layer injection, image builds and
+# per-profile toolchains. It installs Podman, builds every image and runs
+# `--filter-tags container,!hostfidelity`.
+#
+# Why this is a separate workflow rather than a second job inside ci.yml, which
+# is what the design says. GitHub Actions applies `paths:` at the workflow
+# level, not the job level, so a path filter added to ci.yml would also gate
+# the host-only job — which must run on every pull request. The alternatives
+# were a third-party filter action, which this repository avoids (its only
+# action is actions/checkout, and it pins bats by commit), or a job-level `if:`
+# over a computed diff, which makes a skipped job report green and is the
+# green-for-the-wrong-reason shape this design exists to remove. A separate
+# workflow gets native path filtering and reports "not run" rather than
+# "passed". The decision is unchanged; its mechanism is.
+#
+# What a green check here does NOT cover, stated so it is not read as more
+# than it is:
+#   - R-6 (cgroups memory limit actually enforced) is excluded by the
+#     `hostfidelity` tag. It fails on a hosted runner in all three #101 spike
+#     runs even with "memory" in the delegated controller set, so a runner
+#     cannot assert it honestly. The operator verifies it. The ceiling below
+#     is what keeps that exclusion from growing quietly.
+#   - R-7 and R-8 (SELinux relabeling) are selected and run, and they skip,
+#     because hosted runners have no SELinux. A skip is honest but it is not
+#     coverage, which is why the skip count is published rather than folded
+#     into a pass total.
+#
+# Cost, measured on the #101 spike rather than assumed: about 157s of image
+# builds against 316-485s of tests. The premise ci.yml's header refused a
+# container tier on — that building four images is the expensive part — is
+# wrong; the Squid group's real network requests dominate, and most of that is
+# requests that fail slowly.
+
+name: Container tests
+
+on:
+  pull_request:
+    # Tied to risk: a documentation-only pull request pays nothing, one
+    # touching a control pays. The filter is a cost decision and it can be
+    # wrong — a change somewhere unlisted that breaks a container assertion is
+    # caught only by the scheduled run, which is why that backstop exists.
+    #
+    # The workflow file itself is included: a change to the gate has to run
+    # the gate, or the gate's own edits are the one class of change it never
+    # checks.
+    paths:
+      - 'base/**'
+      - 'squid/**'
+      - 'global-claude/**'
+      - 'start.sh'
+      - 'build.sh'
+      - 'tests/**'
+      - '.github/workflows/container.yml'
+  workflow_dispatch:
+
+jobs:
+  container:
+    name: Container tests (engine and built images)
+    runs-on: ubuntu-latest
+    # Measured worst case is about twelve minutes. A bound well above that
+    # still catches a hang, which a container suite making real network
+    # requests can produce.
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install bats-core
+        # The same pin as base/Dockerfile and ci.yml. D-10 compares the bats
+        # commit across every workflow that pins one, not ci.yml alone, so a
+        # second gate installing a different bats fails that check instead of
+        # drifting silently.
+        env:
+          BATS_VERSION: v1.14.0
+          BATS_COMMIT: eb7f42f8d608ac693d7a4b67474f6714ea68cfc5
+        run: |
+          git clone --depth 1 --branch "$BATS_VERSION" \
+            https://github.com/bats-core/bats-core.git /tmp/bats-core
+          cd /tmp/bats-core
+          test "$(git rev-parse HEAD)" = "$BATS_COMMIT"
+          sudo ./install.sh /usr/local
+          cd -
+          bats --version
+
+      - name: Install Podman
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq podman
+          podman version
+
+      - name: Guard the test selection, in both directions
+        # ci.yml guards its selection against shrinking. This job needs that
+        # floor and one more thing in the opposite direction: without a
+        # ceiling on `hostfidelity`, the cheapest way to make a failing
+        # container test green is to tag it `hostfidelity`, and nothing would
+        # notice. That is #81's failure shape — a test escaping its gate by
+        # moving — generalised from a file to a tag.
+        #
+        # A ceiling of one will be wrong eventually, and that is the intent:
+        # the second test that genuinely needs the tag should require a
+        # deliberate edit with a reason, not arrive quietly.
+        env:
+          CONTAINER_FLOOR: 31
+          HOSTFIDELITY_CEILING: 1
+        run: |
+          count=$(bats --filter-tags 'container,!hostfidelity' --count tests/)
+          excluded=$(bats --filter-tags hostfidelity --count tests/)
+          echo "container tests selected: ${count} (floor ${CONTAINER_FLOOR})"
+          echo "hostfidelity excluded: ${excluded} (ceiling ${HOSTFIDELITY_CEILING})"
+          {
+            echo "- container tests selected: **${count}** (floor ${CONTAINER_FLOOR})"
+            echo "- hostfidelity excluded: **${excluded}** (ceiling ${HOSTFIDELITY_CEILING})"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=container selection::selected ${count}, floor ${CONTAINER_FLOOR}, hostfidelity ${excluded}, ceiling ${HOSTFIDELITY_CEILING}"
+
+          fail=0
+          if [ "${count}" -lt "${CONTAINER_FLOOR}" ]; then
+            echo "::error::Selected ${count} container tests, below the floor of ${CONTAINER_FLOOR}. Either the tag broke or a test left the selection. Lower the floor only when tests are deliberately removed." >&2
+            fail=1
+          fi
+          if [ "${excluded}" -gt "${HOSTFIDELITY_CEILING}" ]; then
+            echo "::error::${excluded} tests carry hostfidelity, above the ceiling of ${HOSTFIDELITY_CEILING}. A test excluded from this tier needs a stated environmental reason and a deliberate raise of the ceiling, not a tag." >&2
+            fail=1
+          fi
+          exit "$fail"
+
+      - name: Create the claude-net network
+        # Never deleted afterwards, per SDD §5 — the suites attach to it and
+        # one of them creates it if absent, but doing it here means a failure
+        # to create is reported as a setup problem rather than as nine
+        # assertion failures.
+        run: |
+          podman network create claude-net || \
+            podman network exists claude-net
+
+      - name: Build every image
+        # All four profiles plus Squid. The tier needs them all: R-5 asserts
+        # on an unbuilt tag and now skips when none is unbuilt (#159), the
+        # toolchain group asserts per profile, and the runtime group runs
+        # against the real production tags read-only.
+        run: |
+          start=$(date +%s)
+          ./build.sh
+          echo "::notice title=container builds::$(( $(date +%s) - start ))s for all images"
+
+      - name: Run container tests
+        # Counts published the same way ci.yml publishes its own, and for the
+        # same reason: run logs are served from hosts outside the sandbox's
+        # egress allowlist, so from inside a session the log is the one place
+        # this evidence cannot be read (#113). Annotations reach the REST API.
+        #
+        # Skips are reported separately and subtracted from the pass count. A
+        # skipped test is `ok N ... # skip <reason>` in TAP, so it lands in a
+        # naive pass total and would make R-7 and R-8's absence of coverage
+        # look like coverage.
+        run: |
+          tap="${RUNNER_TEMP}/container.tap"
+          set +e
+          bats --filter-tags 'container,!hostfidelity' \
+            --print-output-on-failure tests/ | tee "$tap"
+          status=${PIPESTATUS[0]}
+          set -e
+          # Anchored on the TAP result number: an unanchored '^ok ' also
+          # matches captured output beginning that way, and
+          # --print-output-on-failure emits captured output exactly when the
+          # counts are being read.
+          passed=$(grep -cE '^ok [0-9]+' "$tap" || true)
+          failed=$(grep -cE '^not ok [0-9]+' "$tap" || true)
+          skipped=$(grep -cE '^ok [0-9]+.*# skip' "$tap" || true)
+          asserted=$(( passed - skipped ))
+          echo "- container tests run: **${asserted} asserted, ${skipped} skipped, ${failed} failed**" \
+            >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=container result::${asserted} asserted, ${skipped} skipped, ${failed} failed"
+          if [ "${skipped}" -ne 0 ]; then
+            {
+              echo
+              echo '```'
+              grep -E '^ok [0-9]+.*# skip' "$tap"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ "${failed}" -ne 0 ]; then
+            {
+              echo
+              echo '```'
+              grep '^not ok ' "$tap"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$status"

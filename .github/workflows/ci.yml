@@ -10,27 +10,33 @@
 #                                           where the thing that reads
 #                                           them looks — SDD §4.9)
 #
-# NOT covered here, and still runnable only on a developer machine with
-# Podman and built images:
+# NOT covered here, and covered instead by .github/workflows/container.yml:
 #   - tests/test_squid_isolation.bats   (egress policy)
 #   - tests/test_toolchain_smoke.bats   (per-profile toolchains)
 #   - tests/test_global_layer.bats      (global layer injection)
 #   - tests/test_build.bats             (image builds)
 #   - tests/test_runtime_posture.bats   (container runtime flags)
 #
-# That is a deliberate trade, not an oversight: a gate whose scope is
-# documented is a tool, an undocumented one is a trap. Building four images
-# on every push would make this slow and flaky enough that it would end up
-# ignored or disabled, which is worse than a narrow gate that always runs.
-# Extending coverage to the slow tier is a separate decision.
+# The split is engine access, not importance. This job needs no container
+# engine and runs on every pull request in about ten seconds; the container
+# tier installs Podman, builds every image, and runs on a pull request only
+# when one touches a control or the tests, plus nightly regardless. #101 and
+# docs/designs/0101-container-test-tier-in-ci.md record why the cost is tied
+# to the paths touched rather than paid on every push.
 #
-# One distinction this list must not be read as erasing. The
-# control-declarations group asserts that a security control is *declared*
-# at the path that reads it. It does not assert that the control is *in
-# force* — no test in this job starts a container, so none of them can.
-# Every control in the security plan's §5 STRIDE map is still enforced only
-# as far as the tests above, which do not run here, establish. A green check
-# on this job means the declarations survived; it has never meant more.
+# What each tier's green means, since neither means "the sandbox is safe":
+#   - This job green: the declarations survived. The control-declarations
+#     group asserts that a security control is *declared* at the path that
+#     reads it, not that the control is *in force* — no test here starts a
+#     container, so none of them can.
+#   - The container tier green: the controls it covers were in force on a
+#     hosted runner, with two exclusions it publishes rather than hides. R-6
+#     is excluded by the `hostfidelity` tag because a hosted runner cannot
+#     assert cgroup enforcement honestly, and R-7/R-8 run but skip for want
+#     of SELinux. Those three remain operator-verified.
+#
+# So the security plan's §5 STRIDE map is enforced by the two tiers together,
+# minus those three assertions. Neither check alone has ever meant more.
 #
 # The two numbers that say whether this job did what it claims — how many
 # tests were selected, and how many passed — are published twice, to two

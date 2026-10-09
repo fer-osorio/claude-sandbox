@@ -55,6 +55,22 @@ on:
       - 'build.sh'
       - 'tests/**'
       - '.github/workflows/container.yml'
+
+  # The backstop for everything the filter above does not list. A change that
+  # breaks a control from somewhere unexpected is then caught within a day
+  # rather than never. Off the hour deliberately: scheduled runs queue at
+  # popular minutes.
+  #
+  # This run notifies nobody by default, which makes it a log rather than a
+  # gate. Routing that notification is out of scope here and tracked
+  # separately; until it exists, the nightly result has to be looked at.
+  schedule:
+    - cron: '17 4 * * *'
+
+  # Lets the tier be run on demand against a branch, which is what the
+  # negative controls in this design's step 7 need: breaking one assertion per
+  # suite and confirming this job reports it, without opening a throwaway pull
+  # request for each.
   workflow_dispatch:
 
 jobs:

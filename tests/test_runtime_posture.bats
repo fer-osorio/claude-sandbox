@@ -94,12 +94,20 @@ teardown() {
     done
 
     if [ -z "$target" ]; then
-        echo "All of claude-crypto/systems/research are already built locally." >&2
-        echo "R-5 needs a valid-but-unbuilt tag to exercise this path, and this" >&2
-        echo "suite must never remove a real production image to manufacture one" >&2
-        echo "(SDD §5 — runtime-test images are read-only, never mutated)." >&2
-        echo "Remove one manually with '${ENGINE} rmi claude-<tag>' to run this test." >&2
-        return 1
+        # A skip, not a failure (#159). Refusing to delete a production image
+        # to manufacture an unbuilt tag is correct — SDD §5 makes runtime-test
+        # images read-only — but a fully-built machine is the normal state
+        # after ./build.sh all, so reporting red there made the suite
+        # un-greenable on a correctly set up host. R-7's comment below already
+        # called this "R-5's environment-conditional skip"; it now is one.
+        #
+        # One line rather than the five it replaces: bats puts the reason on
+        # the TAP line, so a multi-line reason would corrupt the output the
+        # harness reads.
+        reason="all of crypto/systems/research are built; R-5 needs an"
+        reason="${reason} unbuilt tag and must not delete a production image"
+        reason="${reason} (SDD §5) — '${ENGINE} rmi claude-crypto' to exercise it"
+        skip "$reason"
     fi
 
     run bash "${SANDBOX_DIR}/start.sh" "$SCRATCH_FIXTURE" "$target"

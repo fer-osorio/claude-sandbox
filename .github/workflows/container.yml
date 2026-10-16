@@ -47,12 +47,18 @@ on:
     # The workflow file itself is included: a change to the gate has to run
     # the gate, or the gate's own edits are the one class of change it never
     # checks.
+    #
+    # config.sh is included because both scripts above source it: PROFILES
+    # decides which images build.sh builds and which profiles the toolchain
+    # group asserts on, so a change to it can break a container assertion
+    # without touching anything else listed here.
     paths:
       - 'base/**'
       - 'squid/**'
       - 'global-claude/**'
       - 'start.sh'
       - 'build.sh'
+      - 'config.sh'
       - 'tests/**'
       - '.github/workflows/container.yml'
 

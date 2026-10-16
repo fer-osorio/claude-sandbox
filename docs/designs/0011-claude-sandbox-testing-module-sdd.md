@@ -288,6 +288,7 @@ real `config.local.sh`.
 | C-11 | Bare name is a path | A name matching a registry entry but written without `@` is still treated as a filesystem path |
 | C-12 | `config.local.sh` name resolves | A name added only in the operator's uncommitted layer resolves correctly |
 | C-13 | Committed names are not overridable | `config.local.sh` redefining a name that `config.sh` already declares is reverted and warned about, not silently honoured |
+| C-21 | Bare `build.sh` exits 0 | With a stand-in engine that names images as Podman does (`localhost/<name>`), the `all` path builds base, then every other `PROFILES` entry, then Squid, and exits 0 — the one build path B-1 does not reach |
 
 ### 4.7 Group 7 — Documentation Integrity
 
@@ -429,7 +430,7 @@ of this section would otherwise do:
 | `container` | Environment needed | Needs an engine, a built image, or both | 1, 2, 3, 4, 5 |
 | `hostfidelity` | Environment fidelity | Needs a host whose cgroup or mandatory-access-control layout a hosted runner does not provide | R-6 only |
 
-`hostonly` and `container` partition the suite: 49 tests and 32, no overlap,
+`hostonly` and `container` partition the suite: 50 tests and 32, no overlap,
 and every test carries exactly one of them. They are declared as `file_tags`,
 because `setup()` runs for every selected test in a file, so engine access is a
 property of the file (see the placement rule below).

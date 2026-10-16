@@ -6,8 +6,8 @@
 |---|---|
 | **Document Type** | Software Design Document (SDD) |
 | **Status** | Accepted |
-| **Version** | 1.3 |
-| **Date** | 2026-10-05 |
+| **Version** | 1.4 |
+| **Date** | 2026-10-09 |
 | **Author** | Fernando |
 | **Reviewers** | Security Team |
 | **Supersedes** | — (no prior testing SDD exists for claude-sandbox) |
@@ -24,6 +24,7 @@
 | 1.1 | 2026-09-02 | Fernando | Reconciled with the suite as built: Groups 6–8 added, Group 3 extended to S-6, `hostonly` tag axis documented, §9 traceability extended. Covers the drift that accumulated through R-6…R-8, S-4…S-6 and three test files added without revision entries (issue #51) |
 | 1.2 | 2026-09-04 | Fernando | Group 9 added: the engine-free assertions G-6 and B-4 move out of engine-gated files so CI selects them. §6.2 now states the placement rule its own trap implies. G-10 recorded. §4.4's G-6 row corrected — it described an enforcement assertion the test has never made (issue #81) |
 | 1.3 | 2026-10-05 | Fernando | §4.8 reconciled with the suite as built: P-0, P-0b, P-0c, P-7, P-8, P-9 were in the file and absent from the table, and the paragraph claiming no planning artifact exists had been false since 2026-09-11. P-10 added (#150). §9 traceability extended to ADR 008 and ADR 010. Same drift shape as 1.1, in one group rather than three files |
+| 1.4 | 2026-10-09 | Fernando | Container tier (#101): §6.2 gains the `container` and `hostfidelity` tag axes and records that both CI tiers filter on environment rather than speed, replacing the claim that groups 1–5 do not run in CI at all. §4.9's trap paragraph updated — the tier does not retire the placement rule. Measured on three spike runs: builds are 157s of a nine-minute job, not its dominant cost |
 
 ---
 
@@ -60,7 +61,7 @@ Covers the design of a test suite for `claude-sandbox` only. The developer-conta
 This document does **not** cover:
 - Implementation of the Podman migration itself
 - The dispatcher/meta-CLI merge design
-- CI/CD integration (explicitly out of scope per `docs/claude-code-security-plan.md` §"Scope")
+- The design of the CI pipeline itself (out of scope per `docs/claude-code-security-plan.md` §"Scope"; `docs/designs/0101-container-test-tier-in-ci.md` is where the two-tier decision lives). This document does record which tier selects which tags, in §6.2 — that is a property of the tagging scheme, which is this document's subject, and leaving it out is how §6.2 came to assert that groups 1–5 never run in CI
 - Container-in-container test execution (evaluated and rejected — see §3.4 and §10)
 
 ### 1.3 Intended Audience
@@ -287,6 +288,7 @@ real `config.local.sh`.
 | C-11 | Bare name is a path | A name matching a registry entry but written without `@` is still treated as a filesystem path |
 | C-12 | `config.local.sh` name resolves | A name added only in the operator's uncommitted layer resolves correctly |
 | C-13 | Committed names are not overridable | `config.local.sh` redefining a name that `config.sh` already declares is reverted and warned about, not silently honoured |
+| C-21 | Bare `build.sh` exits 0 | With a stand-in engine that names images as Podman does (`localhost/<name>`), the `all` path builds base, then every other `PROFILES` entry, then Squid, and exits 0 — the one build path B-1 does not reach |
 
 ### 4.7 Group 7 — Documentation Integrity
 
@@ -343,12 +345,20 @@ file carries no `setup()` gate and CI selects it. That is the entire reason the
 group exists, and it is stated here rather than inferred so nobody adds a
 container to it later on subject-matter grounds.
 
-The group is a consequence of the trap in §6.2. CI filters on `hostonly`, and a
-test in a file whose `setup()` gates on an engine cannot be made CI-visible by
-tagging it — it would be selected and then fail in `setup()`. Two tests were in
-that position: G-6, whose whole purpose is to catch a regression of issue #64,
-and B-4. Both are pure filesystem assertions, and neither ran in CI. The #64 fix
-merged with its own regression test unrun and the check green.
+The group is a consequence of the trap in §6.2. The host-only tier filters on
+`hostonly`, and a test in a file whose `setup()` gates on an engine cannot be
+made visible to it by tagging it — it would be selected and then fail in
+`setup()`. Two tests were in that position: G-6, whose whole purpose is to catch
+a regression of issue #64, and B-4. Both are pure filesystem assertions, and
+neither ran in CI. The #64 fix merged with its own regression test unrun and the
+check green.
+
+The container tier added in #101 does not retire this group or its rule. It
+means the engine-gated groups now run in CI too, but on a different trigger and
+a different cost, and the placement rule still decides which tier a new test
+lands in. A pure filesystem assertion put in an engine-gated file is now gated
+behind a path filter and a nine-minute job instead of not running at all —
+better, and still the wrong side of the line.
 
 **What this group can and cannot show.** It asserts that a control is *declared*
 at the path that reads it. It cannot assert that the control is *in force* — and
@@ -409,21 +419,46 @@ Mirrors the Component Tests / Integration Tests split already present in `docs/c
 
 Fast/slow separation is implemented via bats' native `# bats test_tags=` annotation, so both tiers live in the same files per test group rather than a parallel directory split — avoids duplicating the fixture and helper wiring across two trees.
 
-There are two independent axes, not one, and conflating them is what a reader
+There are three independent axes, not one, and conflating them is what a reader
 of this section would otherwise do:
 
-| Tag | Means | Groups |
-|---|---|---|
-| `fast` | Completes in seconds | 1, 2, 4, 6, 7, 8, 9 |
-| `slow` | Builds images or starts containers | 3, 5 |
-| `hostonly` | Needs no engine daemon and no image | 6, 7, 8, 9 |
+| Tag | Axis | Means | Groups |
+|---|---|---|---|
+| `fast` | Speed | Completes in seconds | 1, 2, 4, 6, 7, 8, 9 |
+| `slow` | Speed | Builds images or starts containers | 3, 5 |
+| `hostonly` | Environment needed | Needs no engine daemon and no image | 6, 7, 8, 9 |
+| `container` | Environment needed | Needs an engine, a built image, or both | 1, 2, 3, 4, 5 |
+| `hostfidelity` | Environment fidelity | Needs a host whose cgroup or mandatory-access-control layout a hosted runner does not provide | R-6 only |
+
+`hostonly` and `container` partition the suite: 50 tests and 32, no overlap,
+and every test carries exactly one of them. They are declared as `file_tags`,
+because `setup()` runs for every selected test in a file, so engine access is a
+property of the file (see the placement rule below).
 
 `fast` does not imply `hostonly`. Group 4 is fast and still requires a built
-`claude-base`, because its `setup()` gates on one. **CI filters on `hostonly`,
-not on `fast`** — so groups 1 through 5 do not run in CI at all, and the
-`bats tests/` pre-merge gate is the only thing that exercises them. A test
-added to a group whose file gates on an engine cannot be made CI-visible by
-tagging it `hostonly`; it would be selected and then fail in `setup()`.
+`claude-base`, because its `setup()` gates on one. **Both CI tiers filter on the
+environment axis, never on speed**: `.github/workflows/ci.yml` selects
+`hostonly`, and `.github/workflows/container.yml` selects
+`container,!hostfidelity`. A test added to a group whose file gates on an engine
+cannot be made CI-visible by tagging it `hostonly`; it would be selected and
+then fail in `setup()`.
+
+`hostfidelity` is not a claim about speed or about engine access but about
+whether a hosted runner can make the assertion *honestly*. R-6 asserts that a
+cgroups v2 memory limit is enforced rather than merely accepted, and it fails on
+`ubuntu-latest` in all three #101 spike runs even with `memory` present in the
+delegated controller set — so delegation is not the sufficient condition one
+would expect. It stays operator-verified. `container.yml` enforces a **ceiling
+of one** on this tag: without it, the cheapest way to make a failing container
+test green would be to tag it `hostfidelity`, which is #81's failure shape —
+a test escaping its gate by moving — generalised from a file to a tag.
+
+R-7 and R-8 deliberately do *not* carry the tag. They are selected, they run,
+and they `skip` naming the missing precondition, which is the same information
+the tag would carry, carried closer to the assertion. A skip is honest but it is
+not coverage, which is why `container.yml` publishes a skip count separately
+rather than letting three skips sit inside a pass total. R-5 is a third skip on
+any fully-built machine (#159).
 
 **The placement rule that follows from this.** Because `setup()` runs for every
 selected test in a file, engine access is a property of the *file*, not of the

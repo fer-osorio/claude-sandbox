@@ -71,6 +71,11 @@
 # registry.fedoraproject.org), failing every request in setup_file()
 # before any of them reach the proxy at all.
 
+# Every assertion in this file needs a container engine, a built image,
+# or both, which is what the tag selects on — not speed. See #101 and
+# docs/designs/0101-container-test-tier-in-ci.md.
+# bats file_tags=container
+
 load 'lib/engine'
 
 SANDBOX_DIR="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"

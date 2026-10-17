@@ -179,6 +179,13 @@ jobs:
         # skipped test is `ok N ... # skip <reason>` in TAP, so it lands in a
         # naive pass total and would make R-7 and R-8's absence of coverage
         # look like coverage.
+        #
+        # Tests that never report are counted too. A failing setup_file emits
+        # one `not ok N setup_file failed` and none of that file's tests, and
+        # bats only warns about the shortfall. Counting result lines alone made
+        # nine unrun Squid tests read as "1 failed" on #169. The TAP plan line
+        # is the denominator. Each `not ok` line is also published as an
+        # annotation, because the run log that names it is unreachable.
         run: |
           tap="${RUNNER_TEMP}/container.tap"
           set +e
@@ -190,13 +197,26 @@ jobs:
           # matches captured output beginning that way, and
           # --print-output-on-failure emits captured output exactly when the
           # counts are being read.
+          planned=$(grep -m1 -E '^1\.\.[0-9]+$' "$tap" | cut -d. -f3 || true)
           passed=$(grep -cE '^ok [0-9]+' "$tap" || true)
           failed=$(grep -cE '^not ok [0-9]+' "$tap" || true)
           skipped=$(grep -cE '^ok [0-9]+.*# skip' "$tap" || true)
           asserted=$(( passed - skipped ))
-          echo "- container tests run: **${asserted} asserted, ${skipped} skipped, ${failed} failed**" \
+          if [ -z "${planned}" ]; then
+            echo "::error title=container result::no TAP plan line; bats did not start the run"
+            exit 1
+          fi
+          unreported=$(( planned - passed - failed ))
+          echo "- container tests run: **${asserted} asserted, ${skipped} skipped, ${failed} failed, ${unreported} unreported** of ${planned}" \
             >> "$GITHUB_STEP_SUMMARY"
-          echo "::notice title=container result::${asserted} asserted, ${skipped} skipped, ${failed} failed"
+          echo "::notice title=container result::${asserted} asserted, ${skipped} skipped, ${failed} failed, ${unreported} unreported of ${planned}"
+          grep -E '^not ok [0-9]+' "$tap" | while IFS= read -r line; do
+            echo "::error title=container failure::${line}"
+          done
+          if [ "${unreported}" -ne 0 ]; then
+            echo "::error title=container result::${unreported} of ${planned} selected tests never reported a result"
+            status=1
+          fi
           if [ "${skipped}" -ne 0 ]; then
             {
               echo

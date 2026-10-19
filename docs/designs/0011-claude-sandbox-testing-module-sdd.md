@@ -229,6 +229,8 @@ gate. Its ID is unchanged.
 
 Mirrors `docs/squid-proxy-guide.md` Part 3 Step 5 exactly, wrapped as assertions instead of manual `docker logs` inspection.
 
+A host for which `setup_file()` gets no terminal access-log status after its retries (#160) fails only the assertions that read that host, S-3 among them since it reads every host, each carrying setup's diagnosis. Failures of the engine, the build or the proxy start still fail `setup_file()` and with it the group.
+
 ### 4.4 Group 4 — Global Layer Injection
 
 G-1 through G-6 reproduce the six Phase 6 tests from `docs/plans/0003-global-layer-injection-v1.md`, restated as assertions rather than manual procedures. G-7 through G-9 were added later, for the entrypoint's commit-msg hook drift check (issue #54), and are the only tests in the suite that assert on entrypoint stdout — elsewhere those lines are filtered out as noise. G-10 was added last (issue #71) and is the only test that asserts on the layer as a whole rather than on a named file within it.

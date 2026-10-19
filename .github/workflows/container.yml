@@ -210,13 +210,32 @@ jobs:
           echo "- container tests run: **${asserted} asserted, ${skipped} skipped, ${failed} failed, ${unreported} unreported** of ${planned}" \
             >> "$GITHUB_STEP_SUMMARY"
           echo "::notice title=container result::${asserted} asserted, ${skipped} skipped, ${failed} failed, ${unreported} unreported of ${planned}"
-          grep -E '^not ok [0-9]+' "$tap" | while IFS= read -r line; do
-            echo "::error title=container failure::${line}"
-          done
           if [ "${unreported}" -ne 0 ]; then
             echo "::error title=container result::${unreported} of ${planned} selected tests never reported a result"
             status=1
           fi
+          # One annotation per `not ok`, carrying the lines bats prints after
+          # it: the failure location and the captured output, setup_file's
+          # stderr included. That output is the diagnosis (the Squid setup's
+          # failure mode per host and its cache.log, for instance), and the
+          # log it is otherwise in is unreachable. Bounded per failure.
+          # Actions keeps 10 error annotations per step, which is why the
+          # count above is emitted first.
+          awk -v max=60 '
+            function esc(s) { gsub(/%/, "%25", s); gsub(/\r/, "%0D", s); return s }
+            function flush() {
+              if (head != "") printf "::error title=container failure::%s%s\n", head, body
+              head = ""; body = ""; n = 0
+            }
+            /^not ok [0-9]+/ { flush(); head = esc($0); next }
+            /^ok [0-9]+/ || /^1\.\.[0-9]+$/ { flush(); next }
+            head != "" {
+              if (n < max) body = body "%0A" esc($0)
+              else if (n == max) body = body "%0A(truncated)"
+              n++
+            }
+            END { flush() }
+          ' "$tap"
           if [ "${skipped}" -ne 0 ]; then
             {
               echo

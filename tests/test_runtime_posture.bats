@@ -5,6 +5,19 @@
 # tests prove what a developer's actual session enforces, not a synthetic
 # stand-in.
 
+# Negative-controlled on a hosted runner on 2026-10-20 (#101 step 7), in
+# runs 39501749415 and 39503913002, dispatched on throwaway probe branches.
+# Each probe was one commit and none was merged:
+#   - start.sh's unknown-image check removed -> R-4 reported start.sh's
+#     "does not exist" error instead of "unknown image". Observed in both
+#     runs.
+#   - --cap-drop=ALL removed from start.sh's session container -> nothing
+#     reported in the second run, whose failure list was complete. R-2
+#     and R-3 pass their own --cap-drop and --security-opt flags to
+#     engine_run, so they show the engine applies them, not that start.sh
+#     does. Every start.sh call in this file exits before the run command.
+# R-1, R-2, R-3 and R-5 have not been seen failing on a runner.
+#
 # Every assertion in this file needs a container engine, a built image,
 # or both, which is what the tag selects on — not speed. See #101 and
 # docs/designs/0101-container-test-tier-in-ci.md.

@@ -71,6 +71,26 @@
 # registry.fedoraproject.org), failing every request in setup_file()
 # before any of them reach the proxy at all.
 
+# Negative-controlled on a hosted runner on 2026-10-20 (#101 step 7), in
+# runs 39501749415 and 39503913002, dispatched on throwaway probe branches.
+# Each probe was one commit and none was merged:
+#   - docs.anthropic.com removed from squid.conf's allowlist -> S-4
+#     reported TCP_DENIED/403 for it, answered in 0 ms with no lookup.
+#     Observed in the second run.
+#   - example.com added to the allowlist was tried first and proved
+#     nothing. Allowing it makes Squid resolve it, the resolution failed,
+#     and S-2 failed through _s_require_answered instead of on the policy.
+#     A probe of an allow rule needs a working resolver; one of a deny
+#     needs none, which is why the second run used one.
+#   - Both runs also failed hosts through the harness (6 of 8, then 3 of 8)
+#     and reported each one on its own test, with setup's diagnosis. That
+#     is the first runner observation of the per-host path. Every
+#     unanswered host showed the same shape: a first attempt of 36-40s, then
+#     retries answered in 0 ms. That is Squid's negative DNS cache, so the
+#     retry cannot help this failure mode. cache.log at default
+#     debug_options carried no resolver line.
+# S-1, S-2 and S-5 to S-9 have not been seen failing on the policy.
+#
 # Every assertion in this file needs a container engine, a built image,
 # or both, which is what the tag selects on — not speed. See #101 and
 # docs/designs/0101-container-test-tier-in-ci.md.

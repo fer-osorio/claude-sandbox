@@ -150,16 +150,22 @@ _s_diagnose() {
         echo "  ${host}: $(_s_failure_mode "$host")"
     done
     echo
-    echo "--- access log ---"
-    proxy_logs
     # Squid's own diagnostics do not reach stdout: squid.conf sets no
     # cache_log, so the default file path applies and a resolver error
-    # appears nowhere in the access log above. Read from the container
-    # rather than redirecting it in the config — the suite asserts on
-    # the shipped config, so the harness is where the reading belongs.
-    echo "--- cache.log (Squid's own diagnostics) ---"
-    engine_exec "$proxy_name" cat /var/log/squid/cache.log 2>&1 \
+    # appears nowhere in the access log. Read from the container rather
+    # than redirecting it in the config — the suite asserts on the shipped
+    # config, so the harness is where the reading belongs.
+    #
+    # Ordered by diagnostic value, because the CI tier publishes this as an
+    # annotation and GitHub cuts each one at 4096 bytes. The first runner
+    # occurrence printed the access log first and lost cache.log inside its
+    # startup banner. Resolver errors follow startup, so the tail is the part
+    # that matters; the access log goes last, where a cut costs least.
+    echo "--- cache.log, last ${_S_CACHE_LOG_LINES} lines (Squid's own diagnostics) ---"
+    engine_exec "$proxy_name" tail -n "$_S_CACHE_LOG_LINES" /var/log/squid/cache.log 2>&1 \
         || echo "(cache.log unreadable)"
+    echo "--- access log ---"
+    proxy_logs
 }
 
 teardown_file() {
@@ -189,6 +195,8 @@ _S_MAX_ATTEMPTS="${SQUID_MAX_ATTEMPTS:-3}"
 # counting lines that had simply not arrived yet, which would inflate exactly
 # the number this change exists to report.
 _S_LOG_SETTLE=3
+# How much of cache.log a setup failure reports; see _s_diagnose.
+_S_CACHE_LOG_LINES=15
 _s_retries=0
 
 # Requested by setup_file in this order, which is also the order the

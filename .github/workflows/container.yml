@@ -233,13 +233,22 @@ jobs:
             echo "::error title=container result::${unreported} of ${planned} selected tests never reported a result"
             status=1
           fi
+          # Every failure by ID in one line, because Actions keeps only 10
+          # error annotations per step: the step 7 run on #101 failed 13 tests
+          # and named 10.
+          if [ "${failed}" -ne 0 ]; then
+            echo "::notice title=container failures::$(grep -E '^not ok [0-9]+' "$tap" \
+              | sed -E 's/^not ok [0-9]+ ([^:]+).*/\1/' | paste -sd ' ' -)"
+          fi
           # One annotation per `not ok`, carrying the lines bats prints after
           # it: the failure location and the captured output, setup_file's
           # stderr included. That output is the diagnosis (the Squid setup's
           # failure mode per host and its cache.log, for instance), and the
-          # log it is otherwise in is unreachable. Bounded per failure.
-          # Actions keeps 10 error annotations per step, which is why the
-          # count above is emitted first.
+          # log it is otherwise in is unreachable. Bounded per failure, and
+          # GitHub cuts each message at 4096 bytes regardless, so whatever
+          # writes the output has to put the diagnosis first. Actions keeps 10
+          # error annotations per step, which is why the counts and the
+          # failure list above are emitted first.
           awk -v max=60 '
             function esc(s) { gsub(/%/, "%25", s); gsub(/\r/, "%0D", s); return s }
             function flush() {

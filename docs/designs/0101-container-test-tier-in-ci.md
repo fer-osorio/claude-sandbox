@@ -4,6 +4,50 @@
 
 Accepted
 
+## Corrections
+
+Factual corrections only, dated. The text they correct is left as written.
+Revisions to how a decision is carried out are marked in the decision
+itself.
+
+**2026-10-20: the denominators were one low.** Context says `hostonly` is
+"48 of the suite's 80 tests". When this document was accepted, the suite was
+81 tests and `hostonly` selected 49. The figure of 32 excluded was right. The
+testing SDD and `ci.yml`'s `HOSTONLY_FLOOR` already used 49. Since C-21 (the
+`build.sh all` exit status, found by this tier's first run), the figures are
+82 and 50, with 32 still excluded. No decision is affected.
+
+**2026-10-20: the cost claim named the wrong cause.** Consequences says "the
+Squid suite's real network requests dominate". Three spike runs say
+*failing* requests dominate: 316s with nothing failing, against 395–485s
+with two or three failures, on 135–157s of builds. Cost per group was never
+measured on the runner. The conclusion that builds are not the expensive
+part stands. No decision is affected.
+
+**2026-10-20: Consequences claims more than the tier gates.** It says "a PR
+that widens the Squid allowlist, drops `--cap-drop=ALL` or breaks read-only
+global-layer mounting fails a gate." The first holds. The other two do not
+hold for `start.sh`, the place a session gets those flags. R-2, R-3 and
+G-1 to G-3 pass their own flags to `engine_run`, so they show the engine
+applies them, not that `start.sh` asks for them. Step 7 removed
+`--cap-drop=ALL` from `start.sh`'s session container, and `readonly` from
+its global-layer mount, and no test in either tier failed. The records are
+in the headers of `tests/test_runtime_posture.bats` and
+`tests/test_global_layer.bats`. No decision is affected, but the control is
+ungated until a test reads `start.sh`'s own arguments.
+
+**2026-10-20: #160 did not make the Squid suite answer the same way twice.**
+Consequences makes that a hard dependency of the tier. #160 closed with a
+retry that has now been observed on a runner and cannot help. Of the six
+runs since it landed, five left at least one host unanswered (0 to 6 of
+8). Each unanswered host shows the same shape: a first attempt of 36–40s,
+then retries answered in 0 ms from Squid's negative DNS cache. The
+resolver is aardvark-dns 1.4.0 under Podman 4.9.3 on Ubuntu 24.04.5. Since
+`3331970` an unanswered host fails only the assertions that read it,
+labelled as the harness rather than the policy. So the variance is
+attributable, but it is not gone. **Whether the tier is a gate while this
+holds is open.** The dependency the plan stated is unmet.
+
 ## Context
 
 `.github/workflows/ci.yml` selects `--filter-tags hostonly`. That is 48 of the
@@ -73,6 +117,16 @@ cost lands.
 Podman, creates the `claude-net` network, builds the images the selected tests
 need, and runs `bats --filter-tags container,!hostfidelity tests/`.
 
+*Revised 2026-10-20: built as a separate workflow,
+`.github/workflows/container.yml`, not as a second job in `ci.yml`.* Actions
+applies `paths:` to a whole workflow, so a filter on `ci.yml` would also gate
+the host-only job, which has to run on every pull request. The two ways to
+filter per job were a third-party filter action and a job-level `if:` over a
+computed diff. The repository's only action is `actions/checkout` and it pins
+bats by commit, which rules out the first. The second makes a skipped job
+report green, which is the shape this design exists to remove. The intent of
+the decision holds; only the mechanism differs.
+
 **2. A new `hostfidelity` tag on R-6 alone**, meaning: this assertion depends on
 the host's cgroup or mandatory-access-control layout and cannot be made
 faithfully on a hosted runner. The tag is a claim about the environment, not
@@ -98,7 +152,16 @@ not arrive quietly.
 **4. Cost is tied to risk by a path filter, with a nightly backstop.** The
 `container` job runs on a pull request only when it touches `base/**`,
 `squid/**`, `global-claude/**`, `start.sh`, `build.sh` or `tests/**`, and
-unconditionally on a nightly schedule. A documentation-only PR pays nothing; a
+unconditionally on a nightly schedule.
+
+*Revised 2026-10-20: the filter also lists `config.sh` and
+`.github/workflows/container.yml`.* `config.sh` is listed because both
+scripts source it, and its `PROFILES` decides what `build.sh` builds. The
+workflow file is listed because a change to the gate has to run the gate. A
+`workflow_dispatch` trigger runs the tier on demand against any branch.
+Measured, it accepts `--ref` for a branch that is not on `main` once the
+workflow is registered. Opening the pull request registers it. Step 7 used
+this. A documentation-only PR pays nothing; a
 PR touching a control pays; a change that breaks a control from somewhere
 unexpected is caught within a day rather than never.
 
@@ -201,29 +264,38 @@ than during it. Worth revisiting if the repository gains contributors.
 2. **Fix #160**, the Squid suite's per-run variance. Nothing downstream is worth
    building until that suite answers the same way twice — a dependency, not an
    ordering preference.
+   *2026-10-20: #160 is closed, but the dependency is not met. See Corrections.*
 3. **Fix #159**, so R-5 skips rather than fails on a fully-built machine. The
    tier builds every image, so without this the job is red for a correct
    environment.
+   *Done, #168.*
 4. **Tag `hostfidelity`** on R-6, with the reason stated at the test rather than
    only in this document. Add a `container` tag to the five container suites. No
    workflow change yet; `hostonly` selection is unaffected, so `HOSTONLY_FLOOR`
    stays at 49.
+   *Done.*
 5. **Add the `container` job** with the path filter, the selection floor, the
    `hostfidelity` ceiling of one, and `::notice::` publication of selected,
    passed, failed **and skipped** counts. The skip count is what keeps R-7 and
    R-8's non-coverage visible rather than hidden inside a pass total.
+   *Done, as a separate workflow (decision 1).*
 6. **Add the nightly schedule** invoking the same job without the path filter.
+   *Done. It first fires once the tier is on `main`.*
 7. **Negative-control the tier in CI.** Break one assertion per suite on a
    throwaway branch, confirm the job reports it, revert. Record the results in
    each test file's header, as `tests/test_planning_artifacts.bats` already does
    for the P-checks.
+   *Done 2026-10-20, one probe per suite. Results are in each suite's header.
+   It found the ungated `start.sh` flags in Corrections.*
 8. **Revise the SDD.** `docs/designs/0011-claude-sandbox-testing-module-sdd.md`
    §4's tag axes gain `container` and `hostfidelity`; its header's "deliberate
    trade" paragraph is replaced by what each tier's green now means, including
    that only 135s of it is builds. Bump the version and add a Revision History
    row.
+   *Done, v1.4.*
 9. **Correct `ci.yml`'s header** to name both jobs and what each one's green does
    not cover.
+   *Done.*
 10. **Close #101** with the measured numbers, and open a follow-up for routing
     notification of a failed scheduled run, which this design deliberately leaves
     unsolved.

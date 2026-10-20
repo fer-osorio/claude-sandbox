@@ -109,10 +109,24 @@ jobs:
           bats --version
 
       - name: Install Podman
+        # The stack under test is published, not only logged: `ubuntu-latest`
+        # moves under the job (Ubuntu 26 from 2026-10-19), the Squid suite's
+        # failures track the container DNS stack (#160), and the jobs API
+        # reports only the label. A result that flips between runs is then
+        # attributable to the runner or the code from the annotations alone.
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq podman
           podman version
+          os="$(. /etc/os-release && echo "${PRETTY_NAME}")"
+          pv="$(podman version --format '{{.Client.Version}}')"
+          helper() {
+            local p
+            p="$(command -v "$1" 2>/dev/null \
+                 || ls /usr/lib/podman/"$1" /usr/libexec/podman/"$1" 2>/dev/null | head -1)"
+            if [ -n "$p" ]; then "$p" --version 2>&1 | head -1; else echo "not found"; fi
+          }
+          echo "::notice title=container stack::${os}, podman ${pv}, $(helper aardvark-dns), $(helper netavark)"
 
       - name: Guard the test selection, in both directions
         # ci.yml guards its selection against shrinking. This job needs that
@@ -188,11 +202,16 @@ jobs:
         # annotation, because the run log that names it is unreachable.
         run: |
           tap="${RUNNER_TEMP}/container.tap"
+          # The Squid setup writes how many retries it consumed (#160). Read
+          # back below, so whether the retry is dormant or load-bearing on a
+          # runner is visible on every run rather than only on a failure.
+          export SQUID_RETRY_REPORT="${RUNNER_TEMP}/squid-retries"
           set +e
           bats --filter-tags 'container,!hostfidelity' \
             --print-output-on-failure tests/ | tee "$tap"
           status=${PIPESTATUS[0]}
           set -e
+          echo "::notice title=squid retries::$(cat "${SQUID_RETRY_REPORT}" 2>/dev/null || echo 'not reported (Squid setup did not complete)')"
           # Anchored on the TAP result number: an unanchored '^ok ' also
           # matches captured output beginning that way, and
           # --print-output-on-failure emits captured output exactly when the

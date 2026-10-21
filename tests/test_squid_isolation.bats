@@ -120,6 +120,40 @@ setup_file() {
     engine_run -d --name "$proxy_name" --network claude-net claude-squid:test >&2
     echo "$proxy_name" > "${BATS_FILE_TMPDIR}/proxy_name"
 
+    # One client for every request, as a real session has one long-lived
+    # client container. A container starting on claude-net makes aardvark-dns
+    # 1.4.0 drop queries for several seconds (#101 probe run 39638126824:
+    # 10 of 20 lookups lost one or two tries with a container starting, 0 of
+    # 20 without). The harness used to start a fresh curl container per
+    # request, so Squid's lookup for that request landed in the window it
+    # had just opened. Losing all three of Squid's tries is the 39.7s
+    # NONE_NONE/500, after which the retry is answered from Squid's negative
+    # cache.
+    client_name="test-claude-squid-client-$$"
+    engine_run -d --name "$client_name" --network claude-net \
+        --env HTTPS_PROXY="http://${proxy_name}:3128" \
+        docker.io/curlimages/curl:latest sleep 86400 >&2
+    echo "$client_name" > "${BATS_FILE_TMPDIR}/client_name"
+
+    # Both starts above open that window, so wait until the client resolves
+    # the proxy's name before the first request. telnet:// to a closed port
+    # resolves without sending the proxy anything, which keeps the access log
+    # to the requests the assertions count: curl exits 6 when it cannot
+    # resolve and 7 once the connection is refused.
+    local waited=0 rc
+    while :; do
+        rc=0
+        engine_exec "$client_name" curl -s --max-time 2 \
+            "telnet://${proxy_name}:1" < /dev/null > /dev/null 2>&1 || rc=$?
+        [ "$rc" -ne 6 ] && [ "$rc" -ne 28 ] && break
+        if [ "$waited" -ge 30 ]; then
+            echo "setup: client could not resolve ${proxy_name} within 30s (curl exit ${rc})" >&2
+            return 1
+        fi
+        sleep 1
+        waited=$((waited + 1))
+    done
+
     # Issued in a fixed order, which is also the order the assertions read
     # them in: api.anthropic.com (S-1), the deliberately blocked example.com
     # (S-2), issue #32's Reference-tier additions and dstdom_regex exception
@@ -189,6 +223,11 @@ _s_diagnose() {
 }
 
 teardown_file() {
+    client_name="$(cat "${BATS_FILE_TMPDIR}/client_name" 2>/dev/null || true)"
+    if [ -n "$client_name" ] && [[ "$client_name" == test-* ]]; then
+        engine_rm -f "$client_name" > /dev/null 2>&1 \
+            || echo "WARNING: teardown failed to remove container '$client_name'" >&2
+    fi
     proxy_name="$(cat "${BATS_FILE_TMPDIR}/proxy_name" 2>/dev/null || true)"
     if [ -n "$proxy_name" ] && [[ "$proxy_name" == test-* ]]; then
         engine_stop "$proxy_name" > /dev/null 2>&1 || true
@@ -260,8 +299,8 @@ _s_terminal() {
 #
 #   no line at all — the request never reached the proxy, so curl could not
 #   resolve the proxy's own container name. That is aardvark-dns answering
-#   authoritatively for claude-net, and a fresh curl container on each
-#   attempt re-resolves it, so a short retry is the right response.
+#   authoritatively for claude-net, and each curl invocation re-resolves
+#   it, so a short retry is the right response.
 #
 #   a non-terminal line — the proxy parsed the request and reached no
 #   decision (NONE_NONE/500 in both spike runs that showed it). Squid 5.7
@@ -303,9 +342,7 @@ _s_terminal_settled() {
 proxy_request() {
     local host="$1" attempt=1
     while :; do
-        engine_run --rm --network claude-net \
-            --env HTTPS_PROXY="http://${proxy_name}:3128" \
-            docker.io/curlimages/curl:latest \
+        engine_exec "$client_name" \
             curl -s -o /dev/null "https://${host}" >&2 || true
 
         _s_terminal_settled "$host" && return 0

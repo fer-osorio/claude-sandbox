@@ -48,6 +48,23 @@ labelled as the harness rather than the policy. So the variance is
 attributable, but it is not gone. **Whether the tier is a gate while this
 holds is open.** The dependency the plan stated is unmet.
 
+**2026-10-21: the cause was the harness, and it is fixed.** The entry above
+attributed the variance to Squid's DNS. The cause was the harness, which
+started a fresh curl container for every request. A container starting on
+claude-net makes aardvark-dns 1.4.0 drop queries for several seconds. On the
+runner, 10 of 20 lookups lost one or two tries with a container starting
+alongside them, and 0 of 20 without (probe run 39638126824). Squid gives up
+after three unanswered tries in 39.72s, which is the 36–40s first attempt. A
+real session has one long-lived client, so the policy was never at fault.
+Since `6922d17` the suite sends every request from one client. The next
+three runs (39683131282, 39683138144, 39683143969) were green, with no
+retries. The dependency in Consequences is met, though three runs is a small
+sample and the nightly runs are the continuing check. #160's retry remains as
+a backstop.
+
+**2026-10-21: the ungated `start.sh` flags are tracked.** The third entry
+above is now #173.
+
 ## Context
 
 `.github/workflows/ci.yml` selects `--filter-tags hostonly`. That is 48 of the

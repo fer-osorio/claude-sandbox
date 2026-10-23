@@ -282,6 +282,7 @@ than during it. Worth revisiting if the repository gains contributors.
    building until that suite answers the same way twice — a dependency, not an
    ordering preference.
    *2026-10-20: #160 is closed, but the dependency is not met. See Corrections.*
+   *2026-10-21: met by `6922d17`. See Corrections.*
 3. **Fix #159**, so R-5 skips rather than fails on a fully-built machine. The
    tier builds every image, so without this the job is red for a correct
    environment.
@@ -316,5 +317,11 @@ than during it. Worth revisiting if the repository gains contributors.
 10. **Close #101** with the measured numbers, and open a follow-up for routing
     notification of a failed scheduled run, which this design deliberately leaves
     unsolved.
+    *Done 2026-10-23. The three runs on `6922d17` took 7m58s–8m14s, 155–162s of
+    it builds, and asserted 28 with 3 skipped. No follow-up was opened: the
+    operator confirmed that GitHub's own failure email for a scheduled run
+    reaches the people who act on it.*
 11. **Delete the spike workflow and its branch.** Throwaway by construction; its
     results live in #101 and in this document.
+    *After merge, with the `probe/101-*` branches used for step 7 and the
+    Squid diagnosis.*

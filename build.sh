@@ -117,8 +117,14 @@ case "$TARGET" in
         build_squid
         echo ""
         echo "All images built:"
-        joined_profiles="$(IFS='|'; echo "${PROFILES[*]}")"
-        "$ENGINE" images | grep -E "^${IMAGE_PREFIX}-(${joined_profiles}|squid)\s"
+        # Printed from what this script built, not from "$ENGINE images":
+        # every build above already fails loudly under set -e, and parsing the
+        # engine's listing couples this line to its naming. Podman shows local
+        # images as localhost/<name>, so a ^-anchored grep found nothing and
+        # pipefail made a fully successful build exit 1.
+        for p in "${PROFILES[@]}" squid; do
+            echo "  ${IMAGE_PREFIX}-${p}"
+        done
         ;;
     squid)
         build_squid

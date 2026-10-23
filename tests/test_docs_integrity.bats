@@ -37,6 +37,16 @@
 #     citation resolve in a live session. The split is engine access, not
 #     coverage — G-10 needs a running container, so it cannot live in this
 #     file (see the SDD §6.2 note on engine-gated setup()).
+#
+# Negative controls, D-10 (2026-10-09), recorded because the check was
+# widened from reading ci.yml alone to every workflow that pins bats, and a
+# widened check that was never observed failing on the new ground is not
+# known to cover it:
+#   1. baseline, ci.yml only                        -> passes
+#   2. a second workflow pinning a different commit -> fails, naming that file
+#   3. a workflow pinning BATS_COMMIT, no VERSION   -> fails
+#   4. no workflow pinning bats at all              -> fails on the vacuity
+#      guard rather than passing having compared nothing
 
 SANDBOX_DIR="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
 
@@ -399,33 +409,50 @@ EOF
     )
 }
 
-# base/Dockerfile and .github/workflows/ci.yml each pin the bats commit they
+# base/Dockerfile and the workflows that install bats each pin the commit they
 # install. CI is the authoritative run and the image is what a session runs
 # against, so the two disagreeing means a check can pass in one place and fail
 # in the other for a reason neither reports — the drift #118 was filed about,
 # one layer up. Nothing else compares them, and a version bump touches two
 # files in different languages, which is exactly the edit that gets made once.
 #
-# Both literals are read out of their own file rather than from a shared
-# source: a shared source neither file reads would prove nothing about what is
+# Every workflow that pins bats is compared, not ci.yml alone. #101 adds a
+# second gate that installs bats, and a second gate pinning a different commit
+# is the same defect with a new filename — one this check would have been
+# blind to while still reporting green.
+#
+# Every literal is read out of its own file rather than from a shared source: a
+# shared source none of these files read would prove nothing about what is
 # actually installed.
 _bats_pin_mismatch() {
     (
         cd "$SANDBOX_DIR" || exit 1
         d_commit=$(awk -F= '/^ARG BATS_COMMIT=/ {print $2; exit}' base/Dockerfile)
         d_version=$(awk -F= '/^ARG BATS_VERSION=/ {print $2; exit}' base/Dockerfile)
-        c_commit=$(awk -F: '/^ *BATS_COMMIT:/ {gsub(/ /, "", $2); print $2; exit}' .github/workflows/ci.yml)
-        c_version=$(awk -F: '/^ *BATS_VERSION:/ {gsub(/ /, "", $2); print $2; exit}' .github/workflows/ci.yml)
 
         [ -n "$d_commit" ] || echo "base/Dockerfile: no 'ARG BATS_COMMIT=' found"
-        [ -n "$c_commit" ] || echo ".github/workflows/ci.yml: no 'BATS_COMMIT:' found"
         [ -n "$d_version" ] || echo "base/Dockerfile: no 'ARG BATS_VERSION=' found"
-        [ -n "$c_version" ] || echo ".github/workflows/ci.yml: no 'BATS_VERSION:' found"
 
-        [ -z "$d_commit" ] || [ -z "$c_commit" ] || [ "$d_commit" = "$c_commit" ] \
-            || echo "bats commit differs: base/Dockerfile pins ${d_commit}, ci.yml pins ${c_commit}"
-        [ -z "$d_version" ] || [ -z "$c_version" ] || [ "$d_version" = "$c_version" ] \
-            || echo "bats version differs: base/Dockerfile pins ${d_version}, ci.yml pins ${c_version}"
+        found=0
+        for wf in .github/workflows/*.yml .github/workflows/*.yaml; do
+            [ -f "$wf" ] || continue
+            grep -qE '^ *BATS_COMMIT:' "$wf" || continue
+            found=$((found + 1))
+            c_commit=$(awk -F: '/^ *BATS_COMMIT:/ {gsub(/ /, "", $2); print $2; exit}' "$wf")
+            c_version=$(awk -F: '/^ *BATS_VERSION:/ {gsub(/ /, "", $2); print $2; exit}' "$wf")
+
+            [ -n "$c_version" ] || echo "${wf}: pins BATS_COMMIT but no BATS_VERSION"
+
+            [ -z "$d_commit" ] || [ -z "$c_commit" ] || [ "$d_commit" = "$c_commit" ] \
+                || echo "bats commit differs: base/Dockerfile pins ${d_commit}, ${wf} pins ${c_commit}"
+            [ -z "$d_version" ] || [ -z "$c_version" ] || [ "$d_version" = "$c_version" ] \
+                || echo "bats version differs: base/Dockerfile pins ${d_version}, ${wf} pins ${c_version}"
+        done
+
+        # Vacuity guard. If no workflow pins bats at all, every comparison
+        # above is skipped and the check would pass having compared nothing.
+        [ "$found" -gt 0 ] \
+            || echo "no workflow under .github/workflows/ pins BATS_COMMIT"
     )
 }
 

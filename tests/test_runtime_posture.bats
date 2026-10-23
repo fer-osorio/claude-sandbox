@@ -5,6 +5,24 @@
 # tests prove what a developer's actual session enforces, not a synthetic
 # stand-in.
 
+# Negative-controlled on a hosted runner on 2026-10-20 (#101 step 7), in
+# runs 39501749415 and 39503913002, dispatched on throwaway probe branches.
+# Each probe was one commit and none was merged:
+#   - start.sh's unknown-image check removed -> R-4 reported start.sh's
+#     "does not exist" error instead of "unknown image". Observed in both
+#     runs.
+#   - --cap-drop=ALL removed from start.sh's session container -> nothing
+#     reported in the second run, whose failure list was complete. R-2
+#     and R-3 pass their own --cap-drop and --security-opt flags to
+#     engine_run, so they show the engine applies them, not that start.sh
+#     does. Every start.sh call in this file exits before the run command.
+# R-1, R-2, R-3 and R-5 have not been seen failing on a runner.
+#
+# Every assertion in this file needs a container engine, a built image,
+# or both, which is what the tag selects on — not speed. See #101 and
+# docs/designs/0101-container-test-tier-in-ci.md.
+# bats file_tags=container
+
 load 'lib/engine'
 load 'lib/teardown'
 
@@ -116,7 +134,14 @@ teardown() {
     ! engine_inspect "claude-${target}" > /dev/null 2>&1
 }
 
-# bats test_tags=fast
+# hostfidelity: this assertion depends on the host's cgroup layout and cannot
+# be made faithfully on a hosted runner. It fails on ubuntu-latest in all three
+# #101 spike runs even with "memory" present in the delegated controller set,
+# so delegation is not the sufficient condition one would expect. The container
+# tier excludes it by this tag and the operator verifies it instead; the
+# ceiling of one in ci.yml is what stops the tag becoming an escape hatch for
+# any container test that happens to be failing.
+# bats test_tags=fast,hostfidelity
 @test "R-6: cgroups memory limit is actually enforced, not just accepted" {
     #
     # Regression test for a real finding (0025-podman-migration.md §6.2-D,

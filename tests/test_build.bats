@@ -8,6 +8,19 @@
 # against the Dockerfiles with isolated ":test" tags (SDD §5) since they
 # validate the Dockerfiles themselves, not build.sh's orchestration.
 
+# Negative-controlled on a hosted runner on 2026-10-20 (#101 step 7), in
+# runs 39501749415 and 39503913002, dispatched on throwaway probe branches.
+# Each probe was one commit and none was merged:
+#   - build_with_deps with its base build removed -> B-1 reported that
+#     "Building claude-base" was absent from ./build.sh crypto's output.
+#     Observed in both runs.
+# B-2 and B-3 have not been seen failing on a runner.
+#
+# Every assertion in this file needs a container engine, a built image,
+# or both, which is what the tag selects on — not speed. See #101 and
+# docs/designs/0101-container-test-tier-in-ci.md.
+# bats file_tags=container
+
 load 'lib/engine'
 load 'lib/teardown'
 

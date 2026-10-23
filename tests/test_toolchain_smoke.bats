@@ -4,6 +4,20 @@
 # production image tags, read-only (SDD §5); fixture sources are bind-mounted
 # readonly, builds happen in a separate writable scratch directory.
 
+# Negative-controlled on a hosted runner on 2026-10-20 (#101 step 7), in
+# runs 39501749415 and 39503913002, dispatched on throwaway probe branches.
+# Each probe was one commit and none was merged:
+#   - latexmk removed from research/Dockerfile's package list -> T-3
+#     reported it. Named in the second run. The first counted 13 failures
+#     but named only 10, because Actions keeps 10 error annotations per
+#     step.
+# T-1 and T-2 have not been seen failing on a runner.
+#
+# Every assertion in this file needs a container engine, a built image,
+# or both, which is what the tag selects on — not speed. See #101 and
+# docs/designs/0101-container-test-tier-in-ci.md.
+# bats file_tags=container
+
 load 'lib/engine'
 load 'lib/teardown'
 

@@ -9,6 +9,24 @@
 # content — no global-crypto/ overlay exists in the repo yet, so G-2 uses a
 # synthetic fixture overlay instead of assuming one.
 
+# Negative-controlled on a hosted runner on 2026-10-20 (#101 step 7), in
+# runs 39501749415 and 39503913002, dispatched on throwaway probe branches.
+# Each probe was one commit and none was merged:
+#   - entrypoint.sh deleting ~/.claude/CLAUDE.md after the global-layer copy
+#     -> G-1, G-2 and G-10 reported it in both runs, and no other G-check
+#     did in the second, whose failure list was complete.
+#   - start.sh's /run/claude-global mount with `readonly` removed -> nothing
+#     reported in the second run, whose failure list was complete. G-1 to
+#     G-3 pass their own --mount flags to engine_run rather than reading
+#     start.sh's, so they show the engine honours a read-only mount, not
+#     that start.sh asks for one. Nothing in the suite reads start.sh's
+#     mount arguments.
+#
+# Every assertion in this file needs a container engine, a built image,
+# or both, which is what the tag selects on — not speed. See #101 and
+# docs/designs/0101-container-test-tier-in-ci.md.
+# bats file_tags=container
+
 load 'lib/engine'
 load 'lib/teardown'
 

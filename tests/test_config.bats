@@ -407,3 +407,63 @@ EOF
     [ -n "$in_creds" ]
     [ "$in_start" = "$in_creds" ]
 }
+
+# An engine stand-in for C-21. `build` succeeds and is logged; `images` prints
+# what Podman prints, repositories qualified as localhost/<name>; anything
+# else exits 2 so an unexpected call fails the test rather than passing it.
+_stub_build_engine() {
+    cat > "${REG_TMPDIR}/engine" <<'STUB'
+#!/usr/bin/env bash
+case "$1" in
+    build)
+        while [ "$#" -gt 0 ]; do
+            [ "$1" = "-t" ] && { echo "build $2" >> "${STUB_LOG}"; break; }
+            shift
+        done
+        exit 0
+        ;;
+    images)
+        echo "REPOSITORY              TAG     IMAGE ID      CREATED      SIZE"
+        for name in claude-base claude-crypto claude-systems claude-research claude-squid; do
+            echo "localhost/${name}  latest  0123456789ab  1 hour ago  1 GB"
+        done
+        exit 0
+        ;;
+    *)
+        echo "UNEXPECTED $*" >> "${STUB_LOG}"
+        exit 2
+        ;;
+esac
+STUB
+    chmod +x "${REG_TMPDIR}/engine"
+}
+
+# bats test_tags=fast, hostonly
+@test "C-21: bare build.sh exits 0 once every image builds, under Podman's image naming" {
+    # The `all` path is the one no other test reaches: B-1 builds a single
+    # target through build_with_deps. It exited 1 after a fully successful
+    # build because its closing listing grepped `^claude-` while Podman names
+    # local images localhost/claude-*, and pipefail plus set -e turned the
+    # non-match into the script's status. That went unseen locally and turned
+    # PR #169's container job red. A copy of build.sh is run beside the
+    # committed config.sh only, so an operator's config.local.sh is never
+    # sourced.
+    REG_TMPDIR="$(mktemp -d)"
+    cp "${SANDBOX_DIR}/build.sh" "${SANDBOX_DIR}/config.sh" "${REG_TMPDIR}/"
+    _stub_build_engine
+    export STUB_LOG="${REG_TMPDIR}/engine.log"
+
+    run env -u IMAGE_PREFIX ENGINE="${REG_TMPDIR}/engine" bash "${REG_TMPDIR}/build.sh"
+    [ "$status" -eq 0 ]
+
+    # Base first, then every other declared profile, then Squid.
+    local expected profiles
+    profiles="$(bash -c 'source "$1/config.sh"; printf "%s\n" "${PROFILES[@]}"' _ "${REG_TMPDIR}")"
+    expected="build claude-base"
+    while IFS= read -r p; do
+        [ "$p" = "base" ] && continue
+        expected+=$'\n'"build claude-${p}"
+    done <<< "$profiles"
+    expected+=$'\n'"build claude-squid"
+    [ "$(cat "$STUB_LOG")" = "$expected" ]
+}

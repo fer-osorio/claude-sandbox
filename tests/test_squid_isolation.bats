@@ -71,6 +71,31 @@
 # registry.fedoraproject.org), failing every request in setup_file()
 # before any of them reach the proxy at all.
 
+# Negative-controlled on a hosted runner on 2026-10-20 (#101 step 7), in
+# runs 39501749415 and 39503913002, dispatched on throwaway probe branches.
+# Each probe was one commit and none was merged:
+#   - docs.anthropic.com removed from squid.conf's allowlist -> S-4
+#     reported TCP_DENIED/403 for it, answered in 0 ms with no lookup.
+#     Observed in the second run.
+#   - example.com added to the allowlist was tried first and proved
+#     nothing. Allowing it makes Squid resolve it, the resolution failed,
+#     and S-2 failed through _s_require_answered instead of on the policy.
+#     A probe of an allow rule needs a working resolver; one of a deny
+#     needs none, which is why the second run used one.
+#   - Both runs also failed hosts through the harness (6 of 8, then 3 of 8)
+#     and reported each one on its own test, with setup's diagnosis. That
+#     is the first runner observation of the per-host path. Every
+#     unanswered host showed the same shape: a first attempt of 36-40s, then
+#     retries answered in 0 ms. That is Squid's negative DNS cache, so the
+#     retry cannot help this failure mode. cache.log at default
+#     debug_options carried no resolver line.
+# S-1, S-2 and S-5 to S-9 have not been seen failing on the policy.
+#
+# Every assertion in this file needs a container engine, a built image,
+# or both, which is what the tag selects on — not speed. See #101 and
+# docs/designs/0101-container-test-tier-in-ci.md.
+# bats file_tags=container
+
 load 'lib/engine'
 
 SANDBOX_DIR="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
@@ -95,6 +120,40 @@ setup_file() {
     engine_run -d --name "$proxy_name" --network claude-net claude-squid:test >&2
     echo "$proxy_name" > "${BATS_FILE_TMPDIR}/proxy_name"
 
+    # One client for every request, as a real session has one long-lived
+    # client container. A container starting on claude-net makes aardvark-dns
+    # 1.4.0 drop queries for several seconds (#101 probe run 39638126824:
+    # 10 of 20 lookups lost one or two tries with a container starting, 0 of
+    # 20 without). The harness used to start a fresh curl container per
+    # request, so Squid's lookup for that request landed in the window it
+    # had just opened. Losing all three of Squid's tries is the 39.7s
+    # NONE_NONE/500, after which the retry is answered from Squid's negative
+    # cache.
+    client_name="test-claude-squid-client-$$"
+    engine_run -d --name "$client_name" --network claude-net \
+        --env HTTPS_PROXY="http://${proxy_name}:3128" \
+        docker.io/curlimages/curl:latest sleep 86400 >&2
+    echo "$client_name" > "${BATS_FILE_TMPDIR}/client_name"
+
+    # Both starts above open that window, so wait until the client resolves
+    # the proxy's name before the first request. telnet:// to a closed port
+    # resolves without sending the proxy anything, which keeps the access log
+    # to the requests the assertions count: curl exits 6 when it cannot
+    # resolve and 7 once the connection is refused.
+    local waited=0 rc
+    while :; do
+        rc=0
+        engine_exec "$client_name" curl -s --max-time 2 \
+            "telnet://${proxy_name}:1" < /dev/null > /dev/null 2>&1 || rc=$?
+        [ "$rc" -ne 6 ] && [ "$rc" -ne 28 ] && break
+        if [ "$waited" -ge 30 ]; then
+            echo "setup: client could not resolve ${proxy_name} within 30s (curl exit ${rc})" >&2
+            return 1
+        fi
+        sleep 1
+        waited=$((waited + 1))
+    done
+
     # Issued in a fixed order, which is also the order the assertions read
     # them in: api.anthropic.com (S-1), the deliberately blocked example.com
     # (S-2), issue #32's Reference-tier additions and dstdom_regex exception
@@ -103,39 +162,18 @@ setup_file() {
     # Every host is attempted even after an earlier one fails, so the
     # diagnostic below can name all of them instead of only the first.
     local unanswered=""
-    for host in api.anthropic.com example.com docs.anthropic.com \
-                code.claude.com mintcdn.com arxiv.org \
-                datatracker.ietf.org www.rfc-editor.org; do
+    for host in "${_S_HOSTS[@]}"; do
         proxy_request "$host" || unanswered="${unanswered} ${host}"
     done
 
+    # An unanswered host fails the assertions that read it, not the file:
+    # setup records it and _s_require_answered fails those tests with this
+    # diagnostic. Returning 1 here made one sticky host fail all nine tests
+    # identically on two runner runs (#169), hiding which hosts did answer.
     if [ -n "$unanswered" ]; then
-        # Loud, and specific about which of two very different things went
-        # wrong. The proxy never reaching a decision is the harness failing
-        # to obtain an answer; the policy refusing a host would appear as
-        # TCP_DENIED/403, which is a terminal status and would have ended
-        # the retry loop. Conflating those is what made the #101 spike's
-        # first run undiagnosable.
-        echo "setup: no terminal access-log status after ${_S_MAX_ATTEMPTS}" >&2
-        echo "attempts each for:${unanswered}" >&2
-        echo "This is the harness failing to get an answer from the proxy," >&2
-        echo "not the policy refusing a host. See #160." >&2
-        echo >&2
-        for host in $unanswered; do
-            echo "  ${host}: $(_s_failure_mode "$host")" >&2
-        done
-        echo >&2
-        echo "--- access log ---" >&2
-        proxy_logs >&2
-        # Squid's own diagnostics do not reach stdout: squid.conf sets no
-        # cache_log, so the default file path applies and a resolver error
-        # appears nowhere in the access log above. Read from the container
-        # rather than redirecting it in the config — the suite asserts on
-        # the shipped config, so the harness is where the reading belongs.
-        echo "--- cache.log (Squid's own diagnostics) ---" >&2
-        engine_exec "$proxy_name" cat /var/log/squid/cache.log >&2 2>&1 \
-            || echo "(cache.log unreadable)" >&2
-        return 1
+        printf '%s\n' $unanswered > "${BATS_FILE_TMPDIR}/unanswered"
+        _s_diagnose "$unanswered" > "${BATS_FILE_TMPDIR}/diagnostics" 2>&1
+        cat "${BATS_FILE_TMPDIR}/diagnostics" >&2
     fi
 
     # Reported even when zero: a retry count that only appears on failure
@@ -146,7 +184,50 @@ setup_file() {
     fi
 }
 
+# Why setup could not get an answer for the hosts in $1. Written to a file by
+# setup_file and replayed by each test that reads one of those hosts, so the
+# diagnosis lands in that test's own failure output.
+_s_diagnose() {
+    local unanswered="$1" host
+    # Loud, and specific about which of two very different things went
+    # wrong. The proxy never reaching a decision is the harness failing
+    # to obtain an answer; the policy refusing a host would appear as
+    # TCP_DENIED/403, which is a terminal status and would have ended
+    # the retry loop. Conflating those is what made the #101 spike's
+    # first run undiagnosable.
+    echo "setup: no terminal access-log status after ${_S_MAX_ATTEMPTS}"
+    echo "attempts each for:${unanswered}"
+    echo "This is the harness failing to get an answer from the proxy,"
+    echo "not the policy refusing a host. See #160."
+    echo
+    for host in $unanswered; do
+        echo "  ${host}: $(_s_failure_mode "$host")"
+    done
+    echo
+    # Squid's own diagnostics do not reach stdout: squid.conf sets no
+    # cache_log, so the default file path applies and a resolver error
+    # appears nowhere in the access log. Read from the container rather
+    # than redirecting it in the config — the suite asserts on the shipped
+    # config, so the harness is where the reading belongs.
+    #
+    # Ordered by diagnostic value, because the CI tier publishes this as an
+    # annotation and GitHub cuts each one at 4096 bytes. The first runner
+    # occurrence printed the access log first and lost cache.log inside its
+    # startup banner. Resolver errors follow startup, so the tail is the part
+    # that matters; the access log goes last, where a cut costs least.
+    echo "--- cache.log, last ${_S_CACHE_LOG_LINES} lines (Squid's own diagnostics) ---"
+    engine_exec "$proxy_name" tail -n "$_S_CACHE_LOG_LINES" /var/log/squid/cache.log 2>&1 \
+        || echo "(cache.log unreadable)"
+    echo "--- access log ---"
+    proxy_logs
+}
+
 teardown_file() {
+    client_name="$(cat "${BATS_FILE_TMPDIR}/client_name" 2>/dev/null || true)"
+    if [ -n "$client_name" ] && [[ "$client_name" == test-* ]]; then
+        engine_rm -f "$client_name" > /dev/null 2>&1 \
+            || echo "WARNING: teardown failed to remove container '$client_name'" >&2
+    fi
     proxy_name="$(cat "${BATS_FILE_TMPDIR}/proxy_name" 2>/dev/null || true)"
     if [ -n "$proxy_name" ] && [[ "$proxy_name" == test-* ]]; then
         engine_stop "$proxy_name" > /dev/null 2>&1 || true
@@ -173,7 +254,30 @@ _S_MAX_ATTEMPTS="${SQUID_MAX_ATTEMPTS:-3}"
 # counting lines that had simply not arrived yet, which would inflate exactly
 # the number this change exists to report.
 _S_LOG_SETTLE=3
+# How much of cache.log a setup failure reports; see _s_diagnose.
+_S_CACHE_LOG_LINES=15
 _s_retries=0
+
+# Requested by setup_file in this order, which is also the order the
+# assertions read them in; S-3 reads all of them.
+_S_HOSTS=(api.anthropic.com example.com docs.anthropic.com code.claude.com
+          mintcdn.com arxiv.org datatracker.ietf.org www.rfc-editor.org)
+
+# Fails the calling test if setup could not get an answer for any host it
+# names, printing setup's diagnosis as that test's own output. Without it the
+# assertion would fail too, but on a log line that records no decision, which
+# reads as the policy misbehaving rather than the harness.
+_s_require_answered() {
+    local host
+    [ -s "${BATS_FILE_TMPDIR}/unanswered" ] || return 0
+    for host in "$@"; do
+        if grep -qxF "$host" "${BATS_FILE_TMPDIR}/unanswered"; then
+            echo "setup got no answer for ${host}, which this test reads."
+            cat "${BATS_FILE_TMPDIR}/diagnostics"
+            return 1
+        fi
+    done
+}
 
 # Terminal means the policy answered: TCP_TUNNEL/200 for an allowed host,
 # TCP_DENIED/403 for a refused one. Anything else — NONE_NONE/500, or no line
@@ -195,8 +299,8 @@ _s_terminal() {
 #
 #   no line at all — the request never reached the proxy, so curl could not
 #   resolve the proxy's own container name. That is aardvark-dns answering
-#   authoritatively for claude-net, and a fresh curl container on each
-#   attempt re-resolves it, so a short retry is the right response.
+#   authoritatively for claude-net, and each curl invocation re-resolves
+#   it, so a short retry is the right response.
 #
 #   a non-terminal line — the proxy parsed the request and reached no
 #   decision (NONE_NONE/500 in both spike runs that showed it). Squid 5.7
@@ -238,9 +342,7 @@ _s_terminal_settled() {
 proxy_request() {
     local host="$1" attempt=1
     while :; do
-        engine_run --rm --network claude-net \
-            --env HTTPS_PROXY="http://${proxy_name}:3128" \
-            docker.io/curlimages/curl:latest \
+        engine_exec "$client_name" \
             curl -s -o /dev/null "https://${host}" >&2 || true
 
         _s_terminal_settled "$host" && return 0
@@ -254,18 +356,21 @@ proxy_request() {
 
 # bats test_tags=slow
 @test "S-1: request to an allowed domain succeeds (TCP_TUNNEL/200 in the access log)" {
+    _s_require_answered api.anthropic.com
     run proxy_logs
     [[ "$output" == *"TCP_TUNNEL/200"* ]]
 }
 
 # bats test_tags=slow
 @test "S-2: request to a blocked domain is refused (TCP_DENIED/403)" {
+    _s_require_answered example.com
     run proxy_logs
     [[ "$output" == *"TCP_DENIED"* ]] || [[ "$output" == *"/403"* ]]
 }
 
 # bats test_tags=slow
 @test "S-3: every attempted connection produces exactly one parseable access log line" {
+    _s_require_answered "${_S_HOSTS[@]}"
     run proxy_logs
     [ "$status" -eq 0 ]
     line_count=$(echo "$output" | grep -cE '^[0-9]+\.[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9.]+[[:space:]]+\S+/[0-9]+')
@@ -284,36 +389,42 @@ proxy_request() {
 
 # bats test_tags=slow
 @test "S-4: request to docs.anthropic.com (issue #32 Reference tier addition) succeeds" {
+    _s_require_answered docs.anthropic.com
     run proxy_logs
     [[ "$output" =~ TCP_TUNNEL/200[[:space:]]+[0-9]+[[:space:]]+CONNECT[[:space:]]+docs\.anthropic\.com:443 ]]
 }
 
 # bats test_tags=slow
 @test "S-5: request to code.claude.com (issue #32 Reference tier addition) succeeds" {
+    _s_require_answered code.claude.com
     run proxy_logs
     [[ "$output" =~ TCP_TUNNEL/200[[:space:]]+[0-9]+[[:space:]]+CONNECT[[:space:]]+code\.claude\.com:443 ]]
 }
 
 # bats test_tags=slow
 @test "S-6: request to mintcdn.com (issue #32 dstdom_regex CDN exception) succeeds" {
+    _s_require_answered mintcdn.com
     run proxy_logs
     [[ "$output" =~ TCP_TUNNEL/200[[:space:]]+[0-9]+[[:space:]]+CONNECT[[:space:]]+mintcdn\.com:443 ]]
 }
 
 # bats test_tags=slow
 @test "S-7: request to arxiv.org (issue #91 planning-research tier) succeeds" {
+    _s_require_answered arxiv.org
     run proxy_logs
     [[ "$output" =~ TCP_TUNNEL/200[[:space:]]+[0-9]+[[:space:]]+CONNECT[[:space:]]+arxiv\.org:443 ]]
 }
 
 # bats test_tags=slow
 @test "S-8: request to datatracker.ietf.org (issue #91 planning-research tier) succeeds" {
+    _s_require_answered datatracker.ietf.org
     run proxy_logs
     [[ "$output" =~ TCP_TUNNEL/200[[:space:]]+[0-9]+[[:space:]]+CONNECT[[:space:]]+datatracker\.ietf\.org:443 ]]
 }
 
 # bats test_tags=slow
 @test "S-9: request to www.rfc-editor.org (issue #91 planning-research tier) succeeds" {
+    _s_require_answered www.rfc-editor.org
     run proxy_logs
     [[ "$output" =~ TCP_TUNNEL/200[[:space:]]+[0-9]+[[:space:]]+CONNECT[[:space:]]+www\.rfc-editor\.org:443 ]]
 }

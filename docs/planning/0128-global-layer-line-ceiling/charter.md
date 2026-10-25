@@ -65,10 +65,9 @@ listing share
 
 ## Decision
 
-<!-- Left blank by the skill. Filled in by a person, with a date.
-     Go / No-go / Deferred, and the reasoning in one or two lines.
+Go
 
-     A recorded no-go with its reasoning is the most reusable output this
-     phase produces — it stops the same idea being re-proposed from
-     scratch in six months. Do not delete this file on a no-go; set its
-     status and leave it. -->
+Proceed with option 3 under the named condition. The design takes in the
+deferred trim. Recorded on the operator's instruction.
+
+2026-10-25

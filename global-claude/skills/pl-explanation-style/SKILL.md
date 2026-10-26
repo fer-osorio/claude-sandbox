@@ -83,8 +83,3 @@ seemed like the primary one.
   for the "how," not the structure around it.
 - If the person's own framing suggests they aren't asking as an
   engineer, this skill shouldn't override that context — use judgment.
-
-## Changelog
-
-- **1.0** — Initial version: grammar/semantics and execution-model
-  references, loaded by relevance rather than exclusive branch.

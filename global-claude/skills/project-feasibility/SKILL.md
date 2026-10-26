@@ -1,6 +1,6 @@
 ---
 name: project-feasibility
-description: "Judge whether a scoped project should start — technical, operational and effort feasibility, plus a risk inventory — and write feasibility.md in the current Planning bundle as go/no-go material for a human gate. Trigger on a Planning-phase feasibility assessment, or when the current bundle's scope.md exists and the open question is whether to proceed. Mutually exclusive with swe-prior-art-research — resolve by what the answer must conclude, not by keyword: \"should this project start\" routes here and produces a committed artifact, while \"does this already exist, and is the approach viable\" routes to swe-prior-art-research, whose findings are an input to this judgment. Requires that scope.md and declines without it."
+description: "Judge whether a scoped project should start — technical, operational and effort feasibility, plus a risk inventory — and write feasibility.md in the current Planning bundle as go/no-go material for a human gate. Trigger on a Planning-phase feasibility assessment, or when the current bundle's scope.md exists and the open question is whether to proceed. Mutually exclusive with swe-prior-art-research — resolve by what the answer must conclude, not by keyword: \"should this project start\" routes here and produces a committed artifact, while \"does this already exist, and is the approach viable\" routes to swe-prior-art-research, whose findings are an input to this judgment."
 ---
 
 # Project Feasibility

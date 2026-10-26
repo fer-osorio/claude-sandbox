@@ -174,11 +174,14 @@ documented.
 
 1. **This design document.** `docs(design): design for global-layer bounds
    per load class (#128)`.
+   *Done, `19f13df`; accepted in `f34b3a9`.*
 2. **Move the skill changelogs** to `CHANGELOG.md` beside each `SKILL.md`
    (decision 6). One commit, six skills, contents unchanged.
+   *Done, `e671948`.*
 3. **Trim the descriptions** to at most 6,000 characters (decision 7). Use
    one commit per skill, each listing what was removed and where the body
    carries it.
+   *Done, `5c2d8b6` to `1729ada`: 6,759 bytes down to 5,797.*
 4. **Add D-15 and D-16, and retire D-7** (decisions 1 to 4 and 8). Rewrite
    the rationale comment, and negative-control each check:
    - push one description past 1,536;
@@ -188,10 +191,16 @@ documented.
    Watch each fail, revert, and record the result in the comment. Raise
    `ci.yml`'s `HOSTONLY_FLOOR` from 50 to 51, since D-7 goes and two checks
    arrive.
+   *Done, `c7a83eb`. D-15 measures bytes, not characters, so the result
+   does not depend on the locale; a multi-byte character counts against
+   the bound more than once, which errs strict.*
 5. **Update the testing SDD.** In
    `docs/designs/0011-claude-sandbox-testing-module-sdd.md`, retire the D-7
    row and add rows for D-15 and D-16. Fix the §citation table, bump the
    version and add a Revision History row.
+   *Done, v1.5, `4b1251a`.*
 6. **Correct design 0003 §5.2** (decision 9).
+   *Done, `c9b3017`, including its STRIDE summary row.*
 7. **Closing commit** (closes #128). Then comment on #135, and note on
    #146 that #128 is done.
+   *This commit. The comments follow the merge.*

@@ -391,12 +391,17 @@ _Controls:_
 - The `cp -r` operation at startup is bounded by the size of the global layer directory. For
   a well-maintained operator config (tens of files, kilobytes of content), this is
   sub-millisecond.
-- Claude Code's context window cost is bounded by the total size of injected Markdown files.
-  A 200-line `CLAUDE.md` and five skills of similar size costs roughly 8,000–10,000 tokens —
-  significant but acceptable. Operators should keep the global layer lean.
-- D-6 and D-7 in `tests/test_docs_integrity.bats` hold that lean-ness to a number: 200
-  lines for `CLAUDE.md`, 3000 across the layer. Until they were added this control was
-  named here and enforced nowhere, so no growth was ever observed to breach it.
+- Claude Code's context cost depends on when each part of the layer loads, not on the layer's
+  total size. `CLAUDE.md` and every skill's description load in every session. A skill's
+  `SKILL.md` loads when the skill is invoked. Templates and hook scripts load only when
+  something reads them.
+- D-6, D-15 and D-16 in `tests/test_docs_integrity.bats` bound the first two classes:
+  - `CLAUDE.md` at 200 lines;
+  - skill descriptions at 1536 bytes each and 6000 in total;
+  - each `SKILL.md` at 500 lines.
+
+  Files that load only when read are unbounded on purpose. The figures and their sources are
+  in `docs/designs/0128-global-layer-load-class-bounds.md`.
 
 ### 5.3 Updated STRIDE coverage map
 
@@ -406,7 +411,7 @@ _Controls:_
 | **Tampering (T)** | Container filesystem scope + `permissions.deny` | Readonly mounts at `/run/`; `Write(/run/*)` deny rule |
 | **Repudiation (R)** | Docker + Squid + Claude logs | Entrypoint stdout logs; git history of `global-claude/` |
 | **Information Disclosure (I)** | Network allowlist; secrets not mounted | Global layer contains no secrets by design |
-| **Denial of Service (D)** | `--memory` and `--cpus` limits | Global layer size discipline, enforced by D-6 and D-7 |
+| **Denial of Service (D)** | `--memory` and `--cpus` limits | Global layer size discipline, enforced by D-6, D-15 and D-16 |
 | **Elevation of Privilege (E)** | Non-root user; `--cap-drop=ALL`; `--no-new-privileges` | Entrypoint runs as `claude-agent`; no sudo in script |
 
 ---
@@ -546,6 +551,11 @@ produces insights worth preserving, the operator reviews them and manually adds 
 ---
 
 ## Changelog
+
+### Version 1.2 — 2026-10-26
+§5.2 Denial of Service corrected. It said context cost was bounded by the total size of the
+injected Markdown, which is wrong for skills: their bodies load on invocation. It now names
+the bounds per load class, D-6, D-15 and D-16, which replace D-7 (#128).
 
 ### Version 1.1 — 2026-05-31
 Added implementation plan (§8). Renamed file to kebab-case. Updated self-reference in §6

@@ -1,6 +1,6 @@
 ---
 name: softwarecs-explanation-style
-description: When explaining software, code, or technical systems, use CS-native framing — binaries/paths, data structures, algorithms, file formats, parsing — instead of plain-language description. Covers both local-machine systems (compilers, parsers, local pipelines, on-disk formats) and networked/distributed systems (API calls, client-server auth, remote fetches). Always check whether the system being explained crosses a process or machine boundary — fetches from, or authenticates against, anything outside local disk/memory — and load the matching reference file, even partially for hybrid systems.
+description: When explaining software, code, or technical systems, use CS-native framing — binaries/paths, data structures, algorithms, file formats, parsing — instead of plain-language description. Covers both local-machine systems (compilers, parsers, local pipelines, on-disk formats) and networked/distributed systems (API calls, client-server auth, remote fetches).
 ---
 
 ## Overview

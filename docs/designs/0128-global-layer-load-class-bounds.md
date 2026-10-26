@@ -1,7 +1,7 @@
 # Global-layer size bounds per load class
 
 ## Status
-Draft
+Accepted
 
 ## Context
 

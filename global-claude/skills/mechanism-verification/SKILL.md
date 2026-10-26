@@ -3,17 +3,13 @@ name: mechanism-verification
 description: >
   Invoke before asserting that a check, gate, hook, CI step, or documented
   control actually enforces anything, and before concluding that code or
-  config is unused. Presence is not function: a gate never observed failing
-  is not known to be a gate, and a definition with no readers is not
-  load-bearing. Trigger on adding or changing anything whose job is to
+  config is unused. Trigger on adding or changing anything whose job is to
   prevent a class of change - a hook, a CI gate, a lint or schema rule, a
   regression test, a size or coverage threshold; on any claim that something
   is enforced, covered, or checked; and before deleting anything believed
   unused. Resolve by what the thing is for, not by whether it is a test: an
   ordinary unit test describing behaviour does not need this, a test whose
-  purpose is to stop a regression recurring does. It applies precisely when
-  the mechanism looks obviously correct, because that is where nobody
-  checks.
+  purpose is to stop a regression recurring does.
 ---
 
 # Mechanism Verification

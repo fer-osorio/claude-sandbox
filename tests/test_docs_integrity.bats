@@ -238,25 +238,55 @@ _skill_dirs_without_manifest() {
     )
 }
 
-# The global layer is copied into ~/.claude in every session, so its size is
-# a permanent context-window cost paid by every task. docs/designs/
-# 0003-global-layer-injection.md §5.2 names "Global layer size discipline" as the
-# Denial of Service control and puts a 200-line CLAUDE.md at "significant but
-# acceptable" — but named the control without giving it a mechanism, so
-# nothing has ever observed it fail. D-6 and D-7 are that mechanism.
+# The global layer is copied into ~/.claude in every session, but not all of
+# it is read in every session. docs/designs/0003-global-layer-injection.md
+# §5.2 names "Global layer size discipline" as the Denial of Service control;
+# these checks are its mechanism. Each bounds one load class, because a line
+# costs context only when its class loads (design 0128):
 #
-# Ceilings are lines, not bytes. The same directory measures 66K, 123K or
-# 160K depending on whether you sum file contents, count directory entries,
-# or count allocated blocks; a ceiling whose unit is ambiguous either never
-# fires or fires when a subdirectory is added. docs/planning/README.md made
-# the same call for the artifact templates and for the same reason.
+#   every session   CLAUDE.md (D-6) and every skill description (D-15)
+#   on invocation   a skill's SKILL.md (D-16)
+#   on read         templates, hook scripts, settings.json, CHANGELOG.md:
+#                   unbounded on purpose, since a line nobody reads costs
+#                   nothing. A template is read by the skill that names it,
+#                   whose own length D-16 bounds.
 #
-# The §5.2 illustration (a 200-line CLAUDE.md plus five skills of similar
-# size, so roughly 1200 lines) is already exceeded at 1566. D-7 is therefore
-# set above current usage deliberately: it is a bound on unnoticed growth,
-# not a target to shrink toward.
+# The SessionStart hook's output also lands in every session. It is two lines,
+# printed only when a project has no user guide, and is left unbounded as
+# accepted (design 0128, decision 8).
+#
+# D-7 used to bound the whole tree at 3000 lines. It is retired, and its ID is
+# not reused: no published source supports a line count across a tree, and
+# about 5% of what it counted loaded in every session
+# (docs/planning/0128-global-layer-line-ceiling/prior-art.md).
+#
+# Every figure below is the vendor's, from
+# https://code.claude.com/docs/en/memory and https://code.claude.com/docs/en/skills
+# as checked on 2026-10-24, except the description total, which is policy.
+# They are versioned Claude Code behaviour. If one changes, re-derive the
+# constant here rather than raising it to make a failure pass.
+#
+#   200 lines    "target under 200 lines per CLAUDE.md file"
+#   500 lines    "Keep SKILL.md under 500 lines" (frontmatter included)
+#   1536 chars   the cap per entry in the skill listing; past it a
+#                description is truncated and loses its trigger words
+#   6000 chars   policy, chosen by the operator on 2026-10-25. The listing
+#                budget is 1% of the context window. On a 200k-token window,
+#                at an assumed 4 characters per token (the vendor documents
+#                none), that is about 8000. 6000 leaves a quarter of that for
+#                plugin and synced skills this repository cannot see.
+#
+# Descriptions are measured in bytes, which never undercount characters and
+# need no UTF-8 locale. An em dash counts as 3, so the bound errs strict.
+#
+# Negative-controlled on 2026-10-26 against design's block-form description:
+# padded to 1612 bytes, D-15 named the per-entry cap; padded so the total
+# reached 6037 with every entry under 1536, D-15 named the budget; padded to
+# 789 lines, D-16 failed. Each was reverted and both passed again.
 _CLAUDE_MD_MAX_LINES=200
-_GLOBAL_LAYER_MAX_LINES=3000
+_SKILL_MD_MAX_LINES=500
+_SKILL_DESC_MAX_BYTES=1536
+_SKILL_DESC_TOTAL_MAX_BYTES=6000
 
 _claude_md_over_ceiling() {
     (
@@ -267,12 +297,50 @@ _claude_md_over_ceiling() {
     )
 }
 
-_global_layer_over_ceiling() {
+# A skill's description as the listing receives it: the value on the key's
+# line, or a `>`/`|` block's indented lines joined with single spaces, with
+# surrounding quotes removed. The same two forms D-8 accepts.
+_skill_description() {
+    awk '
+        NR == 1                                 { if ($0 != "---") exit; next }
+        $0 == "---"                             { exit }
+        block && /^[ \t]+[^ \t]/                { sub(/^[ \t]+/, ""); out = out (out == "" ? "" : " ") $0; next }
+        block                                   { exit }
+        /^description:[ \t]*[|>][-+]?[ \t]*$/  { block = 1; next }
+        /^description:[ \t]*[^ \t]/             { sub(/^description:[ \t]*/, ""); out = $0; exit }
+        END {
+            if (out ~ /^".*"$/ || out ~ /^\047.*\047$/) out = substr(out, 2, length(out) - 2)
+            gsub(/\\"/, "\"", out)
+            printf "%s", out
+        }
+    ' "$1"
+}
+
+_skill_descriptions_over_budget() {
     (
         cd "$SANDBOX_DIR" || exit 1
-        n=$(find global-claude -type f -exec cat {} + | wc -l)
-        [ "$n" -le "$_GLOBAL_LAYER_MAX_LINES" ] \
-            || echo "global-claude/: ${n} lines across all files exceeds the ${_GLOBAL_LAYER_MAX_LINES}-line ceiling"
+        total=0
+        for f in global-claude/skills/*/SKILL.md; do
+            [ -f "$f" ] || continue
+            n=$(_skill_description "$f" | wc -c)
+            total=$((total + n))
+            [ "$n" -le "$_SKILL_DESC_MAX_BYTES" ] \
+                || echo "${f}: description is ${n} bytes, past the ${_SKILL_DESC_MAX_BYTES}-character listing cap"
+        done
+        [ "$total" -le "$_SKILL_DESC_TOTAL_MAX_BYTES" ] \
+            || echo "global-claude/skills: descriptions total ${total} bytes, over the ${_SKILL_DESC_TOTAL_MAX_BYTES}-byte budget"
+    )
+}
+
+_skills_over_line_ceiling() {
+    (
+        cd "$SANDBOX_DIR" || exit 1
+        for f in global-claude/skills/*/SKILL.md; do
+            [ -f "$f" ] || continue
+            n=$(wc -l < "$f")
+            [ "$n" -le "$_SKILL_MD_MAX_LINES" ] \
+                || echo "${f}: ${n} lines exceeds the ${_SKILL_MD_MAX_LINES}-line ceiling"
+        done
     )
 }
 
@@ -671,17 +739,6 @@ _changelog_index_drift() {
 }
 
 # bats test_tags=fast, hostonly
-@test "D-7: the global layer as a whole stays within its line ceiling" {
-    run _global_layer_over_ceiling
-    [ "$status" -eq 0 ]
-    if [ -n "$output" ]; then
-        echo "--- every line here is context cost in every session ---" >&2
-        echo "$output" >&2
-    fi
-    [ -z "$output" ]
-}
-
-# bats test_tags=fast, hostonly
 @test "D-8: every skill's description resolves to text" {
     run _skills_without_loadable_description
     [ "$status" -eq 0 ]
@@ -753,6 +810,28 @@ _changelog_index_drift() {
     [ "$status" -eq 0 ]
     if [ -n "$output" ]; then
         echo "--- see the design skill, Step 6b ---" >&2
+        echo "$output" >&2
+    fi
+    [ -z "$output" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "D-15: skill descriptions fit the listing cap and the layer's budget" {
+    run _skill_descriptions_over_budget
+    [ "$status" -eq 0 ]
+    if [ -n "$output" ]; then
+        echo "--- every description is in context every session; see design 0128 ---" >&2
+        echo "$output" >&2
+    fi
+    [ -z "$output" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "D-16: every SKILL.md stays within its line ceiling" {
+    run _skills_over_line_ceiling
+    [ "$status" -eq 0 ]
+    if [ -n "$output" ]; then
+        echo "--- a SKILL.md is in context from its invocation on ---" >&2
         echo "$output" >&2
     fi
     [ -z "$output" ]

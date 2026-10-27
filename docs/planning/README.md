@@ -11,7 +11,8 @@ resolve it here and never infer it from the directory listing
 | Bundle | Current | Issue | Question |
 |---|---|---|---|
 | [`0102-instruction-layer-silent-failures`](0102-instruction-layer-silent-failures/README.md) | | #102, #103, #104 | Fix three silent-failure gaps in the instruction layer? |
-| [`0129-encrypted-credential-store`](0129-encrypted-credential-store/README.md) | **Current** | #129 | Replace the shell-sourced `GH_TOKEN` passthrough with a per-project encrypted store? |
+| [`0129-encrypted-credential-store`](0129-encrypted-credential-store/README.md) | | #129 | Replace the shell-sourced `GH_TOKEN` passthrough with a per-project encrypted store? |
+| [`0128-global-layer-line-ceiling`](0128-global-layer-line-ceiling/README.md) | **Current** | #128 | What do published findings justify as D-7's ceiling on the global layer? |
 
 Opening a bundle adds a row, marks it Current, and unmarks the previous
 one. Nothing else changes a row.

@@ -1,6 +1,6 @@
 ---
 name: pl-explanation-style
-description: When explaining a programming language's syntax, semantics, type system, or runtime execution model — not a specific program written in it — use formal grammar and VM/hardware execution vocabulary, not plain-language description. Covers grammar/semantics (CFGs, parsing, AST, typing judgments, inference rules, soundness) and execution model (registers, calling conventions, stack/heap, VM dispatch loops, memory model, concurrency), loaded by relevance rather than either/or. Trigger for why code is a syntax or type error, how type inference/checking works, why code behaves oddly at runtime (races, aliasing, undefined behavior), how an interpreter/VM executes instructions, what a memory model guarantees, or any "why does this language do X" question — even without the words "grammar," "semantics," or "type system." Distinct from softwarecs-explanation-style, which covers a program/tool/service as a system (pipeline, I/O), not a language's own rules.
+description: When explaining a programming language's syntax, semantics, type system, or runtime execution model — not a specific program written in it — use formal grammar and VM/hardware execution vocabulary, not plain-language description. Covers grammar/semantics (CFGs, parsing, AST, typing judgments, inference rules, soundness) and execution model (registers, calling conventions, stack/heap, VM dispatch loops, memory model, concurrency). Trigger for why code is a syntax or type error, how type inference/checking works, why code behaves oddly at runtime (races, aliasing, undefined behavior), how an interpreter/VM executes instructions, what a memory model guarantees, or any "why does this language do X" question — even without the words "grammar," "semantics," or "type system." Distinct from softwarecs-explanation-style, which covers a program/tool/service as a system (pipeline, I/O), not a language's own rules.
 ---
 
 ## Overview
@@ -83,8 +83,3 @@ seemed like the primary one.
   for the "how," not the structure around it.
 - If the person's own framing suggests they aren't asking as an
   engineer, this skill shouldn't override that context — use judgment.
-
-## Changelog
-
-- **1.0** — Initial version: grammar/semantics and execution-model
-  references, loaded by relevance rather than exclusive branch.

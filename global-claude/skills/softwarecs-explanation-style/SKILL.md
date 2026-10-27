@@ -1,6 +1,6 @@
 ---
 name: softwarecs-explanation-style
-description: When explaining software, code, or technical systems, use CS-native framing — binaries/paths, data structures, algorithms, file formats, parsing — instead of plain-language description. Covers both local-machine systems (compilers, parsers, local pipelines, on-disk formats) and networked/distributed systems (API calls, client-server auth, remote fetches). Always check whether the system being explained crosses a process or machine boundary — fetches from, or authenticates against, anything outside local disk/memory — and load the matching reference file, even partially for hybrid systems.
+description: When explaining software, code, or technical systems, use CS-native framing — binaries/paths, data structures, algorithms, file formats, parsing — instead of plain-language description. Covers both local-machine systems (compilers, parsers, local pipelines, on-disk formats) and networked/distributed systems (API calls, client-server auth, remote fetches).
 ---
 
 ## Overview
@@ -70,17 +70,3 @@ purely local.
   `gcc` work" is this skill (`local.md` — it's a binary at a path with a
   pipeline); "what does the C grammar or type system allow" is PL
   Explanation Style — same binary, two different questions about it.
-
-## Changelog
-
-- **1.3** — Added a Notes bullet distinguishing this skill (systems,
-  tools, pipelines with a process boundary) from the new "PL
-  Explanation Style" skill (a language's own syntax/type/execution
-  rules), with the `gcc`-as-program-vs-`gcc`-as-C-implementation
-  boundary case as the disambiguator.
-- **1.2** — SKILL.md reduced to pure routing logic. Local framing moved
-  out of the body into `references/local.md`, mirroring `networked.md`.
-- **1.1** — Split into router + `references/networked.md`. Added Step 0
-  boundary classification and the hybrid case. Local framing content
-  unchanged from 1.0.
-- **1.0** — Initial version: local-machine framing only.

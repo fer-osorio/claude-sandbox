@@ -1,6 +1,6 @@
 ---
 name: project-planning
-description: "Run the Planning phase for a scoped project end to end — facilitate scope intake, sequence prior-art research and feasibility assessment, then write scope.md and charter.md in a per-run Planning bundle as go/no-go material for a human gate. Trigger on a request to plan a project, start the Planning phase, or produce a project charter. Planning applies when the open question is whether the work should exist; if existence is settled and only the shape is open, that is Design — a default the operator can override rather than a refusal. Delegates to swe-prior-art-research and project-feasibility rather than competing with them — resolve by span, not by keyword: orchestrating the whole phase and ending in a charter routes here, while a standalone prior-art question or a single feasibility judgment routes to those skills directly. Requires an approved scope.md in the current bundle before any headless run, and never fills in the charter's Decision section."
+description: "Run the Planning phase for a scoped project end to end — facilitate scope intake, sequence prior-art research and feasibility assessment, then write scope.md and charter.md in a per-run Planning bundle as go/no-go material for a human gate. Trigger on a request to plan a project, start the Planning phase, or produce a project charter. Planning applies when the open question is whether the work should exist; if existence is settled and only the shape is open, that is Design — a default the operator can override rather than a refusal. Resolve against swe-prior-art-research and project-feasibility by span, not by keyword: orchestrating the whole phase and ending in a charter routes here, while a standalone prior-art question or a single feasibility judgment routes to those skills directly."
 ---
 
 # Project Planning
@@ -207,23 +207,3 @@ the section above.
   records that a refusal with its reasoning is the most reusable output
   this phase produces. Leave the charter in the tree with its status set;
   do not delete it.
-
-## Changelog
-
-- **0.4 (draft)** — Opens a per-run bundle and marks it Current in the bundle
-  index (ADR 008 of the claude-sandbox project); scaffolding now writes
-  that index rather than a single artifact table.
-- **0.3 (draft)** — Named the owner of `status: Approved` on each of the
-  two artifacts. `scope.md` stays the operator's; the charter's is this
-  skill's, set while `## Decision` is still blank. The first real run left
-  both unset because no sentence said who set them.
-- **0.2 (draft)** — Intake declares its inferences, and the ledger is empty
-  before approval; drafting on request is supported and puts every drafted
-  claim on that ledger; the entry test moved into the description as a
-  routing default. Settled in ADR 006 of the claude-sandbox project, on
-  evidence from the first real run — a constraint the model inferred, that
-  nobody stated, that everybody approved, and that was wrong.
-- **0.1 (draft)** — Initial version, built to the contract in the
-  project-planning-skill design document of the claude-sandbox project.
-  Not yet exercised against a real run; no Planning artifact has been
-  written under it.

@@ -14,6 +14,9 @@
 #   global-claude/        — base layer, injected into every session
 #   global-<image>/       — per-image overlay, injected when present
 #
+# GLOBAL_SKILLS (config.sh) selects which of global-claude/skills/ are
+# injected; the layer is staged into a per-launch copy and that is mounted.
+#
 # Examples:
 #   ./start.sh ~/projects/mylib crypto      — HSM / cryptography work
 #   ./start.sh ~/projects/myapp systems     — C++ / CMake projects
@@ -50,6 +53,10 @@ _ENV_MAIN_LOG_MAX_FILE="${MAIN_LOG_MAX_FILE:-}"
 _ENV_PROXY_LOG_MAX_SIZE="${PROXY_LOG_MAX_SIZE:-}"
 _ENV_PROXY_LOG_MAX_FILE="${PROXY_LOG_MAX_FILE:-}"
 _ENV_CREDENTIALS_DIR="${CREDENTIALS_DIR:-}"
+# GLOBAL_SKILLS distinguishes unset (every skill) from empty (none), so its
+# capture records whether it was set rather than collapsing the two.
+_ENV_GLOBAL_SKILLS_SET="${GLOBAL_SKILLS+set}"
+_ENV_GLOBAL_SKILLS="${GLOBAL_SKILLS-}"
 
 # --- Layer 1: hardcoded defaults, so this script still works if config.sh
 # is missing.
@@ -69,6 +76,9 @@ PROXY_LOG_MAX_FILE="3"
 CREDENTIALS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/claude-sandbox/credentials"
 declare -A PROJECT_PATH=()
 declare -A PROJECT_PROFILE=()
+# Unset means every committed skill is injected. See
+# docs/adr/013-skill-selection-and-external-skills.md, decision 1.
+unset GLOBAL_SKILLS
 
 # --- Layer 2: committed, project-wide config.
 [ -f "${SANDBOX_DIR}/config.sh" ] && source "${SANDBOX_DIR}/config.sh"
@@ -113,6 +123,9 @@ MAIN_LOG_MAX_FILE="${_ENV_MAIN_LOG_MAX_FILE:-$MAIN_LOG_MAX_FILE}"
 PROXY_LOG_MAX_SIZE="${_ENV_PROXY_LOG_MAX_SIZE:-$PROXY_LOG_MAX_SIZE}"
 PROXY_LOG_MAX_FILE="${_ENV_PROXY_LOG_MAX_FILE:-$PROXY_LOG_MAX_FILE}"
 CREDENTIALS_DIR="${_ENV_CREDENTIALS_DIR:-$CREDENTIALS_DIR}"
+if [ -n "$_ENV_GLOBAL_SKILLS_SET" ]; then
+    GLOBAL_SKILLS="$_ENV_GLOBAL_SKILLS"
+fi
 
 PROJECT_ARG="${1:-$(pwd)}"
 IMAGE_TAG="${2:-}"
@@ -208,6 +221,40 @@ if [ -d "$GLOBAL_OVERLAY" ] && [ "$IMAGE_TAG" != "base" ]; then
     echo "Overlay:  $GLOBAL_OVERLAY"
 else
     echo "Overlay:  none for image '$IMAGE_TAG'"
+fi
+
+# Skill selection (ADR 013 decision 1). Resolved into an array here, before
+# anything below can export a variable of the same name. A name that is not
+# a committed base skill aborts: dropping it silently is the failure
+# selection must not have. The overlay is selected by choosing a profile and
+# is never filtered.
+SELECTED_SKILLS=()
+if [ -n "${GLOBAL_SKILLS+set}" ]; then
+    read -r -a SELECTED_SKILLS <<< "$GLOBAL_SKILLS"
+    for _skill in "${SELECTED_SKILLS[@]}"; do
+        if ! [[ "$_skill" =~ ^[a-z0-9][a-z0-9-]*$ ]] || [ ! -d "${GLOBAL_BASE}/skills/${_skill}" ]; then
+            echo "Error: GLOBAL_SKILLS names '$_skill', which is not a skill under ${GLOBAL_BASE}/skills/."
+            if [ -d "${GLOBAL_OVERLAY}/skills/${_skill}" ] && [ "$IMAGE_TAG" != "base" ]; then
+                echo "It is an overlay skill; the overlay comes with the profile and is not selectable."
+            fi
+            exit 1
+        fi
+    done
+    unset _skill
+    if [ ${#SELECTED_SKILLS[@]} -eq 0 ]; then
+        echo "Skills:   none selected"
+    else
+        _skill_list="$(printf ', %s' "${SELECTED_SKILLS[@]}")"
+        echo "Skills:   ${#SELECTED_SKILLS[@]} selected (${_skill_list:2})"
+        unset _skill_list
+    fi
+elif [ -d "${GLOBAL_BASE}/skills" ]; then
+    for _skill_dir in "${GLOBAL_BASE}"/skills/*/; do
+        [ -d "$_skill_dir" ] || continue
+        SELECTED_SKILLS+=("$(basename "$_skill_dir")")
+    done
+    unset _skill_dir
+    echo "Skills:   all (${#SELECTED_SKILLS[@]})"
 fi
 
 echo ""
@@ -357,13 +404,32 @@ cleanup() {
         "$ENGINE" stop "$PROXY_NAME" > /dev/null 2>&1 || true
         "$ENGINE" rm "$PROXY_NAME" > /dev/null 2>&1 || true
     fi
+    if [ -n "${GLOBAL_STAGE:-}" ]; then
+        rm -rf "$GLOBAL_STAGE"
+    fi
     exit "$exit_code"
 }
 trap cleanup EXIT
 
+# The session mounts a per-launch copy of global-claude/ holding only the
+# selected skills, so an unselected skill never enters the container (ADR 013
+# decision 2). mktemp -d creates it 0700; cleanup() removes it.
+GLOBAL_STAGE=""
 if [ -d "$GLOBAL_BASE" ]; then
+    GLOBAL_STAGE="$(mktemp -d "${TMPDIR:-/tmp}/claude-global.XXXXXX")"
+    for _entry in "$GLOBAL_BASE"/* "$GLOBAL_BASE"/.[!.]*; do
+        [ -e "$_entry" ] || [ -L "$_entry" ] || continue
+        [ "$(basename "$_entry")" = "skills" ] && continue
+        cp -R "$_entry" "$GLOBAL_STAGE/"
+    done
+    unset _entry
+    mkdir "${GLOBAL_STAGE}/skills"
+    for _skill in "${SELECTED_SKILLS[@]}"; do
+        cp -R "${GLOBAL_BASE}/skills/${_skill}" "${GLOBAL_STAGE}/skills/"
+    done
+    unset _skill
     MOUNT_ARGS+=(
-        "--mount" "type=bind,source=${GLOBAL_BASE},target=/run/claude-global,readonly${RELABEL_ARG}"
+        "--mount" "type=bind,source=${GLOBAL_STAGE},target=/run/claude-global,readonly${RELABEL_ARG}"
     )
 fi
 

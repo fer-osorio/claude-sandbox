@@ -41,6 +41,14 @@ MAIN_LOG_MAX_FILE="5"
 PROXY_LOG_MAX_SIZE="10m"
 PROXY_LOG_MAX_FILE="3"
 
+# ── Skill selection ──────────────────────────────────────────────
+# Space-separated names under global-claude/skills/ to inject. Left unset,
+# every committed skill is injected; set but empty, none is. A name that is
+# not a committed skill aborts the launch. The profile overlay is never
+# filtered. See docs/adr/013-skill-selection-and-external-skills.md.
+#
+# GLOBAL_SKILLS="design commit-convention"
+
 # ── Project Registry ─────────────────────────────────────────────
 # Maps a project name to its path and its default profile. Addressed
 # from start.sh as "@<name>" (e.g. ./start.sh @mylib). See

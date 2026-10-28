@@ -61,21 +61,23 @@ resolve_project_name() {
     local name="$1"
 
     if [ -z "$name" ]; then
-        echo "Error: '@' is not a project name."
+        echo "Error: '@' is not a project name." >&2
+        echo "Give one after it; ./start.sh --list shows them." >&2
         exit 1
     fi
 
     RESOLVED_PATH="${PROJECT_PATH[$name]:-}"
     if [ -z "$RESOLVED_PATH" ]; then
-        echo "Error: unknown project '$name'."
-        echo "Registered projects: ${!PROJECT_PATH[*]}"
-        echo "Add it to config.sh, or pass a path instead."
+        echo "Error: unknown project '$name'." >&2
+        echo "Registered projects: ${!PROJECT_PATH[*]}" >&2
+        echo "Add it to config.sh, or pass a path instead; ./start.sh --list shows each one's path." >&2
         exit 1
     fi
 
     RESOLVED_PROFILE="${PROJECT_PROFILE[$name]:-}"
     if [ -z "$RESOLVED_PROFILE" ]; then
-        echo "Error: project '$name' has a path but no profile in config.sh."
+        echo "Error: project '$name' has a path but no profile in config.sh." >&2
+        echo "Add PROJECT_PROFILE[$name] to config.sh, or name one: ./start.sh @$name <profile>" >&2
         exit 1
     fi
 }

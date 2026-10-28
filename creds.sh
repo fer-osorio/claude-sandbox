@@ -84,20 +84,34 @@ usage() {
     exit 1
 }
 
+# A missing argument names the one form that subcommand takes, rather than
+# the whole header.
+usage_for() {
+    local form
+    case "$1" in
+        add)     form="add <project> <KEY> [--value-file <path> | --from-env <NAME>]" ;;
+        rm)      form="rm <project> [<KEY>]" ;;
+        migrate) form="migrate <old-path> <new-project>" ;;
+    esac
+    echo "Error: missing argument to '$1'." >&2
+    echo "Usage: ./creds.sh $form" >&2
+    exit 1
+}
+
 # --- helpers
 
 require_age() {
     if ! command -v age > /dev/null 2>&1; then
-        echo "Error: 'age' is not installed."
-        echo "See BUILDING.md §Prerequisites; the store cannot be read without it."
+        echo "Error: 'age' is not installed." >&2
+        echo "See BUILDING.md §Prerequisites; the store cannot be read without it." >&2
         exit 1
     fi
 }
 
 require_store() {
     if [ ! -f "$IDENTITY_FILE" ] || [ ! -f "$RECIPIENT_FILE" ]; then
-        echo "Error: no credential store at $CREDENTIALS_DIR."
-        echo "Create one with: ./creds.sh init"
+        echo "Error: no credential store at $CREDENTIALS_DIR." >&2
+        echo "Create one with: ./creds.sh init" >&2
         exit 1
     fi
 }
@@ -109,15 +123,16 @@ hash_path() {
 }
 
 # An @name resolves through the registry exactly as start.sh resolves it, so
-# both hash the same path. Runs inside $(), so messages go to stderr.
+# both hash the same path.
 resolve_project() {
     local arg="$1"
     if [[ "$arg" == @* ]]; then
-        resolve_project_name "${arg#@}" >&2
+        resolve_project_name "${arg#@}"
         arg="$RESOLVED_PATH"
     fi
     if [ ! -d "$arg" ]; then
         echo "Error: '$arg' is not a directory." >&2
+        echo "Pass a project directory, or a registered @name; ./start.sh --list shows them." >&2
         exit 1
     fi
     realpath "$arg"
@@ -126,13 +141,14 @@ resolve_project() {
 validate_key() {
     local key="$1" denied
     if ! [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
-        echo "Error: '$key' is not a usable environment variable name."
+        echo "Error: '$key' is not a usable environment variable name." >&2
+        echo "Use letters, digits and underscores, not starting with a digit." >&2
         exit 1
     fi
     for denied in "${DENIED_KEYS[@]}"; do
         if [ "$key" = "$denied" ]; then
-            echo "Error: '$key' changes how start.sh itself runs and cannot be a credential."
-            echo "See docs/designs/0129-encrypted-credential-store.md §File format."
+            echo "Error: '$key' changes how start.sh itself runs and cannot be a credential." >&2
+            echo "See docs/designs/0129-encrypted-credential-store.md §File format." >&2
             exit 1
         fi
     done
@@ -176,8 +192,8 @@ cmd_init() {
 
     if [ "${1:-}" = "--recover" ]; then
         if [ ! -f "$IDENTITY_FILE" ]; then
-            echo "Error: --recover needs a restored $IDENTITY_FILE."
-            echo "Put the backed-up identity there first."
+            echo "Error: --recover needs a restored $IDENTITY_FILE." >&2
+            echo "Put the backed-up identity there first." >&2
             exit 1
         fi
         age-keygen -y <(age -d "$IDENTITY_FILE") > "$RECIPIENT_FILE"
@@ -187,8 +203,8 @@ cmd_init() {
     fi
 
     if [ -e "$IDENTITY_FILE" ]; then
-        echo "Error: a store already exists at $CREDENTIALS_DIR."
-        echo "Use './creds.sh rotate' to change the identity, or remove it by hand."
+        echo "Error: a store already exists at $CREDENTIALS_DIR." >&2
+        echo "Use './creds.sh rotate' to change the identity, or remove it by hand." >&2
         exit 1
     fi
 
@@ -213,13 +229,12 @@ cmd_init() {
 }
 
 cmd_add() {
-    require_age
-    require_store
-
     local project="${1:-}" key="${2:-}"
     if [ -z "$project" ] || [ -z "$key" ]; then
-        usage
+        usage_for add
     fi
+    require_age
+    require_store
     shift 2
     validate_key "$key"
 
@@ -230,20 +245,21 @@ cmd_add() {
         case "$1" in
             --value-file|--from-env)
                 if [ -n "$source" ]; then
-                    echo "Error: give one of --value-file or --from-env, not both."
+                    echo "Error: give one of --value-file or --from-env, not both." >&2
                     exit 1
                 fi
                 if [ $# -lt 2 ]; then
-                    echo "Error: $1 needs an argument."
+                    echo "Error: $1 needs an argument." >&2
+                    echo "Usage: ./creds.sh add <project> <KEY> [--value-file <path> | --from-env <NAME>]" >&2
                     exit 1
                 fi
                 source="$1" source_arg="$2"
                 shift 2
                 ;;
             *)
-                echo "Error: unexpected argument after ${key} (not shown, in case it is the value)."
-                echo "A value on the command line is visible in ps and lands in shell history."
-                echo "Pipe it in, or use --value-file <path> or --from-env <NAME>."
+                echo "Error: unexpected argument after ${key} (not shown, in case it is the value)." >&2
+                echo "A value on the command line is visible in ps and lands in shell history." >&2
+                echo "Pipe it in, or use --value-file <path> or --from-env <NAME>." >&2
                 exit 1
                 ;;
         esac
@@ -260,14 +276,14 @@ cmd_add() {
     case "$source" in
         --value-file)
             if [ ! -f "$source_arg" ] || [ ! -r "$source_arg" ]; then
-                echo "Error: '$source_arg' is not a readable file."
+                echo "Error: '$source_arg' is not a readable file." >&2
                 exit 1
             fi
             value="$(cat -- "$source_arg")"
             ;;
         --from-env)
             if ! [[ "$source_arg" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
-                echo "Error: '$source_arg' is not an environment variable name."
+                echo "Error: '$source_arg' is not an environment variable name." >&2
                 exit 1
             fi
             value="$(printenv "$source_arg")" || value=""
@@ -282,23 +298,23 @@ cmd_add() {
             ;;
     esac
     if [ -z "$value" ]; then
-        echo "Error: empty value; nothing stored."
+        echo "Error: empty value; nothing stored." >&2
         exit 1
     fi
     if [[ "$value" == *$'\n'* || "$value" == *$'\r'* ]]; then
         unset value
-        echo "Error: the value contains a line break; the store holds one KEY=VALUE per line."
+        echo "Error: the value contains a line break; the store holds one KEY=VALUE per line." >&2
         exit 1
     fi
 
     if [ -f "$file" ]; then
         echo "Reading the existing credentials for this project."
         if ! existing="$(decrypt_file "$file")"; then
-            echo "Error: could not read $file."
+            echo "Error: could not read $file." >&2
             if ! { : > /dev/tty; } 2> /dev/null; then
-                echo "There is no terminal to read the passphrase from; run this from one."
+                echo "There is no terminal to read the passphrase from; run this from one." >&2
             else
-                echo "Wrong passphrase, or the file does not belong to this identity."
+                echo "Wrong passphrase, or the file does not belong to this identity." >&2
             fi
             exit 1
         fi
@@ -384,16 +400,15 @@ cmd_list_all() {
     done 3< "$INDEX_FILE"
 
     if [ "$failed" -gt 0 ]; then
-        echo "Error: ${failed} of ${count} file(s) could not be read."
+        echo "Error: ${failed} of ${count} file(s) could not be read." >&2
         exit 1
     fi
 }
 
 cmd_rm() {
-    require_store
-
     local project="${1:-}" key="${2:-}"
-    [ -n "$project" ] || usage
+    [ -n "$project" ] || usage_for rm
+    require_store
 
     local dir hash file remaining
     dir="$(resolve_project "$project")"
@@ -442,8 +457,8 @@ cmd_rotate() {
         [ "$file" = "$IDENTITY_FILE" ] && continue
         if ! decrypt_file "$file" \
             | age -r "$(printf '%s\n' "$new_identity" | age-keygen -y)" -o "${file}.new"; then
-            echo "Error: could not re-encrypt $file."
-            echo "Nothing has been replaced; the store is unchanged."
+            echo "Error: could not re-encrypt $file." >&2
+            echo "Nothing has been replaced; the store is unchanged." >&2
             rm -f "${CREDENTIALS_DIR}"/*.age.new
             unset new_identity
             exit 1
@@ -467,12 +482,11 @@ cmd_rotate() {
 }
 
 cmd_migrate() {
-    require_store
-
     local old="${1:-}" new="${2:-}"
     if [ -z "$old" ] || [ -z "$new" ]; then
-        usage
+        usage_for migrate
     fi
+    require_store
 
     # The old path is deliberately not resolved with realpath: a directory
     # that moved no longer exists there, which is the whole reason to migrate.
@@ -482,13 +496,16 @@ cmd_migrate() {
     new_hash="$(hash_path "$new_dir")"
 
     if [ ! -f "${CREDENTIALS_DIR}/${old_hash}.age" ]; then
-        echo "Error: no credentials stored under '$old'."
-        echo "Paths are matched exactly as start.sh resolves them; './creds.sh list' shows them."
+        echo "Error: no credentials stored under '$old'." >&2
+        if [[ "$old" == @* ]]; then
+            echo "<old> is the path the project used to have, not an @name, which points to where it is now." >&2
+        fi
+        echo "Paths are matched exactly as start.sh resolves them; './creds.sh list' shows them." >&2
         exit 1
     fi
     if [ -e "${CREDENTIALS_DIR}/${new_hash}.age" ]; then
-        echo "Error: ${new_dir} already has credentials."
-        echo "Remove them first with: ./creds.sh rm '$new_dir'"
+        echo "Error: ${new_dir} already has credentials." >&2
+        echo "Remove them first with: ./creds.sh rm '$new_dir'" >&2
         exit 1
     fi
 
@@ -505,5 +522,10 @@ case "${1:-}" in
     rm)      shift; cmd_rm "$@" ;;
     rotate)  shift; cmd_rotate "$@" ;;
     migrate) shift; cmd_migrate "$@" ;;
-    *) usage ;;
+    "") usage ;;
+    *)
+        echo "Error: unknown command '$1'." >&2
+        echo "Commands: init, add, list, rm, rotate, migrate; ./creds.sh alone prints the usage." >&2
+        exit 1
+        ;;
 esac

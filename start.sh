@@ -137,40 +137,42 @@ PROJECT_DIR="$(realpath "$PROJECT_ARG")"
 IMAGE_TAG="${IMAGE_TAG:-base}"
 
 if ! "$ENGINE" info > /dev/null 2>&1; then
-    echo "Error: $ENGINE is not reachable."
-    echo "Start $ENGINE and try again."
+    echo "Error: $ENGINE is not reachable." >&2
+    echo "Start $ENGINE and try again." >&2
     exit 1
 fi
 
 if [ ! -d "$PROJECT_DIR" ]; then
-    echo "Error: '$PROJECT_DIR' is not a directory."
+    echo "Error: '$PROJECT_DIR' is not a directory." >&2
+    echo "Pass a project directory, or a registered @name; ./start.sh --list shows them." >&2
     exit 1
 fi
 
 if ! printf '%s\n' "${PROFILES[@]}" | grep -qx "$IMAGE_TAG"; then
-    echo "Error: unknown image '$IMAGE_TAG'."
-    echo "Valid options: ${PROFILES[*]}"
+    echo "Error: unknown image '$IMAGE_TAG'." >&2
+    echo "Valid options: ${PROFILES[*]}" >&2
+    echo "Pass one as the second argument, or add the profile to config.sh's PROFILES." >&2
     exit 1
 fi
 
 IMAGE_NAME="${IMAGE_PREFIX}-${IMAGE_TAG}"
 
 if ! "$ENGINE" image inspect "$IMAGE_NAME" > /dev/null 2>&1; then
-    echo "Error: image '$IMAGE_NAME' does not exist."
-    echo "Build it first with: ./build.sh $IMAGE_TAG"
+    echo "Error: image '$IMAGE_NAME' does not exist." >&2
+    echo "Build it first with: ./build.sh $IMAGE_TAG" >&2
     exit 1
 fi
 
 if ! "$ENGINE" network inspect claude-net > /dev/null 2>&1; then
-    echo "Error: network 'claude-net' does not exist."
-    echo "Create it with: $ENGINE network create --driver bridge claude-net"
+    echo "Error: network 'claude-net' does not exist." >&2
+    echo "Create it with: $ENGINE network create --driver bridge claude-net" >&2
     exit 1
 fi
 
 SQUID_IMAGE_NAME="${IMAGE_PREFIX}-squid"
 if ! "$ENGINE" image inspect "$SQUID_IMAGE_NAME" > /dev/null 2>&1; then
-    echo "Error: image '$SQUID_IMAGE_NAME' does not exist."
-    echo "Build it first with: ./build.sh squid"
+    echo "Error: image '$SQUID_IMAGE_NAME' does not exist." >&2
+    echo "Build it first with: ./build.sh squid" >&2
     exit 1
 fi
 
@@ -203,9 +205,9 @@ if [ -n "${GLOBAL_SKILLS+set}" ]; then
     read -r -a SELECTED_SKILLS <<< "$GLOBAL_SKILLS"
     for _skill in "${SELECTED_SKILLS[@]}"; do
         if ! [[ "$_skill" =~ ^[a-z0-9][a-z0-9-]*$ ]] || [ ! -d "${GLOBAL_BASE}/skills/${_skill}" ]; then
-            echo "Error: GLOBAL_SKILLS names '$_skill', which is not a skill under ${GLOBAL_BASE}/skills/."
+            echo "Error: GLOBAL_SKILLS names '$_skill', which is not a skill under ${GLOBAL_BASE}/skills/." >&2
             if [ -d "${GLOBAL_OVERLAY}/skills/${_skill}" ] && [ "$IMAGE_TAG" != "base" ]; then
-                echo "It is an overlay skill; the overlay comes with the profile and is not selectable."
+                echo "It is an overlay skill; the overlay comes with the profile and is not selectable." >&2
             fi
             exit 1
         fi
@@ -279,9 +281,9 @@ if [ -f "$CRED_FILE" ]; then
     CRED_DIR_REAL="$(realpath "$CREDENTIALS_DIR")"
     case "${CRED_DIR_REAL}/" in
         "${PROJECT_DIR}"/*)
-            echo "Error: the credential store at $CRED_DIR_REAL is inside the project directory."
-            echo "It would be mounted at /workspace, where the session could read it."
-            echo "Move it or set CREDENTIALS_DIR — see docs/designs/0129-encrypted-credential-store.md §Store location."
+            echo "Error: the credential store at $CRED_DIR_REAL is inside the project directory." >&2
+            echo "It would be mounted at /workspace, where the session could read it." >&2
+            echo "Move it or set CREDENTIALS_DIR — see docs/designs/0129-encrypted-credential-store.md §Store location." >&2
             exit 1
             ;;
     esac
@@ -291,16 +293,16 @@ if [ -f "$CRED_FILE" ]; then
     # failure docs/planning/0129-encrypted-credential-store/feasibility.md
     # §Risk inventory names.
     if ! command -v age > /dev/null 2>&1; then
-        echo "Error: '$PROJECT_DIR' has stored credentials but 'age' is not installed."
-        echo "Install it (BUILDING.md §Prerequisites), or remove them with ./creds.sh rm."
+        echo "Error: '$PROJECT_DIR' has stored credentials but 'age' is not installed." >&2
+        echo "Install it (BUILDING.md §Prerequisites), or remove them with ./creds.sh rm." >&2
         exit 1
     fi
 
     # The unwrapped identity exists only as a file descriptor — never a
     # variable, never a file, never an argument.
     if ! CRED_PLAINTEXT="$(age -d -i <(age -d "${CREDENTIALS_DIR}/identity.age") "$CRED_FILE" 2> /dev/null)"; then
-        echo "Error: the credential store for this project failed to decrypt."
-        echo "Fail-closed per docs/designs/0129-encrypted-credential-store.md §start.sh integration — aborting session."
+        echo "Error: the credential store for this project failed to decrypt." >&2
+        echo "Fail-closed per docs/designs/0129-encrypted-credential-store.md §start.sh integration — aborting session." >&2
         exit 1
     fi
 
@@ -324,14 +326,14 @@ if [ -f "$CRED_FILE" ]; then
 
         _cred_key="${_cred_line%%=*}"
         if ! [[ "$_cred_key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
-            echo "Error: stored credential name '$_cred_key' is not a usable variable name."
-            echo "Fix it with ./creds.sh, then start again."
+            echo "Error: stored credential name '$_cred_key' is not a usable variable name." >&2
+            echo "Fix it with ./creds.sh, then start again." >&2
             exit 1
         fi
         for _denied in "${DENIED_CRED_KEYS[@]}"; do
             if [ "$_cred_key" = "$_denied" ]; then
-                echo "Error: stored credential '$_cred_key' changes how start.sh itself runs."
-                echo "Remove it with: ./creds.sh rm '$PROJECT_DIR' '$_cred_key'"
+                echo "Error: stored credential '$_cred_key' changes how start.sh itself runs." >&2
+                echo "Remove it with: ./creds.sh rm '$PROJECT_DIR' '$_cred_key'" >&2
                 exit 1
             fi
         done
@@ -437,8 +439,8 @@ if ! "$ENGINE" run -d \
     --security-opt=no-new-privileges \
     "${PROXY_LOG_ARGS[@]}" \
     "$SQUID_IMAGE_NAME" > /dev/null; then
-    echo "Error: Squid proxy failed to start."
-    echo "Fail-closed per docs/designs/0012-squid-proxy-integration.md §6.3 — aborting session."
+    echo "Error: Squid proxy failed to start." >&2
+    echo "Fail-closed per docs/designs/0012-squid-proxy-integration.md §6.3 — aborting session." >&2
     exit 1
 fi
 

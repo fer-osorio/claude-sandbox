@@ -266,9 +266,12 @@ experience, but not a security failure. The session is not aborted.
 - Determine whether a per-image overlay directory exists for the selected image.
 - Add the appropriate `--mount` flags for whichever directories are present.
 - Pass no overlay mount if the overlay directory does not exist.
+- Stage a per-launch copy of the base layer holding only the skills `GLOBAL_SKILLS` selects,
+  and mount that copy instead of `global-claude/` itself (ADR 013 decisions 1 and 2).
 
-**Interface:** Unchanged. `start.sh <project_dir> [image]` continues to work as before. The
-global layer injection is fully transparent to the operator.
+**Interface:** `start.sh <project_dir> [image]` continues to work as before. `GLOBAL_SKILLS`,
+set through the layers of `docs/designs/0028-sandbox-config-file.md`, is the only new input.
+Left unset, every skill is injected and the change is transparent to the operator.
 
 **Mount point selection:** The global directories are mounted under `/run/` rather than directly
 under `/home/claude-agent/.claude/` for two reasons. First, a direct mount of a readonly
@@ -303,7 +306,8 @@ for the new surfaces introduced by this design.
 |---|---|
 | `global-claude/` host directory | Contains operator-authored instructions; readable by container |
 | `global-<image>/` host directories | Overlay instructions; readable by container |
-| `/run/claude-global/` mount point | Readonly view of `global-claude/` inside container |
+| Staging directory | Per-launch copy of `global-claude/` on the host, with the selected skills; 0700, removed on exit |
+| `/run/claude-global/` mount point | Readonly view of the staging directory inside container |
 | `/run/claude-overlay/` mount point | Readonly view of overlay directory inside container |
 | `~/.claude/` working copy | Writable copy created by entrypoint; destroyed on container exit |
 | `entrypoint.sh` | Runs at container start; merges the above; execs `claude` |
@@ -321,6 +325,8 @@ _Controls:_
 - `permissions.deny` in `settings.json` should include `Write(/run/*)` as an additional
   application-level gate.
 - `claude-agent` does not have write access to the bind-mount source directories on the host.
+- The staging directory is created by `mktemp -d` (mode 0700) for one launch and removed by
+  `start.sh`'s EXIT trap. A host process able to write it could already write `global-claude/`.
 
 _Residual risk:_ None above the baseline. The physical readonly mount is the primary control;
 `permissions.deny` is defense in depth.
@@ -369,6 +375,9 @@ _Controls:_
   audit trail of what Claude was instructed in any past session.
 - The entrypoint logs each merge step to stdout, which Docker captures in the container log
   (json-file driver, 50 MB retention).
+- Git history no longer says on its own which skills a session had, since `GLOBAL_SKILLS` may
+  be set in the gitignored `config.local.sh` or the environment. The launch banner's
+  `Skills:` line and the entrypoint's file listing record it.
 
 **Spoofing (S)**
 
@@ -475,7 +484,7 @@ break these contracts require a revision to this document.
 
 | Path | Type | Source | Writable |
 |---|---|---|---|
-| `/run/claude-global` | bind | `~/.claude-sandbox/global-claude/` | No |
+| `/run/claude-global` | bind | Per-launch staged copy of `global-claude/` | No |
 | `/run/claude-overlay` | bind | `~/.claude-sandbox/global-<image>/` | No |
 | `/home/claude-agent/.claude` | directory | Created by entrypoint | Yes |
 | `/workspace` | bind | Project directory | Yes |
@@ -498,6 +507,10 @@ break these contracts require a revision to this document.
   mount. The session is not aborted.
 - If `global-<image>/` does not exist, no overlay mount is passed. No warning is emitted
   (absence of an overlay is the normal state for images that have not yet had one authored).
+- `GLOBAL_SKILLS` unset injects every skill under `global-claude/skills/`; set, it injects
+  exactly the names it lists, and an empty value injects none. A name that is not a committed
+  base skill aborts the launch. The overlay is never filtered.
+- The banner prints a `Skills:` line naming what was injected.
 
 ---
 
@@ -551,6 +564,10 @@ produces insights worth preserving, the operator reviews them and manually adds 
 ---
 
 ## Changelog
+
+### Version 1.3 — 2026-10-28
+Skill selection (#136, ADR 013): §4.4, §5.1, §5.2 Tampering and Repudiation, §7.1 and §7.3
+describe the per-launch staging directory and `GLOBAL_SKILLS`.
 
 ### Version 1.2 — 2026-10-26
 §5.2 Denial of Service corrected. It said context cost was bounded by the total size of the

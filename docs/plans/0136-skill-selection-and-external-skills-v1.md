@@ -9,15 +9,18 @@ requirement.
 
 1. **ADR 013 and this plan.** `docs(adr): ADR 013 — skill selection and
    external skills (#136)`.
+   *Done, `e9947bf`. Tree hash and skill-body risk refined in `8b73f12`.*
 2. **Install the EXIT trap before mount construction.** `cleanup` must
    tolerate a proxy that never started. This is a refactor with no change
    in behaviour, so the staging directory added in step 3 is removed on
    every exit path.
+   *Done, `3d54ce7`.*
 3. **Stage the layer.** `start.sh` copies `global-claude/` into a `mktemp -d`
    directory, mode 0700, with the skills filtered by `GLOBAL_SKILLS`, and
    mounts that directory. An unknown name aborts. The banner prints
    `Skills:`. `config.sh` carries the variable, commented out, as the
    default, and `config.local.sh.example` shows an override.
+   *Done, `ae5ebd8`.*
 4. **Hostonly tests through a stub engine.** A stub `ENGINE` that succeeds on
    every subcommand records the `--mount` arguments and lists the staged
    directory on `run`. The tests cover:
@@ -31,12 +34,16 @@ requirement.
    - the staging directory is gone after exit.
 
    Negative-control each test, and raise `HOSTONLY_FLOOR`.
+   *Done, `9da30f8`: C-22 to C-28, seven tests for eight cases, plus
+   layer precedence (C-27). Floor 52 to 59.*
 5. **Documents.**
    - `0003` §4.4 and §7.3 (the `start.sh` contract), and §5 (the staging
      directory as a new surface), with a changelog entry;
    - the user guide;
    - the testing SDD rows.
+   *Done, `1707463`; UID-alignment note in `2496066`.*
 6. **Closing commit** for PR 1. It references #136 but does not close it.
+   *This commit.*
 
 ## Later — external skills (ADR 013 decisions 3 to 7)
 

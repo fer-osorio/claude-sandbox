@@ -20,6 +20,7 @@ Full hierarchy and rationale: [`ARCHITECTURE.md`](../ARCHITECTURE.md#image-hiera
 ```bash
 ./start.sh <project_directory> [profile]   # profile defaults to base
 ./start.sh @<name> [profile]               # registered project — see below
+./start.sh --list                          # registered names, and where each is defined
 ```
 
 If a project is registered by name in `config.sh` (or `config.local.sh`,
@@ -50,9 +51,24 @@ avoids this: `start.sh` passes no Anthropic credential into the container
 and does not mount your host `~/.claude`, and the container is removed on
 exit, so the login does not carry over to the next session either.
 
-`GH_TOKEN` is the one credential that does cross the boundary, and only if
-it is already set in your shell when you run `start.sh` — that is what lets
-`gh` work inside a session.
+Other credentials cross the boundary in two ways: `GH_TOKEN`, if it is set
+in your shell when you run `start.sh`, and values stored for the project
+with `./creds.sh`, which `start.sh` decrypts at launch and passes by name.
+Assume the agent can read every one of them
+([0129 §Sensitivity tiering policy](designs/0129-encrypted-credential-store.md)).
+
+```bash
+./creds.sh init                                    # once
+pass show github/pat | ./creds.sh add @mylib GH_TOKEN
+./creds.sh add @mylib GH_TOKEN --from-env GH_TOKEN
+./creds.sh list --all                              # key names, never values
+```
+
+A value is never taken as an argument, because `ps` and shell history would
+show it. Piping is only safer than typing when the producer is itself a
+store: `echo "$SECRET" | ./creds.sh add …` puts the secret in your history.
+`HISTCONTROL=ignorespace` is per-shell configuration, and it is silently
+absent wherever it was never set.
 
 If you have read Phase 4 of the security plan and are looking for the
 `ANTHROPIC_API_KEY` flow: it is described there as an option this project

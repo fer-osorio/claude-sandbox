@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Usage: start.sh [<project_directory> | @<name>] [image]
+#        start.sh --list    — registered @names, their paths, profiles, and
+#                             the config layer each came from
 #
 # Arguments:
 #   project_directory  — path to the project to mount (default: current dir)
@@ -93,6 +95,29 @@ PROXY_LOG_MAX_FILE="${_ENV_PROXY_LOG_MAX_FILE:-$PROXY_LOG_MAX_FILE}"
 CREDENTIALS_DIR="${_ENV_CREDENTIALS_DIR:-$CREDENTIALS_DIR}"
 if [ -n "$_ENV_GLOBAL_SKILLS_SET" ]; then
     GLOBAL_SKILLS="$_ENV_GLOBAL_SKILLS"
+fi
+
+# --list: the registry as both config layers leave it, before any engine
+# check, so it works with no engine running.
+if [ "${1:-}" = "--list" ]; then
+    if [ ${#PROJECT_PATH[@]} -eq 0 ]; then
+        echo "No projects registered. Add one to config.sh or config.local.sh;"
+        echo "see docs/designs/0030-named-project-registry.md."
+        exit 0
+    fi
+    _w=4
+    for _name in "${!PROJECT_PATH[@]}"; do
+        [ $(( ${#_name} + 1 )) -gt $_w ] && _w=$(( ${#_name} + 1 ))
+    done
+    printf '%-*s  %-8s  %-15s  %s\n' "$_w" NAME PROFILE ORIGIN PATH
+    while IFS= read -r _name; do
+        _path="${PROJECT_PATH[$_name]}"
+        _note=""
+        [ -d "$_path" ] || _note="  (missing)"
+        printf '%-*s  %-8s  %-15s  %s%s\n' "$_w" "@${_name}" \
+            "${PROJECT_PROFILE[$_name]:--}" "${PROJECT_ORIGIN[$_name]}" "$_path" "$_note"
+    done < <(printf '%s\n' "${!PROJECT_PATH[@]}" | sort)
+    exit 0
 fi
 
 PROJECT_ARG="${1:-$(pwd)}"

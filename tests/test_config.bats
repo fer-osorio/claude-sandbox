@@ -629,7 +629,8 @@ _staged() { sed -n 's/^staged //p' "$STUB_LOG"; }
 # resolution (C-29, C-30); ${!NAME} for printenv (C-33); dropping the
 # line-break check (C-35); ignoring an extra argument (C-34); reading stdin
 # without stripping (C-31); letting a non-tty stdin override a flag (C-32,
-# C-33).
+# C-33); a fixed --list origin, no missing marker, or --list after an engine
+# call (C-36; the last also C-37).
 
 # Copies creds.sh and lib/ into REG_TMPDIR, registers 'mylib' at
 # REG_TMPDIR/proj in config.sh, and creates an initialised store.
@@ -752,4 +753,36 @@ _store_file() {
     [ "$status" -ne 0 ]
     [[ "$output" == *"line break"* ]]
     [ ! -e "$(_store_file "${REG_TMPDIR}/proj")" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-36: start.sh --list shows each name's path, profile and layer, with no engine" {
+    _reg_fixture_dir
+    mkdir -p "${REG_TMPDIR}/proj"
+    cat > "${REG_TMPDIR}/config.sh" <<EOF2
+declare -A PROJECT_PATH=( [mylib]="${REG_TMPDIR}/proj" [gone]="${REG_TMPDIR}/absent" )
+declare -A PROJECT_PROFILE=( [mylib]=crypto [gone]=base )
+EOF2
+    cat > "${REG_TMPDIR}/config.local.sh" <<EOF2
+PROJECT_PATH[extra]="${REG_TMPDIR}/proj"; PROJECT_PROFILE[extra]=base
+PROJECT_PATH[mylib]=/etc
+EOF2
+
+    # ENGINE=false: any engine call would fail, so exit 0 proves none ran.
+    run env ENGINE=false bash "${REG_TMPDIR}/start.sh" --list
+    [ "$status" -eq 0 ]
+    echo "$output" | grep -Eq "^@mylib +crypto +config\.sh +${REG_TMPDIR}/proj\$"
+    echo "$output" | grep -Eq "^@extra +base +config\.local\.sh +${REG_TMPDIR}/proj\$"
+    echo "$output" | grep -Eq "^@gone .*${REG_TMPDIR}/absent +\(missing\)\$"
+    [[ "$output" == *"redefines committed project 'mylib'"* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-37: start.sh --list with an empty registry says so and exits 0" {
+    _reg_fixture_dir
+    printf 'declare -A PROJECT_PATH=()\ndeclare -A PROJECT_PROFILE=()\n' > "${REG_TMPDIR}/config.sh"
+
+    run env ENGINE=false bash "${REG_TMPDIR}/start.sh" --list
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"No projects registered"* ]]
 }

@@ -41,7 +41,7 @@ requirement.
 ## Later — external skills (ADR 013 decisions 3 to 7)
 
 7. A tree-hash function, with its command documented in
-   `config.local.sh.example`.
+   `config.local.sh.example` and a fixed test vector.
 8. Manifest parsing and every abort condition in decision 4, each with a
    negative control.
 9. The description-budget warning and the `External:` banner line.

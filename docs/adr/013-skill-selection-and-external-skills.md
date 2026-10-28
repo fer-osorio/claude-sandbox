@@ -89,9 +89,12 @@ content hash and an informational source, such as a URL and a revision.
   code, such as `allowed-tools` or `hooks`, without listing the vendor's
   keys one by one.
 
-The hash is SHA-256 over the sorted list of relative paths and the SHA-256
-of each file's content. The manifest's comment documents the command that
-computes it.
+The hash is SHA-256 over one record per entry, NUL-separated, in byte order
+of relative path (`LC_ALL=C`). Each record holds the entry's type and its
+path; a file's record adds its executable bit and the SHA-256 of its
+content. Directories have records, so an empty one changes the hash, and
+the result does not depend on the host's locale. One shell function
+computes it, and the manifest's comment documents the command.
 
 **5. External skills contribute `skills/<name>/` only.** They never supply
 `CLAUDE.md`, `settings.json`, hooks or templates. The permissions and
@@ -126,6 +129,14 @@ content is unchanged since it was pinned, not that the organization shipped
 it. Provenance is recorded, not proved. Proving it would take the
 organization's signatures, which are out of scope. A pin is only as good as
 the review behind it.
+
+**Nothing at launch judges what a skill says.** The frontmatter allowlist
+and the hash leave the body of `SKILL.md`, and the files beside it,
+unconstrained. A skill can tell the agent to run a script it ships, or one
+the agent writes. Only the review behind the pin bounds that. Rejecting
+every file but Markdown would close the first path, not the second, and
+would turn away skills that ship scripts legitimately; adopting it is a
+qualifying ADR.
 
 **Repudiation is weaker for external skills.** The manifest is untracked, so
 git history cannot reconstruct what an external skill said. What remains is

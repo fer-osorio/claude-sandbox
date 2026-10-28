@@ -344,6 +344,23 @@ if [ ${#CRED_NAMES[@]} -gt 0 ]; then
     unset _cred_list
 fi
 
+PROXY_NAME="claude-proxy-$$"
+
+# Guaranteed teardown regardless of how the script exits (normal completion,
+# main-container failure, or Ctrl+C) — a plain "stop after" line only runs
+# on the clean-exit path and would leak the proxy container otherwise.
+# Installed before the global layer is staged below, so the staging
+# directory is covered too; cleanup() tolerates a proxy that never started.
+cleanup() {
+    local exit_code=$?
+    if "$ENGINE" ps -a --format '{{.Names}}' | grep -qx "$PROXY_NAME"; then
+        "$ENGINE" stop "$PROXY_NAME" > /dev/null 2>&1 || true
+        "$ENGINE" rm "$PROXY_NAME" > /dev/null 2>&1 || true
+    fi
+    exit "$exit_code"
+}
+trap cleanup EXIT
+
 if [ -d "$GLOBAL_BASE" ]; then
     MOUNT_ARGS+=(
         "--mount" "type=bind,source=${GLOBAL_BASE},target=/run/claude-global,readonly${RELABEL_ARG}"
@@ -355,21 +372,6 @@ if [ -d "$GLOBAL_OVERLAY" ] && [ "$IMAGE_TAG" != "base" ]; then
         "--mount" "type=bind,source=${GLOBAL_OVERLAY},target=/run/claude-overlay,readonly${RELABEL_ARG}"
     )
 fi
-
-PROXY_NAME="claude-proxy-$$"
-
-# Guaranteed teardown regardless of how the script exits (normal completion,
-# main-container failure, or Ctrl+C) — a plain "stop after" line only runs
-# on the clean-exit path and would leak the proxy container otherwise.
-cleanup() {
-    local exit_code=$?
-    if "$ENGINE" ps -a --format '{{.Names}}' | grep -qx "$PROXY_NAME"; then
-        "$ENGINE" stop "$PROXY_NAME" > /dev/null 2>&1 || true
-        "$ENGINE" rm "$PROXY_NAME" > /dev/null 2>&1 || true
-    fi
-    exit "$exit_code"
-}
-trap cleanup EXIT
 
 # --userns=keep-id remaps the main container's baked UID 1000 (claude-agent)
 # onto whatever UID is actually invoking $ENGINE, at run time — only needed

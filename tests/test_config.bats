@@ -467,3 +467,151 @@ STUB
     expected+=$'\n'"build claude-squid"
     [ "$(cat "$STUB_LOG")" = "$expected" ]
 }
+
+# --- Skill selection (docs/adr/013-skill-selection-and-external-skills.md) ---
+#
+# Run against a fixture global layer inside REG_TMPDIR, never the committed
+# one, so a new skill does not change what these assert. The engine stand-in
+# records start.sh's own /run/claude-global mount argument and lists the
+# directory it names while start.sh is still running: the observation #173
+# found missing, since every other global-layer test passes its own flags.
+#
+# Negative-controlled on 2026-10-28, one probe at a time against start.sh,
+# each reverted before the next:
+#   - every skill copied regardless of selection -> C-23, C-24
+#   - the unknown-name check removed -> C-25, C-26. With only its `exit 1`
+#     removed, nothing failed: the cp of the missing skill aborts under
+#     set -e anyway, so C-25 also asserts the message.
+#   - `readonly` dropped from the mount -> C-28
+#   - cleanup() not removing the staging directory -> C-28
+#   - the env capture collapsing empty into unset -> C-24, C-27
+#   - the overlay hint removed -> C-26
+#   - the mount sourcing global-claude/ instead of the copy -> C-23, C-24,
+#     C-28
+
+_skills_fixture() {
+    _reg_fixture_dir
+    _cred_fixture
+    mkdir -p "${REG_TMPDIR}/global-claude/skills/alpha" \
+             "${REG_TMPDIR}/global-claude/skills/beta" \
+             "${REG_TMPDIR}/global-claude/templates" \
+             "${REG_TMPDIR}/global-crypto/skills/gamma"
+    printf 'claude\n' > "${REG_TMPDIR}/global-claude/CLAUDE.md"
+    printf 'template\n' > "${REG_TMPDIR}/global-claude/templates/t.md"
+    printf 'a\n' > "${REG_TMPDIR}/global-claude/skills/alpha/SKILL.md"
+    printf 'b\n' > "${REG_TMPDIR}/global-claude/skills/beta/SKILL.md"
+    printf 'g\n' > "${REG_TMPDIR}/global-crypto/skills/gamma/SKILL.md"
+
+    export STUB_LOG="${REG_TMPDIR}/engine.log"
+    : > "$STUB_LOG"
+    cat > "${REG_TMPDIR}/engine" <<'STUB'
+#!/usr/bin/env bash
+[ "$1" = "run" ] || exit 0
+echo "run" >> "$STUB_LOG"
+for arg in "$@"; do
+    case "$arg" in
+        *target=/run/claude-global*)
+            src="${arg#*source=}"
+            src="${src%%,*}"
+            echo "mount ${arg}" >> "$STUB_LOG"
+            (cd "$src" && find . -mindepth 1 | sort | sed 's|^|staged |') >> "$STUB_LOG"
+            ;;
+    esac
+done
+STUB
+    chmod +x "${REG_TMPDIR}/engine"
+}
+
+# Runs the fixture's start.sh. The first argument is the profile; the rest
+# are env assignments, so a test can set GLOBAL_SKILLS, set it empty, or
+# leave it out. GLOBAL_SKILLS is always cleared from the inherited
+# environment first.
+_skills_start() {
+    local profile="$1"; shift
+    run env -u GLOBAL_SKILLS -u GH_TOKEN "$@" ENGINE="${REG_TMPDIR}/engine" \
+        CREDENTIALS_DIR="${REG_TMPDIR}/store" \
+        bash "${REG_TMPDIR}/start.sh" "${REG_TMPDIR}/proj" "$profile"
+}
+
+_staged() { sed -n 's/^staged //p' "$STUB_LOG"; }
+
+# bats test_tags=fast, hostonly
+@test "C-22: GLOBAL_SKILLS unset stages every skill and every top-level file" {
+    _skills_fixture
+    _skills_start base
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Skills:   all (2)"* ]]
+    [ "$(_staged)" = "$(printf '%s\n' ./CLAUDE.md ./skills ./skills/alpha \
+        ./skills/alpha/SKILL.md ./skills/beta ./skills/beta/SKILL.md \
+        ./templates ./templates/t.md)" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-23: GLOBAL_SKILLS names a subset, and only that subset is staged" {
+    _skills_fixture
+    _skills_start base GLOBAL_SKILLS=beta
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Skills:   1 selected (beta)"* ]]
+    _staged | grep -qx './skills/beta/SKILL.md'
+    [ -z "$(_staged | grep alpha)" ]
+    _staged | grep -qx './templates/t.md'
+}
+
+# bats test_tags=fast, hostonly
+@test "C-24: GLOBAL_SKILLS set but empty stages no skill, unlike unset" {
+    _skills_fixture
+    _skills_start base GLOBAL_SKILLS=
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Skills:   none selected"* ]]
+    _staged | grep -qx './skills'
+    [ -z "$(_staged | grep '^./skills/')" ]
+    _staged | grep -qx './CLAUDE.md'
+}
+
+# bats test_tags=fast, hostonly
+@test "C-25: an unknown skill name aborts before any container runs" {
+    _skills_fixture
+    _skills_start base GLOBAL_SKILLS="alpha nope"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"GLOBAL_SKILLS names 'nope'"* ]]
+    [ ! -s "$STUB_LOG" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-26: an overlay-only skill name aborts and says the overlay is not selectable" {
+    _skills_fixture
+    _skills_start crypto GLOBAL_SKILLS=gamma
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"GLOBAL_SKILLS names 'gamma'"* ]]
+    [[ "$output" == *"overlay skill"* ]]
+    [ ! -s "$STUB_LOG" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-27: config.local.sh sets GLOBAL_SKILLS, and an empty env value still overrides it" {
+    _skills_fixture
+    printf 'GLOBAL_SKILLS="alpha"\n' > "${REG_TMPDIR}/config.local.sh"
+
+    _skills_start base
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Skills:   1 selected (alpha)"* ]]
+
+    : > "$STUB_LOG"
+    _skills_start base GLOBAL_SKILLS=
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Skills:   none selected"* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-28: the global mount is read-only and sources a staged copy that is removed on exit" {
+    _skills_fixture
+    _skills_start base
+    [ "$status" -eq 0 ]
+    local mount src
+    mount="$(sed -n 's/^mount //p' "$STUB_LOG")"
+    [[ "$mount" == *",readonly"* ]]
+    src="${mount#*source=}"
+    src="${src%%,*}"
+    [ "$src" != "${REG_TMPDIR}/global-claude" ]
+    [ ! -e "$src" ]
+}

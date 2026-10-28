@@ -22,6 +22,9 @@
 # PROXY_LOG_MAX_SIZE="10m"
 # PROXY_LOG_MAX_FILE="3"
 
+# GLOBAL_SKILLS="design commit-convention"   # inject only these skills;
+#                                            # "" injects none (see config.sh)
+
 # Profiles (PROFILES / PROFILE_BASE) are intentionally not meant to be
 # overridden per-machine — add or change a profile in config.sh instead,
 # since it affects what build.sh/start.sh accept for everyone.

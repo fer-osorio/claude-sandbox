@@ -69,6 +69,19 @@ made inside a session never write back to the host source directories, and
 sessions never see each other's copies. Full mechanism, isolation
 guarantees, and STRIDE analysis: [`docs/designs/0003-global-layer-injection.md`](designs/0003-global-layer-injection.md).
 
+To give a session only some skills, set `GLOBAL_SKILLS` to their names,
+space-separated, in `config.local.sh` or the environment:
+
+```bash
+GLOBAL_SKILLS="design commit-convention" ./start.sh ~/projects/myapp
+```
+
+Unset, every skill is injected; `GLOBAL_SKILLS=""` injects none. A name
+that is not a skill under `global-claude/skills/` stops the launch, and the
+banner's `Skills:` line says what was injected. Overlay skills come with
+the profile and are not selectable. See
+[ADR 013](adr/013-skill-selection-and-external-skills.md).
+
 ## Adding a tool
 
 Two options, covered in detail in `ARCHITECTURE.md`:

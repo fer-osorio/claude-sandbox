@@ -6,8 +6,8 @@
 |---|---|
 | **Document Type** | Software Design Document (SDD) |
 | **Status** | Accepted |
-| **Version** | 1.6 |
-| **Date** | 2026-10-27 |
+| **Version** | 1.7 |
+| **Date** | 2026-10-28 |
 | **Author** | Fernando |
 | **Reviewers** | Security Team |
 | **Supersedes** | — (no prior testing SDD exists for claude-sandbox) |
@@ -27,6 +27,7 @@
 | 1.4 | 2026-10-09 | Fernando | Container tier (#101): §6.2 gains the `container` and `hostfidelity` tag axes and records that both CI tiers filter on environment rather than speed, replacing the claim that groups 1–5 do not run in CI at all. §4.9's trap paragraph updated — the tier does not retire the placement rule. Measured on three spike runs: builds are 157s of a nine-minute job, not its dominant cost |
 | 1.5 | 2026-10-26 | Fernando | Global-layer size checks by load class (#128): D-7 retired, D-15 (skill descriptions) and D-16 (`SKILL.md` length) added, and D-6 now cites the vendor's figure. `hostonly` count 50 to 51 |
 | 1.6 | 2026-10-27 | Fernando | D-17 added (#164): the `design` skill's copy of the diagram-form criterion matches ADR 011 decision 1. `hostonly` count 51 to 52 |
+| 1.7 | 2026-10-28 | Fernando | C-22 to C-28 added (#136): skill selection, observed through a stand-in engine that records `start.sh`'s own `/run/claude-global` mount and lists the staged copy. `hostonly` count 52 to 59 |
 
 ---
 
@@ -274,8 +275,9 @@ Covers `config.sh`'s own correctness and the four-layer precedence chain from
 C-7 onward exercise `@name` registry resolution by running a copy of the real
 `start.sh` with `ENGINE=true` — a no-op stand-in that satisfies every engine
 check without contacting a daemon, so the resolution path is tested end to end
-with no engine present. No test in this group reads or writes an operator's
-real `config.local.sh`.
+with no engine present. C-22 onward replace `ENGINE=true` with a stand-in that
+records `start.sh`'s mount arguments. No test in this group reads or writes an
+operator's real `config.local.sh`.
 
 | ID | Test | Assertion |
 |---|---|---|
@@ -293,6 +295,13 @@ real `config.local.sh`.
 | C-12 | `config.local.sh` name resolves | A name added only in the operator's uncommitted layer resolves correctly |
 | C-13 | Committed names are not overridable | `config.local.sh` redefining a name that `config.sh` already declares is reverted and warned about, not silently honoured |
 | C-21 | Bare `build.sh` exits 0 | With a stand-in engine that names images as Podman does (`localhost/<name>`), the `all` path builds base, then every other `PROFILES` entry, then Squid, and exits 0 — the one build path B-1 does not reach |
+| C-22 | Unset selects every skill | With `GLOBAL_SKILLS` unset, the staged copy holds every skill and every top-level file of the fixture layer |
+| C-23 | A subset is staged alone | Only the named skills are staged; top-level files still are |
+| C-24 | Empty is not unset | `GLOBAL_SKILLS=""` stages no skill |
+| C-25 | Unknown name refused | Exits non-zero with a message naming it, before any container runs |
+| C-26 | Overlay names are not selectable | A name present only in the profile overlay is refused, and the message says why |
+| C-27 | Selection layers like every other value | `config.local.sh` sets it, and an empty environment value still overrides that |
+| C-28 | The mount is a read-only, temporary copy | `start.sh`'s own `/run/claude-global` mount is `readonly`, sources the staged copy rather than `global-claude/`, and the copy is gone after exit |
 
 ### 4.7 Group 7 — Documentation Integrity
 
@@ -437,7 +446,7 @@ of this section would otherwise do:
 | `container` | Environment needed | Needs an engine, a built image, or both | 1, 2, 3, 4, 5 |
 | `hostfidelity` | Environment fidelity | Needs a host whose cgroup or mandatory-access-control layout a hosted runner does not provide | R-6 only |
 
-`hostonly` and `container` partition the suite: 52 tests and 32, no overlap,
+`hostonly` and `container` partition the suite: 59 tests and 32, no overlap,
 and every test carries exactly one of them. They are declared as `file_tags`,
 because `setup()` runs for every selected test in a file, so engine access is a
 property of the file (see the placement rule below).
@@ -572,6 +581,7 @@ Consistent with the fail-fast philosophy already established in `setup.sh` / `ru
 | `docs/adr/003-where-a-behavioural-rule-goes.md` | Decision 4, no restatement; the placement ladder | D-2, D-6, D-15 |
 | `docs/designs/0003-global-layer-injection.md` | §5.2, Denial of Service — "Global layer size discipline" | D-6, D-15, D-16 |
 | `docs/designs/0128-global-layer-load-class-bounds.md` | Decisions 1 to 5, bounds per load class | D-6, D-15, D-16 |
+| `docs/adr/013-skill-selection-and-external-skills.md` | Decisions 1 and 2, selection and the staged mount | C-22 through C-28 |
 | `docs/adr/012-diagram-form-in-every-project.md` | Decision 3, the injected copy of ADR 011 decision 1 | D-17 |
 | `docs/designs/docs-as-code-workflow.md` | §3 Case D, ADR format and Status values | D-3 |
 

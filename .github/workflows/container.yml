@@ -51,12 +51,14 @@ on:
     # config.sh is included because both scripts above source it: PROFILES
     # decides which images build.sh builds and which profiles the toolchain
     # group asserts on, so a change to it can break a container assertion
-    # without touching anything else listed here.
+    # without touching anything else listed here. lib/ is start.sh's own code,
+    # moved into a file creds.sh shares.
     paths:
       - 'base/**'
       - 'squid/**'
       - 'global-claude/**'
       - 'start.sh'
+      - 'lib/**'
       - 'build.sh'
       - 'config.sh'
       - 'tests/**'

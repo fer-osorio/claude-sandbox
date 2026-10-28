@@ -36,6 +36,7 @@ teardown() {
 _reg_fixture_dir() {
     REG_TMPDIR="$(mktemp -d)"
     cp "${SANDBOX_DIR}/start.sh" "${REG_TMPDIR}/start.sh"
+    cp -r "${SANDBOX_DIR}/lib" "${REG_TMPDIR}/lib"
 }
 
 # A project directory plus an empty credential store, both inside REG_TMPDIR
@@ -167,8 +168,11 @@ _path_without_age() {
     # Structural guard for the drift problem this design exists to fix:
     # both scripts must read PROFILES from the same sourced file rather
     # than hardcoding their own copies that could silently diverge again.
+    # start.sh reaches config.sh through lib/config.sh, which creds.sh
+    # shares (docs/designs/0147-cli-credential-input-and-ergonomics.md).
     grep -Eq 'source "\$\{?SANDBOX_DIR\}?/config\.sh"' "${SANDBOX_DIR}/build.sh"
-    grep -Eq 'source "\$\{?SANDBOX_DIR\}?/config\.sh"' "${SANDBOX_DIR}/start.sh"
+    grep -Eq 'source "\$\{?SANDBOX_DIR\}?/config\.sh"' "${SANDBOX_DIR}/lib/config.sh"
+    grep -Eq 'source "\$\{?SANDBOX_DIR\}?/lib/config\.sh"' "${SANDBOX_DIR}/start.sh"
 }
 
 # C-7 onward: named project registry (docs/designs/0030-named-project-registry.md)

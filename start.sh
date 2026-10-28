@@ -74,44 +74,12 @@ PROXY_LOG_MAX_FILE="3"
 # directly by the agent. See docs/designs/0129-encrypted-credential-store.md
 # §Store location.
 CREDENTIALS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/claude-sandbox/credentials"
-declare -A PROJECT_PATH=()
-declare -A PROJECT_PROFILE=()
 # Unset means every committed skill is injected. See
 # docs/adr/013-skill-selection-and-external-skills.md, decision 1.
 unset GLOBAL_SKILLS
 
-# --- Layer 2: committed, project-wide config.
-[ -f "${SANDBOX_DIR}/config.sh" ] && source "${SANDBOX_DIR}/config.sh"
-
-# Snapshot of the committed registry, taken before config.local.sh can see
-# or touch it. Used below to detect and revert an attempt to redefine a
-# committed name — see "Layering: config.local.sh may add, not override"
-# in docs/designs/0030-named-project-registry.md. Adding a name not present in
-# config.sh is unrestricted; this only guards names that are.
-declare -A COMMITTED_PROJECT_PATH=()
-declare -A COMMITTED_PROJECT_PROFILE=()
-for _name in "${!PROJECT_PATH[@]}"; do
-    COMMITTED_PROJECT_PATH[$_name]="${PROJECT_PATH[$_name]}"
-    COMMITTED_PROJECT_PROFILE[$_name]="${PROJECT_PROFILE[$_name]:-}"
-done
-unset _name
-
-# --- Layer 3: gitignored, per-machine overrides.
-[ -f "${SANDBOX_DIR}/config.local.sh" ] && source "${SANDBOX_DIR}/config.local.sh"
-
-# Revert (and warn about) any committed project name config.local.sh
-# redefined. An operator who wants to repoint a committed name edits
-# config.sh instead — a one-line, reviewed change.
-for _name in "${!COMMITTED_PROJECT_PATH[@]}"; do
-    if [[ "${PROJECT_PATH[$_name]:-}" != "${COMMITTED_PROJECT_PATH[$_name]}" ]] \
-    || [[ "${PROJECT_PROFILE[$_name]:-}" != "${COMMITTED_PROJECT_PROFILE[$_name]}" ]]; then
-        echo "Warning: config.local.sh redefines committed project '$_name';" \
-             "ignoring the local value (config.sh wins)." >&2
-        PROJECT_PATH[$_name]="${COMMITTED_PROJECT_PATH[$_name]}"
-        PROJECT_PROFILE[$_name]="${COMMITTED_PROJECT_PROFILE[$_name]}"
-    fi
-done
-unset _name
+# --- Layers 2 and 3, and the project registry.
+source "${SANDBOX_DIR}/lib/config.sh"
 
 # --- Layer 4: env var wins over everything sourced above.
 ENGINE="${_ENV_ENGINE:-$ENGINE}"
@@ -135,30 +103,7 @@ IMAGE_TAG="${2:-}"
 # check below, so a resolved registry path receives exactly the
 # validation an explicit path receives.
 if [[ "$PROJECT_ARG" == @* ]]; then
-    PROJECT_NAME="${PROJECT_ARG#@}"
-
-    if [ -z "$PROJECT_NAME" ]; then
-        echo "Error: '@' is not a project name."
-        exit 1
-    fi
-
-    # ':-' is required: under 'set -u' a lookup on a missing associative
-    # array key aborts the script with a bash error instead of reaching
-    # the message below.
-    RESOLVED_PATH="${PROJECT_PATH[$PROJECT_NAME]:-}"
-    if [ -z "$RESOLVED_PATH" ]; then
-        echo "Error: unknown project '$PROJECT_NAME'."
-        echo "Registered projects: ${!PROJECT_PATH[*]}"
-        echo "Add it to config.sh, or pass a path instead."
-        exit 1
-    fi
-
-    RESOLVED_PROFILE="${PROJECT_PROFILE[$PROJECT_NAME]:-}"
-    if [ -z "$RESOLVED_PROFILE" ]; then
-        echo "Error: project '$PROJECT_NAME' has a path but no profile in config.sh."
-        exit 1
-    fi
-
+    resolve_project_name "${PROJECT_ARG#@}"
     PROJECT_ARG="$RESOLVED_PATH"
     IMAGE_TAG="${IMAGE_TAG:-$RESOLVED_PROFILE}"
 fi

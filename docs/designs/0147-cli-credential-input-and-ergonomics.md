@@ -44,12 +44,13 @@ Two facts from the code shape the decisions:
   reads the passphrase from `/dev/tty`. When there is no `/dev/tty`, `add`
   says so instead of reporting "wrong passphrase".
 
-**2. Shared config loading: `lib/config.sh`.** Both scripts source it. It
-defines two functions:
-- `load_config_layers` sources `config.sh`, snapshots the registry, sources
+**2. Shared config loading: `lib/config.sh`.** Both scripts source it.
+- Its top-level code sources `config.sh`, snapshots the registry, sources
   `config.local.sh`, and reverts any committed name the local file redefined
   (moved unchanged from `start.sh`). It also records each name's origin,
-  `config.sh` or `config.local.sh`, in `PROJECT_ORIGIN`.
+  `config.sh` or `config.local.sh`, in `PROJECT_ORIGIN`. This is top-level
+  code, not a function, because `config.sh` uses `declare -A`, which inside a
+  function declares a local.
 - `resolve_project_name <name>` sets `RESOLVED_PATH` and `RESOLVED_PROFILE`,
   or fails with the messages that `start.sh` has today.
 
@@ -67,7 +68,7 @@ not where it was. The hash is computed over the same `realpath` that
 before the engine check, so it works with no engine running. For each
 registered name it prints the name, path, profile and origin, marks a path
 that is not a directory as missing, and exits 0. A reverted local override
-shows the committed values and its warning, which `load_config_layers`
+shows the committed values and its warning, which `lib/config.sh`
 already prints.
 
 **5. `./creds.sh list --all`.** For each indexed project it prints the path

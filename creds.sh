@@ -12,7 +12,10 @@
 # Usage:
 #   ./creds.sh init [--recover]     — create the store, or rebuild the public
 #                                     key from an identity you have restored
-#   ./creds.sh add <project> <KEY>  — add or replace one credential
+#   ./creds.sh add <project> <KEY> [--value-file <path> | --from-env <NAME>]
+#                                   — add or replace one credential; with no
+#                                     flag, read stdin when it is not a
+#                                     terminal, or prompt
 #   ./creds.sh list [<project>]     — list credentialed projects, or the key
 #                                     names held for one project
 #   ./creds.sh rm <project> [<KEY>] — remove one credential, or a project's
@@ -29,8 +32,10 @@
 # first credential for a project encrypts to the public key alone and prompts
 # for nothing; adding a second one has to read the first, and prompts.
 #
-# Values are read from the terminal with echo disabled. They are never passed
-# as arguments, so they reach neither the shell history nor ps.
+# Values come from a prompt with echo disabled, stdin, a file, or a named
+# environment variable — never from an argument, so they reach neither the
+# shell history nor ps. Piping helps only when the producer is itself a
+# store: 'echo "$SECRET" | ./creds.sh add …' puts the secret in history.
 #
 # The store lives outside this repository by default, because a store inside
 # it would be bind-mounted into any session opened on claude-sandbox itself.
@@ -213,17 +218,74 @@ cmd_add() {
     if [ -z "$project" ] || [ -z "$key" ]; then
         usage
     fi
+    shift 2
     validate_key "$key"
+
+    # At most one of --value-file / --from-env. Anything else after <KEY> is
+    # refused without being echoed, since it may be the value itself.
+    local source="" source_arg=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --value-file|--from-env)
+                if [ -n "$source" ]; then
+                    echo "Error: give one of --value-file or --from-env, not both."
+                    exit 1
+                fi
+                if [ $# -lt 2 ]; then
+                    echo "Error: $1 needs an argument."
+                    exit 1
+                fi
+                source="$1" source_arg="$2"
+                shift 2
+                ;;
+            *)
+                echo "Error: unexpected argument after ${key} (not shown, in case it is the value)."
+                echo "A value on the command line is visible in ps and lands in shell history."
+                echo "Pipe it in, or use --value-file <path> or --from-env <NAME>."
+                exit 1
+                ;;
+        esac
+    done
 
     local dir hash file value existing
     dir="$(resolve_project "$project")"
     hash="$(hash_path "$dir")"
     file="${CREDENTIALS_DIR}/${hash}.age"
 
-    read -rsp "Value for ${key}: " value
-    echo ""
+    # Command substitution strips trailing newlines, which is what a file or
+    # 'pass show' ends with. printenv, not ${!NAME}: only the environment is
+    # read, never this script's own variables.
+    case "$source" in
+        --value-file)
+            if [ ! -f "$source_arg" ] || [ ! -r "$source_arg" ]; then
+                echo "Error: '$source_arg' is not a readable file."
+                exit 1
+            fi
+            value="$(cat -- "$source_arg")"
+            ;;
+        --from-env)
+            if ! [[ "$source_arg" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+                echo "Error: '$source_arg' is not an environment variable name."
+                exit 1
+            fi
+            value="$(printenv "$source_arg")" || value=""
+            ;;
+        *)
+            if [ -t 0 ]; then
+                read -rsp "Value for ${key}: " value
+                echo ""
+            else
+                value="$(cat)"
+            fi
+            ;;
+    esac
     if [ -z "$value" ]; then
         echo "Error: empty value; nothing stored."
+        exit 1
+    fi
+    if [[ "$value" == *$'\n'* || "$value" == *$'\r'* ]]; then
+        unset value
+        echo "Error: the value contains a line break; the store holds one KEY=VALUE per line."
         exit 1
     fi
 
@@ -231,7 +293,11 @@ cmd_add() {
         echo "Reading the existing credentials for this project."
         if ! existing="$(decrypt_file "$file")"; then
             echo "Error: could not read $file."
-            echo "Wrong passphrase, or the file does not belong to this identity."
+            if ! { : > /dev/tty; } 2> /dev/null; then
+                echo "There is no terminal to read the passphrase from; run this from one."
+            else
+                echo "Wrong passphrase, or the file does not belong to this identity."
+            fi
             exit 1
         fi
         { printf '%s\n' "$existing" | grep -v "^${key}=" || true

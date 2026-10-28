@@ -624,6 +624,12 @@ _staged() { sed -n 's/^staged //p' "$STUB_LOG"; }
 # (docs/designs/0147-cli-credential-input-and-ergonomics.md). The store is a
 # stand-in: its 'age' writes stdin to -o in the clear and decrypts by cat, so
 # a test reads what creds.sh stored straight from the file.
+#
+# Negative controls, each run against the test named: skipping @name
+# resolution (C-29, C-30); ${!NAME} for printenv (C-33); dropping the
+# line-break check (C-35); ignoring an extra argument (C-34); reading stdin
+# without stripping (C-31); letting a non-tty stdin override a flag (C-32,
+# C-33).
 
 # Copies creds.sh and lib/ into REG_TMPDIR, registers 'mylib' at
 # REG_TMPDIR/proj in config.sh, and creates an initialised store.
@@ -651,7 +657,9 @@ if [ -n "$out" ]; then cat > "$out"; elif [ "$dec" = 1 ]; then cat "$last"; fi'
 }
 
 # Runs the fixture's creds.sh with the stand-in age and store. Arguments go
-# to creds.sh; stdin is the caller's, and bats' run captures stderr too.
+# to creds.sh; stdin is the caller's, and bats' run captures stderr too. A
+# call whose value does not come from stdin still redirects it from
+# /dev/null, so a regression that reads stdin fails instead of hanging.
 _creds() {
     PATH="${REG_TMPDIR}/bin:$PATH" CREDENTIALS_DIR="${REG_TMPDIR}/store" \
         bash "${REG_TMPDIR}/creds.sh" "$@"
@@ -671,7 +679,7 @@ _store_file() {
     [ "$status" -eq 0 ]
     [ "$(cat "$(_store_file "${REG_TMPDIR}/proj")")" = "API_KEY=v1" ]
 
-    run _creds list @mylib
+    run _creds list @mylib < /dev/null
     [ "$status" -eq 0 ]
     [[ "$output" == *"API_KEY"* ]]
 }
@@ -685,4 +693,63 @@ _store_file() {
     [[ "$output" == *"unknown project 'nosuch'"* ]]
     [[ "$output" == *"mylib"* ]]
     [ -z "$(ls "${REG_TMPDIR}/store" | grep -vx 'identity.age' | grep '\.age$')" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-31: a piped value is stored, with its trailing newline stripped" {
+    _creds_fixture
+
+    run _creds add "${REG_TMPDIR}/proj" API_KEY < <(printf 'from-pipe\n\n')
+    [ "$status" -eq 0 ]
+    [ "$(cat "$(_store_file "${REG_TMPDIR}/proj")")" = "API_KEY=from-pipe" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-32: --value-file is read, wins over stdin, and a missing file is refused" {
+    _creds_fixture
+    printf 'from-file\n' > "${REG_TMPDIR}/value"
+
+    run _creds add "${REG_TMPDIR}/proj" API_KEY --value-file "${REG_TMPDIR}/value" <<< 'from-pipe'
+    [ "$status" -eq 0 ]
+    [ "$(cat "$(_store_file "${REG_TMPDIR}/proj")")" = "API_KEY=from-file" ]
+
+    run _creds add "${REG_TMPDIR}/proj" OTHER --value-file "${REG_TMPDIR}/absent" < /dev/null
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"is not a readable file"* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-33: --from-env reads the environment, never creds.sh's own variables" {
+    _creds_fixture
+
+    SECRET_SRC=from-env run _creds add "${REG_TMPDIR}/proj" API_KEY --from-env SECRET_SRC < /dev/null
+    [ "$status" -eq 0 ]
+    [ "$(cat "$(_store_file "${REG_TMPDIR}/proj")")" = "API_KEY=from-env" ]
+
+    # 'key' is a local of cmd_add holding "OTHER": ${!NAME} would store it.
+    run _creds add "${REG_TMPDIR}/proj" OTHER --from-env key < /dev/null
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"empty value"* ]]
+    [[ "$(cat "$(_store_file "${REG_TMPDIR}/proj")")" != *OTHER* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-34: a value given as an argument is refused, not echoed, and not stored" {
+    _creds_fixture
+
+    run _creds add "${REG_TMPDIR}/proj" API_KEY s3cret-literal < /dev/null
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"visible in ps"* ]]
+    [[ "$output" != *"s3cret-literal"* ]]
+    [ ! -e "$(_store_file "${REG_TMPDIR}/proj")" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-35: a value with a line break is refused rather than splitting the store" {
+    _creds_fixture
+
+    run _creds add "${REG_TMPDIR}/proj" API_KEY < <(printf 'line1\nINJECTED=1\n')
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"line break"* ]]
+    [ ! -e "$(_store_file "${REG_TMPDIR}/proj")" ]
 }

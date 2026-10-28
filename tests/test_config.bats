@@ -623,14 +623,16 @@ _staged() { sed -n 's/^staged //p' "$STUB_LOG"; }
 # C-29 onward: creds.sh's command line
 # (docs/designs/0147-cli-credential-input-and-ergonomics.md). The store is a
 # stand-in: its 'age' writes stdin to -o in the clear and decrypts by cat, so
-# a test reads what creds.sh stored straight from the file.
+# a test reads what creds.sh stored straight from the file. A file starting
+# with CORRUPT fails to decrypt.
 #
 # Negative controls, each run against the test named: skipping @name
 # resolution (C-29, C-30); ${!NAME} for printenv (C-33); dropping the
 # line-break check (C-35); ignoring an extra argument (C-34); reading stdin
 # without stripping (C-31); letting a non-tty stdin override a flag (C-32,
 # C-33); a fixed --list origin, no missing marker, or --list after an engine
-# call (C-36; the last also C-37).
+# call (C-36; the last also C-37); --all printing whole lines, stopping at
+# the first unreadable file, or not dispatched (C-38).
 
 # Copies creds.sh and lib/ into REG_TMPDIR, registers 'mylib' at
 # REG_TMPDIR/proj in config.sh, and creates an initialised store.
@@ -654,7 +656,8 @@ while [ $# -gt 0 ]; do
         *) last="$1"; shift ;;
     esac
 done
-if [ -n "$out" ]; then cat > "$out"; elif [ "$dec" = 1 ]; then cat "$last"; fi'
+if [ -n "$out" ]; then cat > "$out"; exit; fi
+if [ "$dec" = 1 ]; then grep -q "^CORRUPT" "$last" && exit 1; cat "$last"; fi'
 }
 
 # Runs the fixture's creds.sh with the stand-in age and store. Arguments go
@@ -785,4 +788,24 @@ EOF2
     run env ENGINE=false bash "${REG_TMPDIR}/start.sh" --list
     [ "$status" -eq 0 ]
     [[ "$output" == *"No projects registered"* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-38: creds.sh list --all shows every project's key names, never a value, and reports a bad file" {
+    _creds_fixture
+    mkdir -p "${REG_TMPDIR}/proj2" "${REG_TMPDIR}/proj3"
+    _creds add "${REG_TMPDIR}/proj" API_KEY <<< 'value-one'
+    _creds add "${REG_TMPDIR}/proj2" PYPI_TOKEN <<< 'value-two'
+    printf 'CORRUPT\n' > "$(_store_file "${REG_TMPDIR}/proj3")"
+    printf '%s\t%s\n' "$(basename "$(_store_file "${REG_TMPDIR}/proj3")" .age)" \
+        "$(realpath "${REG_TMPDIR}/proj3")" >> "${REG_TMPDIR}/store/index"
+
+    run _creds list --all < /dev/null
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"$(realpath "${REG_TMPDIR}/proj")"$'\n'"  API_KEY"* ]]
+    [[ "$output" == *"$(realpath "${REG_TMPDIR}/proj2")"$'\n'"  PYPI_TOKEN"* ]]
+    [[ "$output" == *"could not decrypt"* ]]
+    [[ "$output" == *"1 of 3"* ]]
+    [[ "$output" != *value-one* ]]
+    [[ "$output" != *value-two* ]]
 }

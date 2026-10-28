@@ -16,8 +16,10 @@
 #                                   — add or replace one credential; with no
 #                                     flag, read stdin when it is not a
 #                                     terminal, or prompt
-#   ./creds.sh list [<project>]     — list credentialed projects, or the key
-#                                     names held for one project
+#   ./creds.sh list [<project> | --all]
+#                                   — list credentialed projects, or the key
+#                                     names held for one project, or for all
+#                                     (one passphrase prompt per project)
 #   ./creds.sh rm <project> [<KEY>] — remove one credential, or a project's
 #                                     whole file when no KEY is given
 #   ./creds.sh rotate               — re-encrypt every file to a new identity
@@ -316,6 +318,11 @@ cmd_add() {
 cmd_list() {
     require_store
 
+    if [ "${1:-}" = "--all" ]; then
+        cmd_list_all
+        return
+    fi
+
     if [ -z "${1:-}" ]; then
         if [ ! -s "${INDEX_FILE:-/nonexistent}" ]; then
             echo "No credentials stored."
@@ -341,6 +348,45 @@ cmd_list() {
     fi
     echo "Credentials for ${dir}:"
     decrypt_file "$file" | cut -d= -f1 | sed 's/^/  /'
+}
+
+# Key names only: values are cut away inside the pipeline and never reach a
+# variable. The identity is unwrapped once per file, as in cmd_rotate, because
+# reusing it would mean holding it in a variable; see
+# docs/designs/0129-encrypted-credential-store.md §Identity and passphrase
+# model.
+cmd_list_all() {
+    require_age
+
+    local hash dir file keys count=0 failed=0
+    if [ -s "$INDEX_FILE" ]; then
+        while IFS=$'\t' read -r hash dir; do
+            [ -f "${CREDENTIALS_DIR}/${hash}.age" ] && count=$(( count + 1 ))
+        done < "$INDEX_FILE"
+    fi
+    if [ "$count" -eq 0 ]; then
+        echo "No credentials stored."
+        return
+    fi
+    echo "The passphrase is asked once per project (${count})."
+
+    # The index is read on fd 3, so nothing inside the loop can consume it.
+    while IFS=$'\t' read -r -u 3 hash dir; do
+        file="${CREDENTIALS_DIR}/${hash}.age"
+        [ -f "$file" ] || continue
+        printf '%s\n' "$dir"
+        if keys="$(decrypt_file "$file" | cut -d= -f1)"; then
+            printf '%s\n' "$keys" | sed 's/^/  /'
+        else
+            echo "  (could not decrypt ${file})"
+            failed=$(( failed + 1 ))
+        fi
+    done 3< "$INDEX_FILE"
+
+    if [ "$failed" -gt 0 ]; then
+        echo "Error: ${failed} of ${count} file(s) could not be read."
+        exit 1
+    fi
 }
 
 cmd_rm() {

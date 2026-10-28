@@ -327,6 +327,8 @@ _Controls:_
 - `claude-agent` does not have write access to the bind-mount source directories on the host.
 - The staging directory is created by `mktemp -d` (mode 0700) for one launch and removed by
   `start.sh`'s EXIT trap. A host process able to write it could already write `global-claude/`.
+  The container can read a 0700 directory only because its user maps to the host UID, the
+  alignment `/workspace` already depends on (`docs/designs/0025-podman-migration.md` §3.A).
 
 _Residual risk:_ None above the baseline. The physical readonly mount is the primary control;
 `permissions.deny` is defense in depth.

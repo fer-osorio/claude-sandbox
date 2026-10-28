@@ -117,17 +117,26 @@ argument and prints the one subcommand's usage line instead. An unknown
 Each step is one commit, referencing #133 or #134.
 
 1. This design. `docs(design): CLI credential input and ergonomics (#147)`.
+   *Done, `ef819ab`.*
 2. Extract `lib/config.sh` from `start.sh`, with no change in behaviour.
    `refactor(start)`.
+   *Done, `b90cfb7`.*
 3. `creds.sh` sources `lib/config.sh` and accepts `@name`, with tests through
    the stub `age` (#134).
+   *Done, `f0ab3e3`.*
 4. `creds.sh add` value sources and the positional refusal, with tests and a
    negative control for each (#133).
+   *Done, `d23e38d`.*
 5. `start.sh --list`, with tests (#134).
+   *Done, `335c208`.*
 6. `creds.sh list --all`, with tests (#134).
+   *Done, `48e484c`.*
 7. The argument-error pass across both scripts, with tests on the fix lines
    (#134).
+   *Done, `72158eb`.*
 8. Documents: the `creds.sh` header, `BUILDING.md` and the user guide
    (including the warning about `echo | creds.sh`), the testing SDD rows, the
    `HOSTONLY_FLOOR` bump in CI, and the correction to #134's "Worth a look".
+   *Done, `a390939`, `903e89e`; `BUILDING.md` needed no change.*
 9. The closing commit (closes #133, #134, #147).
+   *This commit.*

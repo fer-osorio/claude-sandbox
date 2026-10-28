@@ -836,3 +836,54 @@ _changelog_index_drift() {
     fi
     [ -z "$output" ]
 }
+
+# ADR 011 decision 1 is the diagram-form criterion's home. The design skill
+# carries a copy so it reaches projects that cannot read the ADR (ADR 012).
+# An ADR is never rewritten, so the copy must match it: each bullet of
+# decision 1, with wrapped lines joined and ** dropped, must appear in
+# design/SKILL.md normalized the same way. Finding no bullets fails, so a
+# moved heading cannot make the check pass over nothing.
+#
+# Negative-controlled on 2026-10-27: a reworded skill bullet and a deleted one
+# were each named; renaming decision 1's heading in the ADR reported no
+# bullets found. Each was reverted and the check passed again.
+_D17_ADR="docs/adr/011-diagram-form-criterion.md"
+_D17_SKILL="global-claude/skills/design/SKILL.md"
+
+_d17_bullets() {
+    awk '
+        /^\*\*1\. /             { in1 = 1; next }
+        in1 && /^\*\*2\. /       { exit }
+        in1 && /^- /             { if (b != "") print b; b = substr($0, 3); next }
+        in1 && b != "" && /^  /  { sub(/^ +/, ""); b = b " " $0; next }
+        in1 && b != ""           { print b; b = "" }
+        END                      { if (b != "") print b }
+    ' "$1" | sed 's/\*\*//g'
+}
+
+_diagram_criterion_drift() {
+    (
+        cd "$SANDBOX_DIR" || exit 1
+        skill="$(tr '\n' ' ' < "$_D17_SKILL" | sed 's/\*\*//g; s/  */ /g')"
+        n=0
+        while IFS= read -r bullet; do
+            n=$((n + 1))
+            case "$skill" in
+                *"$bullet"*) ;;
+                *) echo "${_D17_SKILL}: missing ${_D17_ADR} decision 1 bullet: ${bullet}" ;;
+            esac
+        done < <(_d17_bullets "$_D17_ADR")
+        [ "$n" -gt 0 ] || echo "${_D17_ADR}: no decision 1 bullets found"
+    )
+}
+
+# bats test_tags=fast, hostonly
+@test "D-17: design's diagram-form criterion matches ADR 011 decision 1" {
+    run _diagram_criterion_drift
+    [ "$status" -eq 0 ]
+    if [ -n "$output" ]; then
+        echo "--- the criterion changes only through a new ADR; see docs/adr/012 ---" >&2
+        echo "$output" >&2
+    fi
+    [ -z "$output" ]
+}

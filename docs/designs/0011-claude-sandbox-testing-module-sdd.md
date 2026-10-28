@@ -6,8 +6,8 @@
 |---|---|
 | **Document Type** | Software Design Document (SDD) |
 | **Status** | Accepted |
-| **Version** | 1.5 |
-| **Date** | 2026-10-26 |
+| **Version** | 1.6 |
+| **Date** | 2026-10-27 |
 | **Author** | Fernando |
 | **Reviewers** | Security Team |
 | **Supersedes** | — (no prior testing SDD exists for claude-sandbox) |
@@ -26,6 +26,7 @@
 | 1.3 | 2026-10-05 | Fernando | §4.8 reconciled with the suite as built: P-0, P-0b, P-0c, P-7, P-8, P-9 were in the file and absent from the table, and the paragraph claiming no planning artifact exists had been false since 2026-09-11. P-10 added (#150). §9 traceability extended to ADR 008 and ADR 010. Same drift shape as 1.1, in one group rather than three files |
 | 1.4 | 2026-10-09 | Fernando | Container tier (#101): §6.2 gains the `container` and `hostfidelity` tag axes and records that both CI tiers filter on environment rather than speed, replacing the claim that groups 1–5 do not run in CI at all. §4.9's trap paragraph updated — the tier does not retire the placement rule. Measured on three spike runs: builds are 157s of a nine-minute job, not its dominant cost |
 | 1.5 | 2026-10-26 | Fernando | Global-layer size checks by load class (#128): D-7 retired, D-15 (skill descriptions) and D-16 (`SKILL.md` length) added, and D-6 now cites the vendor's figure. `hostonly` count 50 to 51 |
+| 1.6 | 2026-10-27 | Fernando | D-17 added (#164): the `design` skill's copy of the diagram-form criterion matches ADR 011 decision 1. `hostonly` count 51 to 52 |
 
 ---
 
@@ -312,6 +313,7 @@ runnable on a CI runner with no container tooling — see §6.2.
 | D-7 | *Retired.* | Bounded the whole `global-claude/` tree at 3000 lines. Replaced by D-15 and D-16, which bound what loads, by load class (`docs/designs/0128-global-layer-load-class-bounds.md` decision 1). The ID is not reused |
 | D-15 | Skill descriptions within budget | Each description at most 1536 bytes, the listing's cap per entry, and all of them at most 6000 bytes in total. 6000 is a policy figure, derived in the check's comment |
 | D-16 | `SKILL.md` within ceiling | Each `global-claude/skills/*/SKILL.md` at most 500 lines, Claude Code's documented guidance |
+| D-17 | Diagram-form copy matches its ADR | Every bullet of ADR 011 decision 1 appears in `global-claude/skills/design/SKILL.md`, wrapping and emphasis ignored. Finding no bullets fails (`docs/adr/012-diagram-form-in-every-project.md` decision 3) |
 
 ### 4.8 Group 8 — Planning Artifact Contract
 
@@ -435,7 +437,7 @@ of this section would otherwise do:
 | `container` | Environment needed | Needs an engine, a built image, or both | 1, 2, 3, 4, 5 |
 | `hostfidelity` | Environment fidelity | Needs a host whose cgroup or mandatory-access-control layout a hosted runner does not provide | R-6 only |
 
-`hostonly` and `container` partition the suite: 51 tests and 32, no overlap,
+`hostonly` and `container` partition the suite: 52 tests and 32, no overlap,
 and every test carries exactly one of them. They are declared as `file_tags`,
 because `setup()` runs for every selected test in a file, so engine access is a
 property of the file (see the placement rule below).
@@ -570,6 +572,7 @@ Consistent with the fail-fast philosophy already established in `setup.sh` / `ru
 | `docs/adr/003-where-a-behavioural-rule-goes.md` | Decision 4, no restatement; the placement ladder | D-2, D-6, D-15 |
 | `docs/designs/0003-global-layer-injection.md` | §5.2, Denial of Service — "Global layer size discipline" | D-6, D-15, D-16 |
 | `docs/designs/0128-global-layer-load-class-bounds.md` | Decisions 1 to 5, bounds per load class | D-6, D-15, D-16 |
+| `docs/adr/012-diagram-form-in-every-project.md` | Decision 3, the injected copy of ADR 011 decision 1 | D-17 |
 | `docs/designs/docs-as-code-workflow.md` | §3 Case D, ADR format and Status values | D-3 |
 
 This table is the single place to check for coverage gaps: any claim in the source documents without a corresponding test ID here is undocumented risk, not tested risk.

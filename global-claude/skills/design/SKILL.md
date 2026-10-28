@@ -268,6 +268,18 @@ Ordered list of concrete steps. Each step should map to a single
 commit or a small PR.
 ```
 
+**Diagram form**, from ADR 011 of the claude-sandbox project, decision 1:
+- A diagram earns its place only when the relationship is not
+  expressible as an ordered list: branching, cycles, or more than one
+  path between two nodes.
+- Branching or sequenced flow → mermaid.
+- Containment that is genuinely a tree, such as a file listing → keep the
+  fenced tree. Mermaid makes it worse.
+- A picture of a table → a table.
+
+A diagram may accompany an ordered list rather than replace it. Mermaid
+does not render in a terminal, so the list is not redundant.
+
 Continue to **Step 7**.
 
 ---
@@ -320,6 +332,8 @@ true, and whether any decision is affected. The original text stays — a
 reader who checks the evidence must be able to see both what was believed
 and what is so. A correction that would change what a decision *requires*
 is a superseding ADR, not a correction.
+
+Diagram form follows Step 6a.
 
 Continue to **Step 7**.
 

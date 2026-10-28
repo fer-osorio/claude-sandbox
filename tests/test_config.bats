@@ -619,3 +619,70 @@ _staged() { sed -n 's/^staged //p' "$STUB_LOG"; }
     [ "$src" != "${REG_TMPDIR}/global-claude" ]
     [ ! -e "$src" ]
 }
+
+# C-29 onward: creds.sh's command line
+# (docs/designs/0147-cli-credential-input-and-ergonomics.md). The store is a
+# stand-in: its 'age' writes stdin to -o in the clear and decrypts by cat, so
+# a test reads what creds.sh stored straight from the file.
+
+# Copies creds.sh and lib/ into REG_TMPDIR, registers 'mylib' at
+# REG_TMPDIR/proj in config.sh, and creates an initialised store.
+_creds_fixture() {
+    _reg_fixture_dir
+    _cred_fixture
+    cp "${SANDBOX_DIR}/creds.sh" "${REG_TMPDIR}/creds.sh"
+    cat > "${REG_TMPDIR}/config.sh" <<CONF
+declare -A PROJECT_PATH=( [mylib]="${REG_TMPDIR}/proj" )
+declare -A PROJECT_PROFILE=( [mylib]="base" )
+CONF
+    printf 'wrapped\n' > "${REG_TMPDIR}/store/identity.age"
+    printf 'age1stub\n' > "${REG_TMPDIR}/store/recipient.pub"
+    _stub_age '
+out=""; dec=0; last=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -o) out="$2"; shift 2 ;;
+        -d) dec=1; shift ;;
+        -i|-R|-r) shift 2 ;;
+        *) last="$1"; shift ;;
+    esac
+done
+if [ -n "$out" ]; then cat > "$out"; elif [ "$dec" = 1 ]; then cat "$last"; fi'
+}
+
+# Runs the fixture's creds.sh with the stand-in age and store. Arguments go
+# to creds.sh; stdin is the caller's, and bats' run captures stderr too.
+_creds() {
+    PATH="${REG_TMPDIR}/bin:$PATH" CREDENTIALS_DIR="${REG_TMPDIR}/store" \
+        bash "${REG_TMPDIR}/creds.sh" "$@"
+}
+
+# The stored file for a project path, named as start.sh names it.
+_store_file() {
+    printf '%s/store/%s.age' "$REG_TMPDIR" \
+        "$(printf '%s' "$(realpath "$1")" | sha256sum | cut -d' ' -f1)"
+}
+
+# bats test_tags=fast, hostonly
+@test "C-29: creds.sh resolves @name to the same file start.sh decrypts" {
+    _creds_fixture
+
+    run _creds add @mylib API_KEY <<< 'v1'
+    [ "$status" -eq 0 ]
+    [ "$(cat "$(_store_file "${REG_TMPDIR}/proj")")" = "API_KEY=v1" ]
+
+    run _creds list @mylib
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"API_KEY"* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-30: an unknown @name in creds.sh is refused by name, and nothing is stored" {
+    _creds_fixture
+
+    run _creds add @nosuch API_KEY <<< 'v1'
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"unknown project 'nosuch'"* ]]
+    [[ "$output" == *"mylib"* ]]
+    [ -z "$(ls "${REG_TMPDIR}/store" | grep -vx 'identity.age' | grep '\.age$')" ]
+}

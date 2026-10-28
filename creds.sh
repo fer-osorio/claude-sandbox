@@ -20,9 +20,10 @@
 #   ./creds.sh rotate               — re-encrypt every file to a new identity
 #   ./creds.sh migrate <old> <new>  — re-key a project directory that moved
 #
-# <project> is a directory path, resolved with realpath so it matches what
-# start.sh resolves at launch — including a path reached through an @name
-# registry entry, which start.sh resolves before it calls realpath.
+# <project> is a directory path or an @name from the registry, resolved with
+# realpath so it matches what start.sh resolves at launch. migrate's <old> is
+# the exception: it is taken literally, because it names where the project
+# used to be.
 #
 # The passphrase is needed to read the store, never to create it. Adding the
 # first credential for a project encrypts to the public key alone and prompts
@@ -50,8 +51,8 @@ _ENV_CREDENTIALS_DIR="${CREDENTIALS_DIR:-}"
 
 CREDENTIALS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/claude-sandbox/credentials"
 
-[ -f "${SANDBOX_DIR}/config.sh" ] && source "${SANDBOX_DIR}/config.sh"
-[ -f "${SANDBOX_DIR}/config.local.sh" ] && source "${SANDBOX_DIR}/config.local.sh"
+# Config layers 2 and 3, and the @name registry start.sh resolves through.
+source "${SANDBOX_DIR}/lib/config.sh"
 
 CREDENTIALS_DIR="${_ENV_CREDENTIALS_DIR:-$CREDENTIALS_DIR}"
 
@@ -72,7 +73,7 @@ DENIED_KEYS=(
 )
 
 usage() {
-    sed -n '2,37p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed '$d; s/^# \{0,1\}//'
     exit 1
 }
 
@@ -100,8 +101,14 @@ hash_path() {
     printf '%s' "$1" | sha256sum | cut -d' ' -f1
 }
 
+# An @name resolves through the registry exactly as start.sh resolves it, so
+# both hash the same path. Runs inside $(), so messages go to stderr.
 resolve_project() {
     local arg="$1"
+    if [[ "$arg" == @* ]]; then
+        resolve_project_name "${arg#@}" >&2
+        arg="$RESOLVED_PATH"
+    fi
     if [ ! -d "$arg" ]; then
         echo "Error: '$arg' is not a directory." >&2
         exit 1

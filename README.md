@@ -25,7 +25,7 @@ your project — see the [user guide](docs/user-guide.md) for how to choose.
 
 | Doc | Covers |
 |---|---|
-| [`docs/user-guide.md`](docs/user-guide.md) | Day-to-day usage: picking a profile, the session lifecycle, adding tools, troubleshooting |
+| [`docs/user-guide.md`](docs/user-guide.md) | Day-to-day usage: picking a profile, the session lifecycle, storing credentials, adding tools, troubleshooting |
 | [`BUILDING.md`](BUILDING.md) | Build/run/test commands |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Image hierarchy and dependency management strategy |
 | [`docs/claude-code-security-plan.md`](docs/claude-code-security-plan.md) | Threat model and security controls |

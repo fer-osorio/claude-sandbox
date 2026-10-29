@@ -1,7 +1,7 @@
 # Per-Project Encrypted Credential Store
 
 ## Status
-Draft
+Accepted
 
 ## Context
 
@@ -19,7 +19,7 @@ and the tiering policy its §Open questions asks to decide early.
 
 ### What is missing
 
-`start.sh:242-245` builds `ENV_ARGS` as a name-only `-e GH_TOKEN`, conditional
+`start.sh`'s `ENV_ARGS` block builds as a name-only `-e GH_TOKEN`, conditional
 on `GH_TOKEN` already being set. That mechanism is sound — the value never
 reaches host argv, so it is absent from `ps` and from shell history. The
 problem is only its source.
@@ -31,7 +31,7 @@ the store in a gitignored `credentials/` directory, and issue #129 says the
 same. **That location is unsafe for this project specifically, and this design
 rejects it.**
 
-`start.sh:238-240` bind-mounts `PROJECT_DIR` at `/workspace`. When an operator
+`start.sh` bind-mounts `PROJECT_DIR` at `/workspace`. When an operator
 opens a session on the claude-sandbox repository itself — routine, and how this
 document was written — `PROJECT_DIR` *is* `SANDBOX_DIR`. A store at
 `${SANDBOX_DIR}/credentials/` is then mounted at `/workspace/credentials/` and
@@ -107,8 +107,8 @@ cheap to make impossible.
 
 ### Path-hash keying
 
-The filename is `sha256sum` over the resolved `PROJECT_DIR` from
-`start.sh:153`. Because `@name` resolution at `start.sh:124-151` runs *before*
+The filename is `sha256sum` over `PROJECT_DIR` as `start.sh` resolves it
+with `realpath`. Because `@name` resolution runs *before*
 `realpath`, `./start.sh @mylib` and `./start.sh ~/projects/mylib` land on the
 same hash with no special-casing — the property
 `docs/planning/0129-encrypted-credential-store/feasibility.md` §Technical
@@ -150,9 +150,8 @@ with no credential file prompts for nothing, so the common case is unchanged.
 
 ### `start.sh` integration
 
-A new block immediately after the `ENV_ARGS` construction at
-`start.sh:242-245` and before the global-layer mounts at `:347`. It sits
-before `trap cleanup EXIT` at `:372` deliberately: an abort there has no proxy
+A new block immediately after the `ENV_ARGS` construction and before the
+global-layer mounts. It sits before `trap cleanup EXIT` deliberately: an abort there has no proxy
 container to tear down.
 
 1. Compute `CRED_FILE` from the hash of `PROJECT_DIR`.
@@ -165,7 +164,7 @@ container to tear down.
    — the risk `docs/planning/0129-encrypted-credential-store/feasibility.md`
    §Risk inventory names.
 5. Decrypt in one command substitution, no temporary file. On failure, abort,
-   mirroring the Squid precedent at `start.sh:394-405` in shape: one `Error:`
+   mirroring the Squid start check in `start.sh` in shape: one `Error:`
    line, one line citing the document that mandates fail-closed, `exit 1`.
 6. Parse, validate each key, `export` it, and append `("-e" "$KEY")` to
    `ENV_ARGS`.
@@ -252,7 +251,7 @@ follows a `-e` — rather than from a list accumulated during parsing. This is
 not a stylistic choice. `tests/test_config.bats` drives `start.sh` under
 `ENGINE=true`, which discards argv, so no `hostonly` test can observe `-e
 GH_TOKEN` reaching the engine. Deriving the banner from the array that
-`start.sh:412` expands is what makes a glob assertion on that line an
+the engine `run` call in `start.sh` expands is what makes a glob assertion on that line an
 assertion about the array, and what stops the two drifting apart. A banner
 built from a parallel list could report an injection that never happened.
 

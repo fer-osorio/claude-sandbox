@@ -35,8 +35,9 @@ redefine one that's already there. Full rationale:
 
 Each session is a fresh, ephemeral container: your project directory is
 bind-mounted, the container runs non-root with capabilities dropped and
-outbound network restricted to an allowlist (Anthropic API + package
-registries), and the container is removed when the session ends. Nothing
+outbound network restricted to an allowlist (the Anthropic API, package
+registries, GitHub, and a set of documentation sites; the list is
+`squid/squid.conf`), and the container is removed when the session ends. Nothing
 in the container's own filesystem persists to the next session — only your
 project directory does. See
 [`docs/claude-code-security-plan.md`](claude-code-security-plan.md) for the
@@ -51,28 +52,61 @@ avoids this: `start.sh` passes no Anthropic credential into the container
 and does not mount your host `~/.claude`, and the container is removed on
 exit, so the login does not carry over to the next session either.
 
-Other credentials cross the boundary in two ways: `GH_TOKEN`, if it is set
-in your shell when you run `start.sh`, and values stored for the project
-with `./creds.sh`, which `start.sh` decrypts at launch and passes by name.
-Assume the agent can read every one of them
-([0129 §Sensitivity tiering policy](designs/0129-encrypted-credential-store.md)).
-
-```bash
-./creds.sh init                                    # once
-pass show github/pat | ./creds.sh add @mylib GH_TOKEN
-./creds.sh add @mylib GH_TOKEN --from-env GH_TOKEN
-./creds.sh list --all                              # key names, never values
-```
-
-A value is never taken as an argument, because `ps` and shell history would
-show it. Piping is only safer than typing when the producer is itself a
-store: `echo "$SECRET" | ./creds.sh add …` puts the secret in your history.
-`HISTCONTROL=ignorespace` is per-shell configuration, and it is silently
-absent wherever it was never set.
+Two other kinds of credential reach a session: `GH_TOKEN`, if it is set in
+your shell when you run `start.sh`, and values stored for the project with
+`creds.sh`, described next.
 
 If you have read Phase 4 of the security plan and are looking for the
 `ANTHROPIC_API_KEY` flow: it is described there as an option this project
 deliberately does not use. See Change 23.
+
+## Storing credentials
+
+`creds.sh` keeps per-project secrets in an `age`-encrypted store, which
+`start.sh` decrypts at launch and passes into the container by name. Assume
+the agent can read every value you store
+([0129 §Sensitivity tiering policy](designs/0129-encrypted-credential-store.md#sensitivity-tiering-policy)).
+`age` must be installed on the host.
+
+**Once per machine:**
+
+```bash
+./creds.sh init      # choose a passphrase, then back up identity.age
+```
+
+The store lives outside this repository, at
+`~/.local/share/claude-sandbox/credentials` unless `CREDENTIALS_DIR` says
+otherwise. Back up `identity.age` now, and keep the passphrase somewhere
+else: without both, nothing in the store can be recovered
+([0129 §Key lifecycle](designs/0129-encrypted-credential-store.md#key-lifecycle-backup-and-recovery)).
+
+**Day to day.** `<project>` is a path or an `@name`.
+
+```bash
+./creds.sh add <project> KEY                       # prompts, echo off
+pass show github/pat | ./creds.sh add @mylib GH_TOKEN
+./creds.sh add @mylib GH_TOKEN --from-env GH_TOKEN
+./creds.sh add @mylib KEY --value-file ./key.txt
+./creds.sh list [<project> | --all]                # key names, never values
+./creds.sh rm <project> [KEY]                      # one key, or all of them
+./creds.sh migrate <old-path> <project>            # after moving a project
+./creds.sh rotate                                  # new identity, same values
+```
+
+- A value is never taken as an argument, because `ps` and shell history
+  would show it. Piping helps only when the producer is itself a store:
+  `echo "$SECRET" | ./creds.sh add …` puts the secret in your history.
+- Values are one line; trailing newlines are dropped.
+- The passphrase is asked whenever a file has to be read: every `add` after
+  a project's first, `list <project>`, `rm <project> KEY`, and every launch
+  of that project. `list --all` and `rotate` ask once per project.
+- A stored `GH_TOKEN` replaces the one in your shell.
+
+**At launch** the banner's `Creds:` line names what was injected. The launch
+stops instead of starting without them if the file fails to decrypt, if
+`age` is missing, if a stored key name is refused, or if the store sits
+inside the project directory, where the session could read it
+([0129 §`start.sh` integration](designs/0129-encrypted-credential-store.md#startsh-integration)).
 
 ## The global instruction layer
 
@@ -104,7 +138,8 @@ Two options, covered in detail in `ARCHITECTURE.md`:
 
 - **Strategy A (default):** add it to the relevant Dockerfile, rebuild.
   Reproducible, survives every future session.
-- **Strategy B (experiment only):** `docker exec -u root` into a running
+- **Strategy B (experiment only):** `podman exec -u root` (or `docker`,
+  under `ENGINE=docker`) into a running
   container to try something without committing to it. Disappears when the
   container exits — never build a persistent artifact against it. See
   [`ARCHITECTURE.md`](../ARCHITECTURE.md#strategy-b--ephemeral-install-experiment-first)
@@ -121,7 +156,14 @@ Two options, covered in detail in `ARCHITECTURE.md`:
 - **Session start fails with "unknown image" or "image does not exist"** —
   check the profile name is one of `base`/`crypto`/`systems`/`research`,
   and that you've built it with `./build.sh <profile>`.
-- **`docker network create` errors because `claude-net` already exists** —
+- **The launch stops with a credential error** — the message names the
+  fix; the causes are listed under [Storing credentials](#storing-credentials).
+- **`creds.sh add` says there is no terminal to read the passphrase from** —
+  the project already has a file, so `add` must decrypt it, and `age` reads
+  the passphrase from the terminal. Run it from one; only a project's first
+  `add` works without.
+- **`podman network create` (or `docker`) errors because `claude-net`
+  already exists** —
   expected on any machine that's already run a session; safe to ignore.
 
 ## Running the test suite

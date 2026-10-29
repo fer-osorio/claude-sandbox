@@ -85,8 +85,8 @@ alternatives.
 -`hostonly` tests on the theory that some are miscategorised and could join the
 existing gate as-is. None are. Every one needs a container engine, a built
 image, or both. The closest call is R-4, which asserts `start.sh` rejects an
-unknown image name: `start.sh:156` runs `"$ENGINE" info` and exits before the
-name check at `:168`, so without an engine its output is "not reachable" rather
+unknown image name: `start.sh` runs `"$ENGINE" info` and exits before the
+image-name check, so without an engine its output is "not reachable" rather
 than "unknown image". Reaching it means reordering `start.sh` to validate
 arguments before probing the environment — defensible separately, not a
 re-tagging.

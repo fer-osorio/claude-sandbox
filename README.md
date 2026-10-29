@@ -1,9 +1,10 @@
 # claude-sandbox
 
-Docker-based sandboxing for running Claude Code sessions with strict,
-verifiable security controls: non-root execution, dropped capabilities,
-network-egress allowlisting via a Squid proxy, and per-project image
-profiles (crypto, systems, research, or plain web/Python).
+Container-based sandboxing (Podman by default, Docker with
+`ENGINE=docker`) for running Claude Code sessions with strict, verifiable
+security controls: non-root execution, dropped capabilities, network-egress
+allowlisting via a Squid proxy, and per-project image profiles (crypto,
+systems, research, or plain web/Python).
 
 Each session runs in an ephemeral container — nothing persists between
 sessions except your project directory and the global instruction layer,
@@ -13,7 +14,7 @@ next.
 ## Quickstart
 
 ```bash
-docker network create --driver bridge claude-net   # once
+podman network create --driver bridge claude-net   # once (or docker)
 ./build.sh                                          # build all images
 ./start.sh ~/projects/myproject crypto              # start a session
 ```
@@ -25,7 +26,7 @@ your project — see the [user guide](docs/user-guide.md) for how to choose.
 
 | Doc | Covers |
 |---|---|
-| [`docs/user-guide.md`](docs/user-guide.md) | Day-to-day usage: picking a profile, the session lifecycle, adding tools, troubleshooting |
+| [`docs/user-guide.md`](docs/user-guide.md) | Day-to-day usage: picking a profile, the session lifecycle, storing credentials, adding tools, troubleshooting |
 | [`BUILDING.md`](BUILDING.md) | Build/run/test commands |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Image hierarchy and dependency management strategy |
 | [`docs/claude-code-security-plan.md`](docs/claude-code-security-plan.md) | Threat model and security controls |

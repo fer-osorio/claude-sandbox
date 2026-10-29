@@ -138,7 +138,8 @@ Two options, covered in detail in `ARCHITECTURE.md`:
 
 - **Strategy A (default):** add it to the relevant Dockerfile, rebuild.
   Reproducible, survives every future session.
-- **Strategy B (experiment only):** `docker exec -u root` into a running
+- **Strategy B (experiment only):** `podman exec -u root` (or `docker`,
+  under `ENGINE=docker`) into a running
   container to try something without committing to it. Disappears when the
   container exits — never build a persistent artifact against it. See
   [`ARCHITECTURE.md`](../ARCHITECTURE.md#strategy-b--ephemeral-install-experiment-first)
@@ -161,7 +162,8 @@ Two options, covered in detail in `ARCHITECTURE.md`:
   the project already has a file, so `add` must decrypt it, and `age` reads
   the passphrase from the terminal. Run it from one; only a project's first
   `add` works without.
-- **`docker network create` errors because `claude-net` already exists** —
+- **`podman network create` (or `docker`) errors because `claude-net`
+  already exists** —
   expected on any machine that's already run a session; safe to ignore.
 
 ## Running the test suite

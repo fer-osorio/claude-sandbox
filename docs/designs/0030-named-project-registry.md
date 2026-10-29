@@ -1,7 +1,7 @@
 # Named Project Registry
 
 ## Status
-Draft
+Accepted
 
 ## Context
 

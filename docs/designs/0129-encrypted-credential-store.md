@@ -1,7 +1,7 @@
 # Per-Project Encrypted Credential Store
 
 ## Status
-Draft
+Accepted
 
 ## Context
 

@@ -91,7 +91,7 @@ trigger, not reimplemented differently.
   silently assume "global layer = markdown files."
 - `seeded-by: design` on `global-claude/templates/user-guide.md` becomes
   incomplete once `user-guide-check` can also seed it. P-7
-  (`_p7_missing_owner_skills`, `tests/test_planning_artifacts.bats:319-334`)
+  (`_p7_missing_owner_skills` in `tests/test_planning_artifacts.bats`)
   reads `seeded-by` as a single scalar naming exactly one skill — it cannot
   name two. Not resolved in this document; the recommended follow-up is
   widening `seeded-by` to a space-separated list and updating P-7's parser,

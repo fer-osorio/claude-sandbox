@@ -13,7 +13,8 @@ from — a named project registry:
 
 > | `[projects.<name>]` registry + `$PROJECT_BASE` | **No (v1)** | Confirmed out of scope with the operator — `start.sh`'s positional `<project_dir>` interface stays as-is. |
 >
-> — `0028-sandbox-config-file.md` line 93, reaffirmed at line 275
+> — `0028-sandbox-config-file.md` §What carries over vs. what doesn't,
+> reaffirmed in §v1 scope
 
 That row is worth re-reading against its neighbours. Every other declined
 element in that table carries a substantive argument: `runtime.forbidden_flags`
@@ -139,7 +140,7 @@ expands at source time with no parser involved.
 **Unset behavior:** `PROJECT_BASE` defaults to `$HOME/projects` when not
 exported. Confirmed with the operator. This fails safe — if the default is
 wrong for a given machine, the resolved path does not exist and
-`start.sh`'s existing directory check (lines 85–88) rejects it before any
+`start.sh`'s existing directory check rejects it before any
 mount is constructed. No new failure mode is introduced, and no mandatory
 setup step is added to `BUILDING.md`.
 
@@ -183,7 +184,7 @@ rule, no collision case:
 ```
 
 It also keeps `start.sh`'s interface **purely positional**, which matters:
-`0028-sandbox-config-file.md` lines 186–187 records that the no-flag-parsing
+`0028-sandbox-config-file.md` §Layered overrides records that the no-flag-parsing
 decision was confirmed with the operator, on the grounds that the
 interface has been positional since the project began. A `--project`
 flag would reopen that decision; `@` does not. The sigil is additionally
@@ -250,8 +251,8 @@ Four properties this establishes:
    after registry resolution, so an explicit second argument wins over the
    registry's profile. The registry supplies a *default*, not a lock.
 4. **No validation is bypassed.** The resolved path goes through the same
-   `realpath`, the same directory check (lines 85–88), and the same
-   profile check against `PROFILES` (lines 90–94) as any explicit path.
+   `realpath`, the same directory check, and the same profile check
+   against `PROFILES` as any explicit path.
    `start.sh` gains a resolution step, not a second code path.
 
 ### Layering: `config.local.sh` may add, not override
@@ -354,7 +355,7 @@ Three deliberate choices in that mechanism:
 - **No `build.sh` change.** `build.sh` contains no reference to projects
   and gains none — it builds images, which are project-independent.
 - **No `Makefile` or `helpers.py`-equivalent CLI.** Rejected in
-  `0028-sandbox-config-file.md` lines 277–280 for reasons unaffected by this
+  `0028-sandbox-config-file.md` §v1 scope for reasons unaffected by this
   change.
 
 ### Case classification (docs-as-code-workflow.md)
@@ -458,7 +459,7 @@ be re-evaluated against Case E at that time.
   acceptable cost for saving one character.
 - **`--project mylib` / `-p mylib` flag.** Rejected: reopens the
   no-flag-parsing decision confirmed with the operator twice
-  (`0028-sandbox-config-file.md` lines 186–187, and the same doc's rejection of
+  (`0028-sandbox-config-file.md` §Layered overrides, and the same doc's rejection of
   CLI flags for layer 4), and requires introducing argument parsing to a
   script that has never had it. The sigil achieves the same
   disambiguation with no interface-model change.
@@ -494,7 +495,8 @@ be re-evaluated against Case E at that time.
   delimiter. Two keyed arrays plus an explicit sync check is simpler to
   read and to validate.
 - **TOML + a parser, matching `dev-env` directly.** Rejected for the
-  reasons already settled in `0028-sandbox-config-file.md` lines 349–359 —
+  reasons already settled in `0028-sandbox-config-file.md` §Alternatives
+  considered —
   introducing Python or `yq` as a host prerequisite for a pure-Bash
   project. Nothing about a project registry changes that calculus; if
   anything the two-array shape is the last piece of config simple enough
@@ -515,13 +517,13 @@ to be substituted once the tracking issue is open.
 
 2. **`start.sh`** — add the `@name` resolution block between argument
    capture and `realpath`, per the shape above. Update the usage header
-   comment (lines 1–17) with the new grammar and an `@name` example.
+   comment with the new grammar and an `@name` example.
    Regression gate: `bats tests/test_runtime_posture.bats tests/test_global_layer.bats`
    must pass unchanged, since no existing invocation form is altered.
    `feat(start): resolve @name project references from the registry (#N)`
 
 3. **`start.sh`** — bracket the existing `config.sh`/`config.local.sh`
-   sourcing (today's lines 60 and 63) with the committed-name snapshot and
+   sourcing with the committed-name snapshot and
    the warn-and-revert diff, per "Layering: `config.local.sh` may add, not
    override" above. Separate commit from step 2: same file, but a distinct
    concern (layering enforcement vs. argument resolution) at a different
@@ -546,8 +548,8 @@ to be substituted once the tracking issue is open.
 5. **`config.local.sh.example`** — add an example `[projects]`-style block
    (commented out) showing a machine-local addition, plus a note that
    redefining a name already present in `config.sh` is silently reverted
-   with a warning rather than honored — parallel to the existing note at
-   lines 25–27 explaining why `PROFILES` is not locally overridable.
+   with a warning rather than honored — parallel to the file's existing note
+   explaining why `PROFILES` is not locally overridable.
    `docs(config): document project registry additions in config.local.sh (#N)`
 
 6. **Documentation** — `ARCHITECTURE.md` (directory-layout description of

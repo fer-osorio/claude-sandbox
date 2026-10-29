@@ -13,8 +13,8 @@ Draft
 The template exists at `global-claude/templates/planning/feasibility.md`
 and names that owner in its frontmatter. The skill does not exist.
 
-`tests/test_planning_artifacts.bats:22-27` records the consequence
-explicitly: the suite deliberately does not assert that an owner named in
+The header comment of `tests/test_planning_artifacts.bats` recorded the consequence
+explicitly: the suite deliberately did not assert that an owner named in
 a template is a skill that exists, because `project-feasibility` and
 `project-planning` are specified by ADR 002 and not yet built. Phase 3
 retires half of that exemption.
@@ -273,4 +273,4 @@ dimension, which is what that section is for.
 5. Update the #69 checklist and note that owner-existence tightening is
    now partial rather than absent.
 
-Step 4 requires `bats` on the host — `BUILDING.md:215`.
+Step 4 requires `bats` on the host — `BUILDING.md` §Running the test suite.

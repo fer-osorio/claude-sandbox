@@ -12,7 +12,7 @@ revision 1)
 (`docs/designs/0025-podman-migration.md`), which was explicitly step two of
 three pre-merge tasks named in the testing SDD's own introduction:
 *"testing → Podman migration → config evaluation"*
-(`docs/designs/0011-claude-sandbox-testing-module-sdd.md` line 51). This
+(`docs/designs/0011-claude-sandbox-testing-module-sdd.md` §1.1 Purpose). This
 document is that third task.
 
 Today, profile and runtime configuration is hardcoded and duplicated

@@ -31,8 +31,9 @@ The Phase 2 change was scoped as output routing: add an output section to a
 SKILL.md, touch no reasoning logic. That describes the diff accurately and
 the blast radius inaccurately.
 
-`swe-prior-art-research` lives in `global-claude/skills/`. `start.sh:240-242`
-mounts `global-claude/` readonly at `/run/claude-global` for every session,
+`swe-prior-art-research` lives in `global-claude/skills/`. `start.sh`
+mounts `global-claude/` readonly at `/run/claude-global` for every session
+(since ADR 013, a staged copy of it),
 and `base/entrypoint.sh:26` copies the whole tree into `~/.claude`. The
 mount is not conditioned on the project. A rule written into that skill
 therefore applies in every repository the sandbox is ever pointed at, not

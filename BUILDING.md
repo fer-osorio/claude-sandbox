@@ -58,7 +58,7 @@ silent degradation rather than a crash, so the gap is worth stating.
 |---|---|---|
 | A container engine: rootless Podman, or Docker via `ENGINE=docker` | `start.sh` | No session starts |
 | Container UID matches the host UID owning the mounted project | Build-time `HOST_UID` under Docker; `--userns=keep-id` under Podman (`start.sh`) | Git reports an ownership warning. Rebuild the image — never work around it with `safe.directory` or `chmod -R a+w` |
-| ~2 GiB RAM and 2 CPUs per session | `start.sh:58-59`, overridable via `config.local.sh` or the environment | Sessions are killed or crawl |
+| ~2 GiB RAM and 2 CPUs per session | `MAIN_MEMORY`/`MAIN_CPUS` in `start.sh`'s layer-1 defaults, overridable via `config.local.sh` or the environment | Sessions are killed or crawl |
 | Egress reaches the Squid allowlist | `squid/squid.conf` | Network calls are refused at the proxy, visibly |
 | SELinux hosts relabel bind mounts | [SELinux relabeling](#selinux-relabeling-fedora--other-selinux-enforcing-hosts) — automatic under Podman | `EACCES` on the mounted project |
 | `bats-core` on the host, to run the engine-gated test tiers | [Running the test suite](#running-the-test-suite) | Only the `hostonly` tier runs, from inside a session or in CI; everything needing an image or a container does not |
@@ -69,7 +69,7 @@ silent degradation rather than a crash, so the gap is worth stating.
 |---|---|---|
 | The kernel delegates cgroups v2 `memory` to the user session | R-6 in `tests/test_runtime_posture.bats`; [Podman prerequisites](#podman-prerequisites-rootless-wsl2) | **Podman accepts `--memory` and never enforces it.** The container looks healthy and the limit is decorative. Only a deliberate OOM probe finds it — this is the worked example of the gap between the tiers, and under WSL 2.5.x it is an upstream regression rather than a one-time setup error |
 | Toolchains are baked into the image, never installed at runtime | §Interpreter discipline in the injected `global-claude/CLAUDE.md` | Build artifacts outlive the interpreter they were built against |
-| `GH_TOKEN` is exported on the host, or stored for the project | Forwarded conditionally by `start.sh:243`; `./creds.sh add <project> GH_TOKEN` is the encrypted alternative | Issue and PR work fails inside the session, though everything else runs |
+| `GH_TOKEN` is exported on the host, or stored for the project | Forwarded conditionally by `start.sh`'s `ENV_ARGS` block; `./creds.sh add <project> GH_TOKEN` is the encrypted alternative | Issue and PR work fails inside the session, though everything else runs |
 | `age` on the host, for projects that have stored credentials | `start.sh` decrypts at launch; see `docs/designs/0129-encrypted-credential-store.md` | Any project with a credential file refuses to start, loudly and by design. A project with none is unaffected, so absence stays invisible until the first stored credential — which is why this is a tier the design assumes rather than one a session needs |
 | The model driving the session holds the judgment rules the instruction layer asks for | Nowhere | Unknown. Nothing records which capability tier those rules were written against, or which degrades first under a weaker one — a named gap, with no mechanism proposed |
 

@@ -35,11 +35,10 @@ PROJECT_DIR="$(realpath "$PROJECT_DIR")"
 IMAGE_TAG="${2:-base}"
 ```
 
-— `start.sh` lines 75–77
+— `start.sh`, before this design
 
-The directory is then validated (lines 85–88), the profile is checked
-against `PROFILES` (lines 90–94), and `PROJECT_DIR` is bind-mounted at
-`/workspace` (line 162).
+The directory is then validated, the profile is checked against
+`PROFILES`, and `PROJECT_DIR` is bind-mounted at `/workspace`.
 
 ### The problem
 
@@ -347,7 +346,7 @@ Three deliberate choices in that mechanism:
 - **No override of a committed name from `config.local.sh`.** Addition is
   supported (see Layering, above); redefinition is actively reverted, not
   merely discouraged in prose — the distinction this revision introduced.
-- **No change to container naming.** `start.sh` line 233 names the
+- **No change to container naming.** `start.sh` names the
   container from `basename "$PROJECT_DIR"`. Using the registry name
   instead would be a marginal readability gain in `podman ps` output, but
   it changes an output format the runtime-posture tests inspect. Out of

@@ -35,8 +35,9 @@ redefine one that's already there. Full rationale:
 
 Each session is a fresh, ephemeral container: your project directory is
 bind-mounted, the container runs non-root with capabilities dropped and
-outbound network restricted to an allowlist (Anthropic API + package
-registries), and the container is removed when the session ends. Nothing
+outbound network restricted to an allowlist (the Anthropic API, package
+registries, GitHub, and a set of documentation sites; the list is
+`squid/squid.conf`), and the container is removed when the session ends. Nothing
 in the container's own filesystem persists to the next session — only your
 project directory does. See
 [`docs/claude-code-security-plan.md`](claude-code-security-plan.md) for the

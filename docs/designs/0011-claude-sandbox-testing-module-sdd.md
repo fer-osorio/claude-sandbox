@@ -28,6 +28,7 @@
 | 1.5 | 2026-10-26 | Fernando | Global-layer size checks by load class (#128): D-7 retired, D-15 (skill descriptions) and D-16 (`SKILL.md` length) added, and D-6 now cites the vendor's figure. `hostonly` count 50 to 51 |
 | 1.6 | 2026-10-27 | Fernando | D-17 added (#164): the `design` skill's copy of the diagram-form criterion matches ADR 011 decision 1. `hostonly` count 51 to 52 |
 | 1.7 | 2026-10-28 | Fernando | C-22 to C-28 added (#136): skill selection, observed through a stand-in engine that records `start.sh`'s own `/run/claude-global` mount and lists the staged copy. `hostonly` count 52 to 59 |
+| 1.8 | 2026-10-28 | Fernando | C-29 to C-39 added (#147): `creds.sh` through a stand-in `age` that stores in the clear, and `start.sh --list`. `hostonly` count 59 to 70 |
 
 ---
 
@@ -276,7 +277,9 @@ C-7 onward exercise `@name` registry resolution by running a copy of the real
 `start.sh` with `ENGINE=true` — a no-op stand-in that satisfies every engine
 check without contacting a daemon, so the resolution path is tested end to end
 with no engine present. C-22 onward replace `ENGINE=true` with a stand-in that
-records `start.sh`'s mount arguments. No test in this group reads or writes an
+records `start.sh`'s mount arguments. C-29 onward run a copy of `creds.sh`
+against a stand-in `age` that writes in the clear, so a test reads what was
+stored. No test in this group reads or writes an
 operator's real `config.local.sh`.
 
 | ID | Test | Assertion |
@@ -286,7 +289,7 @@ operator's real `config.local.sh`.
 | C-3 | `PROFILES` matches the tree | Every profile `config.sh` declares has a corresponding profile directory, and vice versa |
 | C-4 | `PROFILE_BASE` references only declared profiles | No entry names a profile absent from `PROFILES` |
 | C-5 | Unknown build target refused | `build.sh` with a target outside `PROFILES` exits non-zero without touching an engine — the refusal is a config-layer decision, so it must not depend on a daemon |
-| C-6 | Both entry points source `config.sh` | `build.sh` and `start.sh` read the shared file rather than each carrying a re-copied literal list |
+| C-6 | Both entry points source `config.sh` | `build.sh` and `start.sh` (through `lib/config.sh`) read the shared file rather than each carrying a re-copied literal list |
 | C-7 | `@name` resolves | A registered name yields both its path and its registry profile |
 | C-8 | Explicit profile wins | A second argument overrides the profile the registry supplies |
 | C-9 | Unknown `@name` refused | Exits non-zero and never reaches the engine |
@@ -302,6 +305,17 @@ operator's real `config.local.sh`.
 | C-26 | Overlay names are not selectable | A name present only in the profile overlay is refused, and the message says why |
 | C-27 | Selection layers like every other value | `config.local.sh` sets it, and an empty environment value still overrides that |
 | C-28 | The mount is a read-only, temporary copy | `start.sh`'s own `/run/claude-global` mount is `readonly`, sources the staged copy rather than `global-claude/`, and the copy is gone after exit |
+| C-29 | `creds.sh` resolves `@name` | The value lands in the file `start.sh` decrypts for the registry path |
+| C-30 | Unknown `@name` refused by `creds.sh` | Named in the error, and nothing is stored |
+| C-31 | Piped value | Stored with trailing newlines stripped |
+| C-32 | `--value-file` | Read, wins over a piped stdin; a missing file is refused |
+| C-33 | `--from-env` | Reads the environment, never `creds.sh`'s own variables |
+| C-34 | Value as an argument refused | Not echoed, not stored |
+| C-35 | Line break refused | A value that would add a `KEY=VALUE` line is not stored |
+| C-36 | `start.sh --list` | Path, profile, origin layer and a missing marker per name, with no engine call |
+| C-37 | Empty registry listed | Says so and exits 0 |
+| C-38 | `creds.sh list --all` | Key names for every project, no value, and a file that fails to decrypt is reported without stopping the loop |
+| C-39 | Argument errors | On stderr, checked before `age` or the store, and naming the command that fixes them |
 
 ### 4.7 Group 7 — Documentation Integrity
 
@@ -446,7 +460,7 @@ of this section would otherwise do:
 | `container` | Environment needed | Needs an engine, a built image, or both | 1, 2, 3, 4, 5 |
 | `hostfidelity` | Environment fidelity | Needs a host whose cgroup or mandatory-access-control layout a hosted runner does not provide | R-6 only |
 
-`hostonly` and `container` partition the suite: 59 tests and 32, no overlap,
+`hostonly` and `container` partition the suite: 70 tests and 32, no overlap,
 and every test carries exactly one of them. They are declared as `file_tags`,
 because `setup()` runs for every selected test in a file, so engine access is a
 property of the file (see the placement rule below).
@@ -582,6 +596,7 @@ Consistent with the fail-fast philosophy already established in `setup.sh` / `ru
 | `docs/designs/0003-global-layer-injection.md` | §5.2, Denial of Service — "Global layer size discipline" | D-6, D-15, D-16 |
 | `docs/designs/0128-global-layer-load-class-bounds.md` | Decisions 1 to 5, bounds per load class | D-6, D-15, D-16 |
 | `docs/adr/013-skill-selection-and-external-skills.md` | Decisions 1 and 2, selection and the staged mount | C-22 through C-28 |
+| `docs/designs/0147-cli-credential-input-and-ergonomics.md` | Decisions 1 to 6 | C-29 through C-39 |
 | `docs/adr/012-diagram-form-in-every-project.md` | Decision 3, the injected copy of ADR 011 decision 1 | D-17 |
 | `docs/designs/docs-as-code-workflow.md` | §3 Case D, ADR format and Status values | D-3 |
 

@@ -36,6 +36,7 @@ teardown() {
 _reg_fixture_dir() {
     REG_TMPDIR="$(mktemp -d)"
     cp "${SANDBOX_DIR}/start.sh" "${REG_TMPDIR}/start.sh"
+    cp -r "${SANDBOX_DIR}/lib" "${REG_TMPDIR}/lib"
 }
 
 # A project directory plus an empty credential store, both inside REG_TMPDIR
@@ -167,8 +168,11 @@ _path_without_age() {
     # Structural guard for the drift problem this design exists to fix:
     # both scripts must read PROFILES from the same sourced file rather
     # than hardcoding their own copies that could silently diverge again.
+    # start.sh reaches config.sh through lib/config.sh, which creds.sh
+    # shares (docs/designs/0147-cli-credential-input-and-ergonomics.md).
     grep -Eq 'source "\$\{?SANDBOX_DIR\}?/config\.sh"' "${SANDBOX_DIR}/build.sh"
-    grep -Eq 'source "\$\{?SANDBOX_DIR\}?/config\.sh"' "${SANDBOX_DIR}/start.sh"
+    grep -Eq 'source "\$\{?SANDBOX_DIR\}?/config\.sh"' "${SANDBOX_DIR}/lib/config.sh"
+    grep -Eq 'source "\$\{?SANDBOX_DIR\}?/lib/config\.sh"' "${SANDBOX_DIR}/start.sh"
 }
 
 # C-7 onward: named project registry (docs/designs/0030-named-project-registry.md)
@@ -614,4 +618,226 @@ _staged() { sed -n 's/^staged //p' "$STUB_LOG"; }
     src="${src%%,*}"
     [ "$src" != "${REG_TMPDIR}/global-claude" ]
     [ ! -e "$src" ]
+}
+
+# C-29 onward: creds.sh's command line
+# (docs/designs/0147-cli-credential-input-and-ergonomics.md). The store is a
+# stand-in: its 'age' writes stdin to -o in the clear and decrypts by cat, so
+# a test reads what creds.sh stored straight from the file. A file starting
+# with CORRUPT fails to decrypt.
+#
+# Negative controls, each run against the test named: skipping @name
+# resolution (C-29, C-30); ${!NAME} for printenv (C-33); dropping the
+# line-break check (C-35); ignoring an extra argument (C-34); reading stdin
+# without stripping (C-31); letting a non-tty stdin override a flag (C-32,
+# C-33); a fixed --list origin, no missing marker, or --list after an engine
+# call (C-36; the last also C-37); --all printing whole lines, stopping at
+# the first unreadable file, or not dispatched (C-38); an error on stdout,
+# age checked before arguments, or no hint for an @name as migrate's <old>
+# (C-39).
+
+# Copies creds.sh and lib/ into REG_TMPDIR, registers 'mylib' at
+# REG_TMPDIR/proj in config.sh, and creates an initialised store.
+_creds_fixture() {
+    _reg_fixture_dir
+    _cred_fixture
+    cp "${SANDBOX_DIR}/creds.sh" "${REG_TMPDIR}/creds.sh"
+    cat > "${REG_TMPDIR}/config.sh" <<CONF
+declare -A PROJECT_PATH=( [mylib]="${REG_TMPDIR}/proj" )
+declare -A PROJECT_PROFILE=( [mylib]="base" )
+CONF
+    printf 'wrapped\n' > "${REG_TMPDIR}/store/identity.age"
+    printf 'age1stub\n' > "${REG_TMPDIR}/store/recipient.pub"
+    _stub_age '
+out=""; dec=0; last=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -o) out="$2"; shift 2 ;;
+        -d) dec=1; shift ;;
+        -i|-R|-r) shift 2 ;;
+        *) last="$1"; shift ;;
+    esac
+done
+if [ -n "$out" ]; then cat > "$out"; exit; fi
+if [ "$dec" = 1 ]; then grep -q "^CORRUPT" "$last" && exit 1; cat "$last"; fi'
+}
+
+# Runs the fixture's creds.sh with the stand-in age and store. Arguments go
+# to creds.sh; stdin is the caller's, and bats' run captures stderr too. A
+# call whose value does not come from stdin still redirects it from
+# /dev/null, so a regression that reads stdin fails instead of hanging.
+_creds() {
+    PATH="${REG_TMPDIR}/bin:$PATH" CREDENTIALS_DIR="${REG_TMPDIR}/store" \
+        bash "${REG_TMPDIR}/creds.sh" "$@"
+}
+
+# The stored file for a project path, named as start.sh names it.
+_store_file() {
+    printf '%s/store/%s.age' "$REG_TMPDIR" \
+        "$(printf '%s' "$(realpath "$1")" | sha256sum | cut -d' ' -f1)"
+}
+
+# bats test_tags=fast, hostonly
+@test "C-29: creds.sh resolves @name to the same file start.sh decrypts" {
+    _creds_fixture
+
+    run _creds add @mylib API_KEY <<< 'v1'
+    [ "$status" -eq 0 ]
+    [ "$(cat "$(_store_file "${REG_TMPDIR}/proj")")" = "API_KEY=v1" ]
+
+    run _creds list @mylib < /dev/null
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"API_KEY"* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-30: an unknown @name in creds.sh is refused by name, and nothing is stored" {
+    _creds_fixture
+
+    run _creds add @nosuch API_KEY <<< 'v1'
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"unknown project 'nosuch'"* ]]
+    [[ "$output" == *"mylib"* ]]
+    [ -z "$(ls "${REG_TMPDIR}/store" | grep -vx 'identity.age' | grep '\.age$')" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-31: a piped value is stored, with its trailing newline stripped" {
+    _creds_fixture
+
+    run _creds add "${REG_TMPDIR}/proj" API_KEY < <(printf 'from-pipe\n\n')
+    [ "$status" -eq 0 ]
+    [ "$(cat "$(_store_file "${REG_TMPDIR}/proj")")" = "API_KEY=from-pipe" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-32: --value-file is read, wins over stdin, and a missing file is refused" {
+    _creds_fixture
+    printf 'from-file\n' > "${REG_TMPDIR}/value"
+
+    run _creds add "${REG_TMPDIR}/proj" API_KEY --value-file "${REG_TMPDIR}/value" <<< 'from-pipe'
+    [ "$status" -eq 0 ]
+    [ "$(cat "$(_store_file "${REG_TMPDIR}/proj")")" = "API_KEY=from-file" ]
+
+    run _creds add "${REG_TMPDIR}/proj" OTHER --value-file "${REG_TMPDIR}/absent" < /dev/null
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"is not a readable file"* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-33: --from-env reads the environment, never creds.sh's own variables" {
+    _creds_fixture
+
+    SECRET_SRC=from-env run _creds add "${REG_TMPDIR}/proj" API_KEY --from-env SECRET_SRC < /dev/null
+    [ "$status" -eq 0 ]
+    [ "$(cat "$(_store_file "${REG_TMPDIR}/proj")")" = "API_KEY=from-env" ]
+
+    # 'key' is a local of cmd_add holding "OTHER": ${!NAME} would store it.
+    run _creds add "${REG_TMPDIR}/proj" OTHER --from-env key < /dev/null
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"empty value"* ]]
+    [[ "$(cat "$(_store_file "${REG_TMPDIR}/proj")")" != *OTHER* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-34: a value given as an argument is refused, not echoed, and not stored" {
+    _creds_fixture
+
+    run _creds add "${REG_TMPDIR}/proj" API_KEY s3cret-literal < /dev/null
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"visible in ps"* ]]
+    [[ "$output" != *"s3cret-literal"* ]]
+    [ ! -e "$(_store_file "${REG_TMPDIR}/proj")" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-35: a value with a line break is refused rather than splitting the store" {
+    _creds_fixture
+
+    run _creds add "${REG_TMPDIR}/proj" API_KEY < <(printf 'line1\nINJECTED=1\n')
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"line break"* ]]
+    [ ! -e "$(_store_file "${REG_TMPDIR}/proj")" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-36: start.sh --list shows each name's path, profile and layer, with no engine" {
+    _reg_fixture_dir
+    mkdir -p "${REG_TMPDIR}/proj"
+    cat > "${REG_TMPDIR}/config.sh" <<EOF2
+declare -A PROJECT_PATH=( [mylib]="${REG_TMPDIR}/proj" [gone]="${REG_TMPDIR}/absent" )
+declare -A PROJECT_PROFILE=( [mylib]=crypto [gone]=base )
+EOF2
+    cat > "${REG_TMPDIR}/config.local.sh" <<EOF2
+PROJECT_PATH[extra]="${REG_TMPDIR}/proj"; PROJECT_PROFILE[extra]=base
+PROJECT_PATH[mylib]=/etc
+EOF2
+
+    # ENGINE=false: any engine call would fail, so exit 0 proves none ran.
+    run env ENGINE=false bash "${REG_TMPDIR}/start.sh" --list
+    [ "$status" -eq 0 ]
+    echo "$output" | grep -Eq "^@mylib +crypto +config\.sh +${REG_TMPDIR}/proj\$"
+    echo "$output" | grep -Eq "^@extra +base +config\.local\.sh +${REG_TMPDIR}/proj\$"
+    echo "$output" | grep -Eq "^@gone .*${REG_TMPDIR}/absent +\(missing\)\$"
+    [[ "$output" == *"redefines committed project 'mylib'"* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-37: start.sh --list with an empty registry says so and exits 0" {
+    _reg_fixture_dir
+    printf 'declare -A PROJECT_PATH=()\ndeclare -A PROJECT_PROFILE=()\n' > "${REG_TMPDIR}/config.sh"
+
+    run env ENGINE=false bash "${REG_TMPDIR}/start.sh" --list
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"No projects registered"* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-38: creds.sh list --all shows every project's key names, never a value, and reports a bad file" {
+    _creds_fixture
+    mkdir -p "${REG_TMPDIR}/proj2" "${REG_TMPDIR}/proj3"
+    _creds add "${REG_TMPDIR}/proj" API_KEY <<< 'value-one'
+    _creds add "${REG_TMPDIR}/proj2" PYPI_TOKEN <<< 'value-two'
+    printf 'CORRUPT\n' > "$(_store_file "${REG_TMPDIR}/proj3")"
+    printf '%s\t%s\n' "$(basename "$(_store_file "${REG_TMPDIR}/proj3")" .age)" \
+        "$(realpath "${REG_TMPDIR}/proj3")" >> "${REG_TMPDIR}/store/index"
+
+    run _creds list --all < /dev/null
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"$(realpath "${REG_TMPDIR}/proj")"$'\n'"  API_KEY"* ]]
+    [[ "$output" == *"$(realpath "${REG_TMPDIR}/proj2")"$'\n'"  PYPI_TOKEN"* ]]
+    [[ "$output" == *"could not decrypt"* ]]
+    [[ "$output" == *"1 of 3"* ]]
+    [[ "$output" != *value-one* ]]
+    [[ "$output" != *value-two* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-39: argument errors go to stderr and name the command that fixes them" {
+    bats_require_minimum_version 1.5.0
+    _creds_fixture
+
+    run --separate-stderr env ENGINE=true bash "${REG_TMPDIR}/start.sh" @nosuch
+    [ "$status" -ne 0 ]
+    [ -z "$output" ]
+    [[ "$stderr" == *"unknown project 'nosuch'"* ]]
+    [[ "$stderr" == *"./start.sh --list"* ]]
+
+    # Arguments are checked before the store or age: a PATH without age, and
+    # an empty store, prove it. The PATH keeps dirname, without which
+    # creds.sh would take the caller's directory for its own and source the
+    # config there.
+    run --separate-stderr env PATH="$(_path_without_age)" \
+        CREDENTIALS_DIR="${REG_TMPDIR}/nostore" bash "${REG_TMPDIR}/creds.sh" add "${REG_TMPDIR}/proj"
+    [ "$status" -ne 0 ]
+    [ -z "$output" ]
+    [[ "$stderr" == *"Usage: ./creds.sh add <project> <KEY>"* ]]
+
+    run --separate-stderr _creds frob
+    [ "$status" -ne 0 ]
+    [[ "$stderr" == *"unknown command 'frob'"* ]]
+
+    run --separate-stderr _creds migrate @mylib "${REG_TMPDIR}/proj"
+    [ "$status" -ne 0 ]
+    [[ "$stderr" == *"not an @name"* ]]
 }

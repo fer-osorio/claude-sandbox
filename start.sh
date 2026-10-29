@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Usage: start.sh [<project_directory> | @<name>] [image]
+#        start.sh --list    — registered @names, their paths, profiles, and
+#                             the config layer each came from
 #
 # Arguments:
 #   project_directory  — path to the project to mount (default: current dir)
@@ -74,44 +76,12 @@ PROXY_LOG_MAX_FILE="3"
 # directly by the agent. See docs/designs/0129-encrypted-credential-store.md
 # §Store location.
 CREDENTIALS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/claude-sandbox/credentials"
-declare -A PROJECT_PATH=()
-declare -A PROJECT_PROFILE=()
 # Unset means every committed skill is injected. See
 # docs/adr/013-skill-selection-and-external-skills.md, decision 1.
 unset GLOBAL_SKILLS
 
-# --- Layer 2: committed, project-wide config.
-[ -f "${SANDBOX_DIR}/config.sh" ] && source "${SANDBOX_DIR}/config.sh"
-
-# Snapshot of the committed registry, taken before config.local.sh can see
-# or touch it. Used below to detect and revert an attempt to redefine a
-# committed name — see "Layering: config.local.sh may add, not override"
-# in docs/designs/0030-named-project-registry.md. Adding a name not present in
-# config.sh is unrestricted; this only guards names that are.
-declare -A COMMITTED_PROJECT_PATH=()
-declare -A COMMITTED_PROJECT_PROFILE=()
-for _name in "${!PROJECT_PATH[@]}"; do
-    COMMITTED_PROJECT_PATH[$_name]="${PROJECT_PATH[$_name]}"
-    COMMITTED_PROJECT_PROFILE[$_name]="${PROJECT_PROFILE[$_name]:-}"
-done
-unset _name
-
-# --- Layer 3: gitignored, per-machine overrides.
-[ -f "${SANDBOX_DIR}/config.local.sh" ] && source "${SANDBOX_DIR}/config.local.sh"
-
-# Revert (and warn about) any committed project name config.local.sh
-# redefined. An operator who wants to repoint a committed name edits
-# config.sh instead — a one-line, reviewed change.
-for _name in "${!COMMITTED_PROJECT_PATH[@]}"; do
-    if [[ "${PROJECT_PATH[$_name]:-}" != "${COMMITTED_PROJECT_PATH[$_name]}" ]] \
-    || [[ "${PROJECT_PROFILE[$_name]:-}" != "${COMMITTED_PROJECT_PROFILE[$_name]}" ]]; then
-        echo "Warning: config.local.sh redefines committed project '$_name';" \
-             "ignoring the local value (config.sh wins)." >&2
-        PROJECT_PATH[$_name]="${COMMITTED_PROJECT_PATH[$_name]}"
-        PROJECT_PROFILE[$_name]="${COMMITTED_PROJECT_PROFILE[$_name]}"
-    fi
-done
-unset _name
+# --- Layers 2 and 3, and the project registry.
+source "${SANDBOX_DIR}/lib/config.sh"
 
 # --- Layer 4: env var wins over everything sourced above.
 ENGINE="${_ENV_ENGINE:-$ENGINE}"
@@ -127,6 +97,29 @@ if [ -n "$_ENV_GLOBAL_SKILLS_SET" ]; then
     GLOBAL_SKILLS="$_ENV_GLOBAL_SKILLS"
 fi
 
+# --list: the registry as both config layers leave it, before any engine
+# check, so it works with no engine running.
+if [ "${1:-}" = "--list" ]; then
+    if [ ${#PROJECT_PATH[@]} -eq 0 ]; then
+        echo "No projects registered. Add one to config.sh or config.local.sh;"
+        echo "see docs/designs/0030-named-project-registry.md."
+        exit 0
+    fi
+    _w=4
+    for _name in "${!PROJECT_PATH[@]}"; do
+        [ $(( ${#_name} + 1 )) -gt $_w ] && _w=$(( ${#_name} + 1 ))
+    done
+    printf '%-*s  %-8s  %-15s  %s\n' "$_w" NAME PROFILE ORIGIN PATH
+    while IFS= read -r _name; do
+        _path="${PROJECT_PATH[$_name]}"
+        _note=""
+        [ -d "$_path" ] || _note="  (missing)"
+        printf '%-*s  %-8s  %-15s  %s%s\n' "$_w" "@${_name}" \
+            "${PROJECT_PROFILE[$_name]:--}" "${PROJECT_ORIGIN[$_name]}" "$_path" "$_note"
+    done < <(printf '%s\n' "${!PROJECT_PATH[@]}" | sort)
+    exit 0
+fi
+
 PROJECT_ARG="${1:-$(pwd)}"
 IMAGE_TAG="${2:-}"
 
@@ -135,30 +128,7 @@ IMAGE_TAG="${2:-}"
 # check below, so a resolved registry path receives exactly the
 # validation an explicit path receives.
 if [[ "$PROJECT_ARG" == @* ]]; then
-    PROJECT_NAME="${PROJECT_ARG#@}"
-
-    if [ -z "$PROJECT_NAME" ]; then
-        echo "Error: '@' is not a project name."
-        exit 1
-    fi
-
-    # ':-' is required: under 'set -u' a lookup on a missing associative
-    # array key aborts the script with a bash error instead of reaching
-    # the message below.
-    RESOLVED_PATH="${PROJECT_PATH[$PROJECT_NAME]:-}"
-    if [ -z "$RESOLVED_PATH" ]; then
-        echo "Error: unknown project '$PROJECT_NAME'."
-        echo "Registered projects: ${!PROJECT_PATH[*]}"
-        echo "Add it to config.sh, or pass a path instead."
-        exit 1
-    fi
-
-    RESOLVED_PROFILE="${PROJECT_PROFILE[$PROJECT_NAME]:-}"
-    if [ -z "$RESOLVED_PROFILE" ]; then
-        echo "Error: project '$PROJECT_NAME' has a path but no profile in config.sh."
-        exit 1
-    fi
-
+    resolve_project_name "${PROJECT_ARG#@}"
     PROJECT_ARG="$RESOLVED_PATH"
     IMAGE_TAG="${IMAGE_TAG:-$RESOLVED_PROFILE}"
 fi
@@ -167,40 +137,42 @@ PROJECT_DIR="$(realpath "$PROJECT_ARG")"
 IMAGE_TAG="${IMAGE_TAG:-base}"
 
 if ! "$ENGINE" info > /dev/null 2>&1; then
-    echo "Error: $ENGINE is not reachable."
-    echo "Start $ENGINE and try again."
+    echo "Error: $ENGINE is not reachable." >&2
+    echo "Start $ENGINE and try again." >&2
     exit 1
 fi
 
 if [ ! -d "$PROJECT_DIR" ]; then
-    echo "Error: '$PROJECT_DIR' is not a directory."
+    echo "Error: '$PROJECT_DIR' is not a directory." >&2
+    echo "Pass a project directory, or a registered @name; ./start.sh --list shows them." >&2
     exit 1
 fi
 
 if ! printf '%s\n' "${PROFILES[@]}" | grep -qx "$IMAGE_TAG"; then
-    echo "Error: unknown image '$IMAGE_TAG'."
-    echo "Valid options: ${PROFILES[*]}"
+    echo "Error: unknown image '$IMAGE_TAG'." >&2
+    echo "Valid options: ${PROFILES[*]}" >&2
+    echo "Pass one as the second argument, or add the profile to config.sh's PROFILES." >&2
     exit 1
 fi
 
 IMAGE_NAME="${IMAGE_PREFIX}-${IMAGE_TAG}"
 
 if ! "$ENGINE" image inspect "$IMAGE_NAME" > /dev/null 2>&1; then
-    echo "Error: image '$IMAGE_NAME' does not exist."
-    echo "Build it first with: ./build.sh $IMAGE_TAG"
+    echo "Error: image '$IMAGE_NAME' does not exist." >&2
+    echo "Build it first with: ./build.sh $IMAGE_TAG" >&2
     exit 1
 fi
 
 if ! "$ENGINE" network inspect claude-net > /dev/null 2>&1; then
-    echo "Error: network 'claude-net' does not exist."
-    echo "Create it with: $ENGINE network create --driver bridge claude-net"
+    echo "Error: network 'claude-net' does not exist." >&2
+    echo "Create it with: $ENGINE network create --driver bridge claude-net" >&2
     exit 1
 fi
 
 SQUID_IMAGE_NAME="${IMAGE_PREFIX}-squid"
 if ! "$ENGINE" image inspect "$SQUID_IMAGE_NAME" > /dev/null 2>&1; then
-    echo "Error: image '$SQUID_IMAGE_NAME' does not exist."
-    echo "Build it first with: ./build.sh squid"
+    echo "Error: image '$SQUID_IMAGE_NAME' does not exist." >&2
+    echo "Build it first with: ./build.sh squid" >&2
     exit 1
 fi
 
@@ -233,9 +205,9 @@ if [ -n "${GLOBAL_SKILLS+set}" ]; then
     read -r -a SELECTED_SKILLS <<< "$GLOBAL_SKILLS"
     for _skill in "${SELECTED_SKILLS[@]}"; do
         if ! [[ "$_skill" =~ ^[a-z0-9][a-z0-9-]*$ ]] || [ ! -d "${GLOBAL_BASE}/skills/${_skill}" ]; then
-            echo "Error: GLOBAL_SKILLS names '$_skill', which is not a skill under ${GLOBAL_BASE}/skills/."
+            echo "Error: GLOBAL_SKILLS names '$_skill', which is not a skill under ${GLOBAL_BASE}/skills/." >&2
             if [ -d "${GLOBAL_OVERLAY}/skills/${_skill}" ] && [ "$IMAGE_TAG" != "base" ]; then
-                echo "It is an overlay skill; the overlay comes with the profile and is not selectable."
+                echo "It is an overlay skill; the overlay comes with the profile and is not selectable." >&2
             fi
             exit 1
         fi
@@ -309,9 +281,9 @@ if [ -f "$CRED_FILE" ]; then
     CRED_DIR_REAL="$(realpath "$CREDENTIALS_DIR")"
     case "${CRED_DIR_REAL}/" in
         "${PROJECT_DIR}"/*)
-            echo "Error: the credential store at $CRED_DIR_REAL is inside the project directory."
-            echo "It would be mounted at /workspace, where the session could read it."
-            echo "Move it or set CREDENTIALS_DIR — see docs/designs/0129-encrypted-credential-store.md §Store location."
+            echo "Error: the credential store at $CRED_DIR_REAL is inside the project directory." >&2
+            echo "It would be mounted at /workspace, where the session could read it." >&2
+            echo "Move it or set CREDENTIALS_DIR — see docs/designs/0129-encrypted-credential-store.md §Store location." >&2
             exit 1
             ;;
     esac
@@ -321,16 +293,16 @@ if [ -f "$CRED_FILE" ]; then
     # failure docs/planning/0129-encrypted-credential-store/feasibility.md
     # §Risk inventory names.
     if ! command -v age > /dev/null 2>&1; then
-        echo "Error: '$PROJECT_DIR' has stored credentials but 'age' is not installed."
-        echo "Install it (BUILDING.md §Prerequisites), or remove them with ./creds.sh rm."
+        echo "Error: '$PROJECT_DIR' has stored credentials but 'age' is not installed." >&2
+        echo "Install it (BUILDING.md §Prerequisites), or remove them with ./creds.sh rm." >&2
         exit 1
     fi
 
     # The unwrapped identity exists only as a file descriptor — never a
     # variable, never a file, never an argument.
     if ! CRED_PLAINTEXT="$(age -d -i <(age -d "${CREDENTIALS_DIR}/identity.age") "$CRED_FILE" 2> /dev/null)"; then
-        echo "Error: the credential store for this project failed to decrypt."
-        echo "Fail-closed per docs/designs/0129-encrypted-credential-store.md §start.sh integration — aborting session."
+        echo "Error: the credential store for this project failed to decrypt." >&2
+        echo "Fail-closed per docs/designs/0129-encrypted-credential-store.md §start.sh integration — aborting session." >&2
         exit 1
     fi
 
@@ -354,14 +326,14 @@ if [ -f "$CRED_FILE" ]; then
 
         _cred_key="${_cred_line%%=*}"
         if ! [[ "$_cred_key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
-            echo "Error: stored credential name '$_cred_key' is not a usable variable name."
-            echo "Fix it with ./creds.sh, then start again."
+            echo "Error: stored credential name '$_cred_key' is not a usable variable name." >&2
+            echo "Fix it with ./creds.sh, then start again." >&2
             exit 1
         fi
         for _denied in "${DENIED_CRED_KEYS[@]}"; do
             if [ "$_cred_key" = "$_denied" ]; then
-                echo "Error: stored credential '$_cred_key' changes how start.sh itself runs."
-                echo "Remove it with: ./creds.sh rm '$PROJECT_DIR' '$_cred_key'"
+                echo "Error: stored credential '$_cred_key' changes how start.sh itself runs." >&2
+                echo "Remove it with: ./creds.sh rm '$PROJECT_DIR' '$_cred_key'" >&2
                 exit 1
             fi
         done
@@ -467,8 +439,8 @@ if ! "$ENGINE" run -d \
     --security-opt=no-new-privileges \
     "${PROXY_LOG_ARGS[@]}" \
     "$SQUID_IMAGE_NAME" > /dev/null; then
-    echo "Error: Squid proxy failed to start."
-    echo "Fail-closed per docs/designs/0012-squid-proxy-integration.md §6.3 — aborting session."
+    echo "Error: Squid proxy failed to start." >&2
+    echo "Fail-closed per docs/designs/0012-squid-proxy-integration.md §6.3 — aborting session." >&2
     exit 1
 fi
 

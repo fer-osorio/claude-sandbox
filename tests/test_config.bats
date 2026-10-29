@@ -823,8 +823,12 @@ EOF2
     [[ "$stderr" == *"unknown project 'nosuch'"* ]]
     [[ "$stderr" == *"./start.sh --list"* ]]
 
-    # Arguments are checked before the store or age: an empty PATH proves it.
-    run --separate-stderr env PATH=/nonexistent "$BASH" "${REG_TMPDIR}/creds.sh" add "${REG_TMPDIR}/proj"
+    # Arguments are checked before the store or age: a PATH without age, and
+    # an empty store, prove it. The PATH keeps dirname, without which
+    # creds.sh would take the caller's directory for its own and source the
+    # config there.
+    run --separate-stderr env PATH="$(_path_without_age)" \
+        CREDENTIALS_DIR="${REG_TMPDIR}/nostore" bash "${REG_TMPDIR}/creds.sh" add "${REG_TMPDIR}/proj"
     [ "$status" -ne 0 ]
     [ -z "$output" ]
     [[ "$stderr" == *"Usage: ./creds.sh add <project> <KEY>"* ]]

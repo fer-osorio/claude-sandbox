@@ -18,7 +18,7 @@ artifact with `status: Approved`, written by the first real Planning run on
 2026-09-11. The next `/design` invocation in this repository will not read
 it.
 
-Decision 6 needs no work. Step 7 (`design/SKILL.md:265-269`) is already
+Decision 6 needs no work. Step 7 of `design/SKILL.md` is already
 unconditional and nothing waives it; the ADR records intent so a later
 reader does not remove the second gate as redundant. Saying so here keeps
 this change scoped to decisions 4 and 5.
@@ -34,7 +34,7 @@ against the tree:
   question — whether to build both sides of the handoff together — resolves
   with it. The writer exists; only the reader is missing.
 - **D-7's figure is stale.** #89 says the global layer sits at 2144 lines.
-  `tests/test_docs_integrity.bats:215` computes **2487** against a ceiling
+  D-7 in `tests/test_docs_integrity.bats` computes **2487** against a ceiling
   of 3000, counting every regular file under `global-claude/` rather than
   only `*.md`.
 - **D-9 did not exist.** ADR 005 arrived with #104 and now governs what a
@@ -54,8 +54,8 @@ written. #89 §Shape reaches the same conclusion independently.
 ADR 004 decision 4 asks for "the same found / not-found shape Step 1
 already uses". Reusing the *shape* is right; sharing the *heading* is not.
 
-Step 1's five branches all terminate by handing off to Step 2 —
-`design/SKILL.md:20, 61, 71, 72, 75`. A block appended after them is
+Step 1's five branches in `design/SKILL.md` all terminate by handing off
+to Step 2. A block appended after them is
 unreachable whichever branch fires, so "another block inside Step 1" is not
 available without editing those terminators anyway. Placing the charter
 read at the top of Step 1 instead is available, and worse: two
@@ -65,14 +65,15 @@ sharing that heading reads as a fifth alternative, and the careless reader
 is the one this change is written about.
 
 Renumbering is ruled out by citations this repository cannot rewrite.
-`global-claude/CLAUDE.md:71` pins Step 2 for case selection; ADR 004 pins
-Step 7 and "Steps 1–3" at `:99`, `:169` and `:266`, and `:169` states that
+`global-claude/CLAUDE.md` §Git Workflow pins Step 2 for case selection;
+ADR 004 pins Step 7 and "Steps 1–3" in §Decision, §Consequences and
+§References, and §Consequences states that
 decisions 4 and 5 assume the current Step 1–3 structure. ADRs are never
 rewritten.
 
 `Step 1b` preserves every external reference and costs no edit outside this
 one file. The global layer already carries the idiom:
-`global-claude/skills/commit-hook-setup/SKILL.md:45` is a `## Step 2a`, a
+`global-claude/skills/commit-hook-setup/SKILL.md` has a `## Step 2a`, a
 sequential lettered sub-step. `design`'s own 6a and 6b are alternatives
 rather than a sequence — same notation, different shape, and the
 distinction is worth noting so 1b is not read as a sibling of 6a.
@@ -88,7 +89,7 @@ Step 1b closes with the non-binding rule and ends on a short imperative:
 charter first" and "let the charter decide" are one word apart, so the
 distinction is placed where a skimming reader stops.
 
-That is not sufficient on its own. `global-claude/CLAUDE.md:71` routes
+That is not sufficient on its own. `global-claude/CLAUDE.md` §Git Workflow routes
 readers **straight to Step 2** for case selection, and a reader entering
 there never sees Step 1b. Step 2 therefore carries its own sentence: the
 charter's constraints and non-goals are inputs to the questions below; any
@@ -102,7 +103,7 @@ a node that delegates the Case to it. A charter node placed beside that
 inherits the reading by adjacency, whatever its wording — which is decision
 5's failure mode in the one location it must not occur. Prose above the
 fence is this file's existing idiom for context on the block; the
-"Secondary check" paragraph at `:103-105` sits outside it for the same
+"Secondary check" paragraph in Step 2 sits outside it for the same
 reason.
 
 ### 3. No ADR number, no skill name, no `description` change
@@ -132,11 +133,11 @@ reason.
 
 ### 4. Wording mirrors the peer skills
 
-The opt-in sentence mirrors `swe-prior-art-research/SKILL.md:99-102`,
+The opt-in sentence mirrors `swe-prior-art-research/SKILL.md` §Planning-phase output,
 including "Never create the directory", the anti-invention guard
-`project-planning/SKILL.md:79-81` depends on when it places its two peers —
+`project-planning/SKILL.md` §Scaffolding depends on when it places its two peers —
 `design` among them — in the may-not-create class. The citation sentence
-mirrors the same file at `:118-121`, keeping "a citation names a path and a
+mirrors the same file's §Workflow, keeping "a citation names a path and a
 section", which is the clause doing the work.
 
 Three skills stating one rule three ways would be three rules to keep in
@@ -150,7 +151,7 @@ invites the restatement ADR 002 decision 6 forbids.
 ## Consequences
 
 **Nothing asserts that the read happens.** ADR 004's Consequences
-(`:143-147`) already record decision 4 as rung-2 enforcement — prose in a
+already record decision 4 as rung-2 enforcement — prose in a
 SKILL.md, the weakest carrier ADR 003 names. Implementing decisions 4 and 5
 does not change that, and #89 states plainly that the issue must not be
 closed on a claim that it does. This is the same class as #88, and as the
@@ -161,7 +162,7 @@ No test file is touched. That is the honest outcome, not an omission: the
 behaviour is a model reading a file when a directory exists, and this
 repository has no harness that observes a skill's execution. Writing a
 check that asserts the *prose* is present would be a check nobody can fail
-in the sense that matters — `mechanism-verification/SKILL.md:85-87` says
+in the sense that matters — `mechanism-verification/SKILL.md` §Notes says
 the honest move is to say so rather than invent a probe.
 
 **Easier.** Design-phase work in a project carrying `docs/planning/` starts
@@ -209,9 +210,9 @@ disjunction where exactly one branch fires.
 shift.
 **Why the rejected option is attractive:** sequential integers are what a
 reader expects, and lettered sub-steps look like accreted history.
-**What breaks if you try it anyway:** `global-claude/CLAUDE.md:71` and ADR
-004 `:99, :169, :266` both cite step numbers by value, and ADR 004 `:169`
-states that decisions 4 and 5 assume the current structure. ADRs are never
+**What breaks if you try it anyway:** `global-claude/CLAUDE.md` §Git Workflow and ADR
+004 (§Decision, §Consequences, §References) both cite step numbers by
+value, and ADR 004 §Consequences states that decisions 4 and 5 assume the current structure. ADRs are never
 rewritten, so the citations cannot be corrected — they would simply become
 wrong.
 

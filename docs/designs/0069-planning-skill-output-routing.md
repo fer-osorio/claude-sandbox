@@ -18,12 +18,12 @@ of #69 built that contract — four templates in
 Nothing yet writes an artifact. `grep -rn "docs/planning" global-claude/`
 returns nothing. The contract is enforced against templates only; P-2 and
 P-4 iterate over an empty artifact set and pass trivially, which
-`tests/test_planning_artifacts.bats:14-19` states plainly.
+the header comment of `tests/test_planning_artifacts.bats` states plainly.
 
 Phase 2 closes that gap by routing the first writer,
 `swe-prior-art-research`, to `docs/planning/prior-art.md` — the path
 ADR 002 decision 2 already assigns it, and which
-`docs/planning/templates/prior-art.md:3` names in its `owner:` key.
+`docs/planning/templates/prior-art.md` names in its `owner:` key.
 
 ### The problem the plan did not account for
 
@@ -33,8 +33,8 @@ the blast radius inaccurately.
 
 `swe-prior-art-research` lives in `global-claude/skills/`. `start.sh`
 mounts `global-claude/` readonly at `/run/claude-global` for every session
-(since ADR 013, a staged copy of it),
-and `base/entrypoint.sh:26` copies the whole tree into `~/.claude`. The
+(since ADR 013, a staged copy of it), and `base/entrypoint.sh`'s base-layer
+copy puts the whole tree into `~/.claude`. The
 mount is not conditioned on the project. A rule written into that skill
 therefore applies in every repository the sandbox is ever pointed at, not
 only in this one.
@@ -53,7 +53,7 @@ gate at all outside one repository.
 
 ADR 002 decision 5 requires templates to be files rather than advice inside
 a SKILL.md. It does not say where those files live.
-`docs/planning/README.md:33-37` answered that question — `templates/`,
+`docs/planning/README.md` §Two choices ADR 002 left open answered that question — `templates/`,
 alongside the artifacts — and is explicit that it is recording an
 implementation choice ADR 002 left open, decided for this repository.
 
@@ -99,15 +99,16 @@ flag would fail in the silent-invention mode this design exists to remove.
 
 On writing its artifact the skill updates its row in
 `docs/planning/README.md`: the status cell, and the artifact name from a
-code span to a markdown link. `docs/planning/README.md:25-29` already
-specifies this, including why the names start as code spans — D-1 in
+code span to a markdown link. The index rules, since ADR 008 in
+`global-claude/templates/planning-index.md` §Index, already specify this,
+including why the names start as code spans — D-1 in
 `tests/test_docs_integrity.bats` fails on a link to a file that does not
 exist yet.
 
 ### 4. The enforcement test follows the templates
 
-`tests/test_planning_artifacts.bats:41` resolves `TEMPLATE_DIR` from
-`PLANNING_DIR`. If the templates move and that line does not, `_templates()`
+`tests/test_planning_artifacts.bats` resolves `TEMPLATE_DIR` from
+`PLANNING_DIR`. If the templates move and that assignment does not, `_templates()`
 returns an empty set and P-1, P-3, P-5 and P-6 all pass over nothing — four
 checks that carry real weight today silently becoming vacuous, in a commit
 whose stated purpose is to make the contract more enforceable.
@@ -168,11 +169,11 @@ pointer with the files and asserts the template count rather than the exit
 status.
 
 Four citations in [ADR 003](../adr/003-where-a-behavioural-rule-goes.md) go
-stale, across three lines: line 30 cites both
+stale, across three sections: §Context cites both
 `docs/planning/templates/scope.md:36-40` and `templates/charter.md:20` as
-existing carriers for "name anti-goals", line 77 cites `templates/scope.md`
-again in the placement table, and line 126 cites it once more in the
-alternatives. ADRs are never rewritten, so all four paths stay wrong
+existing carriers for "name anti-goals", §Decision cites
+`templates/scope.md` again in the placement table, and §Alternatives
+considered cites it once more. ADRs are never rewritten, so all four paths stay wrong
 permanently. This is accepted rather than mitigated — ADR 003's decision, the
 three-rung ladder, is untouched; only the evidence for one row moved, and the
 alternative is either forking the rule into two locations or leaving the
@@ -198,7 +199,7 @@ they are missing. Until Phase 4 scaffolds the directory, discovering the
 capability requires reading this document or the skill.
 
 This design assumes the entrypoint keeps copying the global tree wholesale
-(`base/entrypoint.sh:26`). A future change that copies selectively — skills
+(the base-layer copy in `base/entrypoint.sh`). A future change that copies selectively — skills
 but not templates, say — breaks decision 1 silently, in exactly the way
 decision 1 exists to prevent. Nothing currently asserts that templates arrive
 in a session — that gap predates this design, covers skills as well as
@@ -210,8 +211,8 @@ templates, and is tracked as #71.
 **Rejected:** templates stay in `docs/planning/templates/`; the skill routes
 only where that directory exists and reads the template from it.
 **Why the rejected option is attractive:** it costs zero global-layer lines,
-changes no file location, leaves `tests/test_planning_artifacts.bats:41`
-untouched, and keeps each template next to the artifacts it governs — which
+changes no file location, leaves the `TEMPLATE_DIR` assignment in
+`tests/test_planning_artifacts.bats` untouched, and keeps each template next to the artifacts it governs — which
 is genuinely the better arrangement for a human reader.
 **What breaks if you try it anyway:** every project that wants the capability
 must first copy four template files in, with no mechanism to tell it that or
@@ -256,7 +257,7 @@ side effect on the working tree. The opt-in costs one existence check.
    same commit. Confirm the checks still see four templates afterwards — an
    empty set passes silently, so the count is the assertion, not the exit
    status.
-3. Update `docs/planning/README.md:33-37` — the recorded location choice
+3. Update `docs/planning/README.md` §Two choices ADR 002 left open — the recorded location choice
    changes, and the paragraph should cite this document rather than restate
    it.
 4. Add the output-routing section to
@@ -266,5 +267,6 @@ side effect on the working tree. The opt-in costs one existence check.
 5. Update the #69 checklist: Phase 2 done, owner-existence tightening still
    pending Phases 3 and 4.
 
-Steps 1 and 4 require `bats` on the host — `BUILDING.md:215`. Neither can be
+Steps 1 and 4 require `bats` on the host — `BUILDING.md` §Running the test
+suite. Neither can be
 run from inside a sandbox session.

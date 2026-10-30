@@ -13,7 +13,7 @@ paths to a skill called `project-planning` — `docs/planning/scope.md` as the
 opening step and `docs/planning/charter.md` as the closing one. Both
 templates name that owner in their frontmatter. The skill does not exist.
 
-`tests/test_planning_artifacts.bats:186` carries
+`tests/test_planning_artifacts.bats` carries
 `_UNBUILT_OWNERS="project-planning"` for exactly this reason, and those two
 template rows are the whole of what it exempts. Phase 4 retires the other
 half of the exemption Phase 3 halved, and P-7 goes from covering two of four
@@ -167,7 +167,7 @@ run.
 
 The template goes at **`global-claude/templates/planning-index.md`** — a
 sibling of `templates/planning/`, deliberately not inside it.
-`_templates` (`tests/test_planning_artifacts.bats:100`) globs `*.md` at
+`_templates` in `tests/test_planning_artifacts.bats` globs `*.md` at
 maxdepth 1 inside `TEMPLATE_DIR`, so a fifth file dropped in that directory
 becomes a template as far as P-1 and P-6 are concerned, and would have to
 declare `artifact:`, `owner:` and a `ceiling-*` key it has no business
@@ -225,7 +225,7 @@ operational rather than aspirational, and it is the same discipline
 
 Both existing Planning skills carry the instruction "Delete the template's
 authoring comments from the output." Applied naively to `charter.md`, that
-strips the comment at `charter.md:50-56` — the one that tells a person what
+strips the comment under `charter.md` §Decision — the one that tells a person what
 to write in the section reserved for them — and leaves a bare heading under
 a document that has just made a recommendation.
 
@@ -328,7 +328,7 @@ otherwise would be the exact overstatement the suite's header was rewritten
 to prevent.
 
 **A fifth template contradicts a statement in a Draft design.**
-`0069-planning-skill-output-routing.md:190` records that "Phases 3 and 4 add no
+`0069-planning-skill-output-routing.md` §Consequences records that "Phases 3 and 4 add no
 templates, so this is the whole cost of the Planning contract." Decision 3
 adds one. That document is Draft, not an ADR, so the statement is
 changeable — but it is changed here explicitly rather than left to be
@@ -418,12 +418,12 @@ constraint on any resolution.
    output with the `## Decision` exception, and the two index rows it owns.
 2. Write `global-claude/templates/planning-index.md`: the four-row table
    from ADR 002 decision 2, the two row-update rules, no relative links.
-3. Empty the exemption in `tests/test_planning_artifacts.bats` — line 186
-   becomes `_UNBUILT_OWNERS=""`, and the two comment blocks that name
-   `project-planning` as a live exemption (lines 45-49 and 181-185) are
-   rewritten to match. The space-padded match at line 194 handles an empty
-   value, matching the `_NOT_SKILL_NAMES=""` idiom already in
-   `tests/test_docs_integrity.bats:77`.
+3. Empty the exemption in `tests/test_planning_artifacts.bats` —
+   `_UNBUILT_OWNERS` becomes `""`, and the two comment blocks that name
+   `project-planning` as a live exemption are rewritten to match. The
+   space-padded match in `_p7_missing_owner_skills` handles an empty value,
+   matching the `_NOT_SKILL_NAMES=""` idiom already in
+   `tests/test_docs_integrity.bats`.
 4. Verify: markdown links resolve (D-1), every backticked kebab-case token
    in the new global-layer files resolves to a committed skill (D-2), the
    new skill directory carries a `SKILL.md` (D-4), `global-claude/CLAUDE.md`
@@ -440,6 +440,7 @@ constraint on any resolution.
    and self-declared disposable, and its durable content is now in ADR 004,
    this document, and the test header.
 
-Steps 4 and 5 require `bats` on the host — `BUILDING.md:215`. Neither can be
+Steps 4 and 5 require `bats` on the host — `BUILDING.md` §Running the test
+suite. Neither can be
 run from inside a sandbox session, so the evidence for them comes from a
 host run or from CI on the pushed branch.

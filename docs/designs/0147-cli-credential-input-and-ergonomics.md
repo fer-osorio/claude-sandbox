@@ -14,7 +14,7 @@ across both. That makes the change Case C.
 Two facts from the code shape the decisions:
 
 - `creds.sh` already sources `config.sh` and `config.local.sh` for every
-  command (`creds.sh:53-54`). It just skips the registry guard from
+  command, in the two `source` lines after its defaults. It just skips the registry guard from
   [`0030`](0030-named-project-registry.md) §Layering, because it never reads
   the registry. Accepting `@name` therefore adds no new trust in
   `config.local.sh`. The paragraph in #134 that claims otherwise is wrong.

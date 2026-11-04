@@ -107,7 +107,7 @@ verdict: at 9 words per line the two units agree on **19 of 20 sections**.
 They disagree only on `scope` §Constraints — 14 wrapped lines against a
 ceiling of 12 is a breach, 103 words against 108 is not. One borderline
 disagreement is the evidence that the conversion preserves the budget
-rather than loosening it, which ADR 002 lines 88–91 forbids.
+rather than loosening it, which ADR 002 §Consequences forbids.
 
 Converted ceilings:
 
@@ -179,7 +179,7 @@ New check **P-0b**, mirroring the existing P-0: if the set of
 The rename in decision 1 creates this hole. P-4 iterates over keys it finds
 in the template; a template that no longer matches the parser yields zero
 ceilings and P-4 passes over nothing. That is the exact degradation
-`tests/test_planning_artifacts.bats:43-48` records as having already
+the P-0 comment in `tests/test_planning_artifacts.bats` records as having already
 happened once — "moving the templates without moving the pointer produced
 exactly that, six passes over zero templates."
 
@@ -282,7 +282,7 @@ and the ambiguity survives.
 first real run's output is preserved exactly as the operator approved it,
 and the argument that "the ceilings were guesses and this is the first
 evidence" is not obviously wrong.
-**What breaks if you try it anyway:** it is ADR 002 lines 88–91 exactly —
+**What breaks if you try it anyway:** it is ADR 002 §Consequences exactly —
 "a ceiling that is routinely worked around is worse than none, because it
 teaches everyone the contract is advisory." Calibrating a ceiling to the
 first artifact that breached it is the definition of working around it, and
@@ -348,7 +348,7 @@ in this plan.
   prose
 - `docs/planning/README.md` §"Two choices ADR 002 left open" — the line
   unit this supersedes
-- `tests/test_planning_artifacts.bats:14-48` — P-0's precedent and the
+- `tests/test_planning_artifacts.bats`, header and P-0 comments — P-0's precedent and the
   bounded-verification note
 - #96, #111 — adjacent coverage gaps deliberately not closed here
 - #113 — why CI selection cannot be confirmed from a session

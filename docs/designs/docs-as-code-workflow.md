@@ -155,6 +155,12 @@ GitHub Issue (motivation)
 An ADR is the terminal artifact — it outlives the issue and the plan and
 remains the authoritative record of why the system is the way it is.
 
+**Citing.** A document is cited as `path §section`
+([ADR 010](../adr/010-what-makes-a-citation-valid.md)). Code has no
+sections: cite it by function, variable, comment heading or test ID, never
+by line number, which goes stale on any edit above it. ADRs and planning
+artifacts keep the line numbers they were written with, as records.
+
 ---
 
 ## 3. Workflow Description by Case

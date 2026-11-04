@@ -35,7 +35,7 @@ The informal proposal predates the research pass and predates a close reading of
 the entrypoint. Two of its components turn out to be unnecessary:
 
 - It proposed a dedicated `/run/claude-memory` readonly mount and a matching
-  `cp` block. `entrypoint.sh:26` already copies `/run/claude-global/.` into
+  `cp` block. `entrypoint.sh`'s base-layer copy already puts `/run/claude-global/.` into
   `~/.claude/`, so a `global-claude/memory/` directory arrives at
   `~/.claude/memory/` with no new mount and no new copy code.
 - It proposed entrypoint logic to *write* `~/.claude/settings.json`. A
@@ -232,7 +232,7 @@ decision; until then the risk is carried, not chased.
 ### 4.3 The entrypoint validation block
 
 Placed after the existing copy blocks, before `exec "$@"`, following the shape of
-the commit-msg drift check (`entrypoint.sh:110-170`):
+the commit-msg drift check in `entrypoint.sh`:
 
 ```
 [entrypoint] Checking seeded Auto Memory content
@@ -458,7 +458,7 @@ turns rediscovering established context*, not *the agent now behaves correctly*.
 
 ### 6.3 Precondition, not scope
 
-`base/Dockerfile:66` installs `@anthropic-ai/claude-code` unpinned. Q-11 confirms
+`base/Dockerfile` installs `@anthropic-ai/claude-code` unpinned. Q-11 confirms
 the memory format has already changed once in a version-visible way, so the
 authoring contract in §4.1 can drift with no diff in this repository to signal
 it. This design mitigates rather than solves that: the entrypoint check asserts
@@ -488,7 +488,7 @@ marks the size assertion Mandatory precisely because nothing else surfaces it.
 mount; a reader sees memory injection called out by name in `start.sh`.
 *What breaks if you try it anyway:* nothing breaks — it duplicates working
 plumbing. It adds a mount, a `start.sh` conditional and a copy block that must
-each be maintained and tested, to achieve what `entrypoint.sh:26` already does.
+each be maintained and tested, to achieve what `entrypoint.sh`'s base-layer copy already does.
 
 **Chose:** `autoMemoryDirectory` override.
 **Rejected:** seeding the default derived path, `~/.claude/projects/-workspace/memory/`.
@@ -651,8 +651,8 @@ a documentation pass that was worth doing anyway.
 **Q: Should per-image memory overlays exist (`global-crypto/memory/`, …)?**
 
 Deferred, same posture as the per-image overlays themselves: empty until a real
-need appears. Worth recording that the path is free — `entrypoint.sh:33` already
-copies `/run/claude-overlay/.` into `~/.claude/`, so `global-<image>/memory/`
+need appears. Worth recording that the path is free — `entrypoint.sh`'s overlay copy
+already copies `/run/claude-overlay/.` into `~/.claude/`, so `global-<image>/memory/`
 would be delivered today with no code change. Adopting it later is a content
 decision plus a collision-semantics decision (does an overlay `MEMORY.md` replace
 the base one, or are they merged), not a mechanism decision. The collision

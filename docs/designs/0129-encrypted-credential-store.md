@@ -238,7 +238,8 @@ the container is running.
 
 ### Operator feedback, and why it is a real assertion
 
-`start.sh` gains one banner line, in the column alignment of `:190-204`:
+`start.sh` gains one banner line, aligned with the `Project:` and `Image:`
+lines above it:
 
 ```
 Creds:    2 injected (GH_TOKEN, PYPI_TOKEN)
@@ -250,13 +251,14 @@ Names only. A value is never printed.
 follows a `-e` — rather than from a list accumulated during parsing. This is
 not a stylistic choice. `tests/test_config.bats` drives `start.sh` under
 `ENGINE=true`, which discards argv, so no `hostonly` test can observe `-e
-GH_TOKEN` reaching the engine. Deriving the banner from the array that
-the engine `run` call in `start.sh` expands is what makes a glob assertion on that line an
-assertion about the array, and what stops the two drifting apart. A banner
-built from a parallel list could report an injection that never happened.
+GH_TOKEN` reaching the engine. Deriving the banner from the array that the
+engine `run` call in `start.sh` expands is what makes a glob assertion on
+that line an assertion about the array, and what stops the two drifting
+apart. A banner built from a parallel list could report an injection that
+never happened.
 
-The line also covers the pre-existing ambient-`GH_TOKEN` path at `:236-238`,
-which has no test today.
+The line also covers the pre-existing ambient-`GH_TOKEN` path in the
+`ENV_ARGS` block, which has no test today.
 
 ### Key lifecycle: backup and recovery
 

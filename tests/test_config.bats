@@ -121,13 +121,12 @@ _path_without_age() {
     # Every declared profile has a build context...
     local p dir
     for p in $output; do
-        [ -f "${SANDBOX_DIR}/${p}/Dockerfile" ] || { echo "declared, no Dockerfile: $p" >&2; return 1; }
+        [ -f "${SANDBOX_DIR}/profiles/${p}/Dockerfile" ] || { echo "declared, no Dockerfile: $p" >&2; return 1; }
     done
 
-    # ...and every build context except Squid's is declared.
-    for dir in "${SANDBOX_DIR}"/*/Dockerfile; do
+    # ...and every build context under profiles/ is declared.
+    for dir in "${SANDBOX_DIR}"/profiles/*/Dockerfile; do
         p="$(basename "$(dirname "$dir")")"
-        [ "$p" = squid ] && continue
         echo "$output" | grep -qx "$p" || { echo "Dockerfile, not declared: $p" >&2; return 1; }
     done
 }

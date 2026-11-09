@@ -14,7 +14,7 @@
 #
 # What this suite deliberately does NOT catch, stated explicitly so nobody
 # mistakes its coverage for more than it is:
-#   - Backtick-quoted repo paths (`docs/AGENTS.md`, `base/entrypoint.sh`).
+#   - Backtick-quoted repo paths (`docs/AGENTS.md`, `profiles/base/entrypoint.sh`).
 #     Six such paths in the tracked docs are illustrative examples rather
 #     than real references, so checking them would produce false positives.
 #     D-1 checks only markdown links; D-11 checks docs/*.md tokens, with
@@ -89,7 +89,7 @@ _unresolved_markdown_links() {
 _NOT_SKILL_NAMES=""
 
 # The global layer (global-claude/) is bind-mounted into every session and
-# copied into ~/.claude by base/entrypoint.sh. A skill it names that was
+# copied into ~/.claude by profiles/base/entrypoint.sh. A skill it names that was
 # never committed exists on the author's machine and nowhere else — the
 # failure this check exists to make impossible.
 #
@@ -417,10 +417,10 @@ _cross_boundary_citations() {
             # keeps ~/.claude/... and /absolute/... from matching, so the
             # injected layer's own paths are not reported; strip that
             # character before testing the path.
-            grep -noE '(^|[^~/A-Za-z0-9_.-])(docs|tests|base|squid|global-claude|templates)/[A-Za-z0-9_./-]*[A-Za-z0-9_/-]' "$f" \
+            grep -noE '(^|[^~/A-Za-z0-9_.-])(docs|tests|profiles|squid|global-claude|templates)/[A-Za-z0-9_./-]*[A-Za-z0-9_/-]' "$f" \
             | while IFS=: read -r ln tok; do
                 case "$tok" in
-                    docs/*|tests/*|base/*|squid/*|global-claude/*|templates/*) path="$tok" ;;
+                    docs/*|tests/*|profiles/*|squid/*|global-claude/*|templates/*) path="$tok" ;;
                     *) path="${tok#?}" ;;
                 esac
                 [ -e "$path" ] || continue
@@ -477,7 +477,7 @@ EOF
     )
 }
 
-# base/Dockerfile and the workflows that install bats each pin the commit they
+# profiles/base/Dockerfile and the workflows that install bats each pin the commit they
 # install. CI is the authoritative run and the image is what a session runs
 # against, so the two disagreeing means a check can pass in one place and fail
 # in the other for a reason neither reports — the drift #118 was filed about,
@@ -495,11 +495,11 @@ EOF
 _bats_pin_mismatch() {
     (
         cd "$SANDBOX_DIR" || exit 1
-        d_commit=$(awk -F= '/^ARG BATS_COMMIT=/ {print $2; exit}' base/Dockerfile)
-        d_version=$(awk -F= '/^ARG BATS_VERSION=/ {print $2; exit}' base/Dockerfile)
+        d_commit=$(awk -F= '/^ARG BATS_COMMIT=/ {print $2; exit}' profiles/base/Dockerfile)
+        d_version=$(awk -F= '/^ARG BATS_VERSION=/ {print $2; exit}' profiles/base/Dockerfile)
 
-        [ -n "$d_commit" ] || echo "base/Dockerfile: no 'ARG BATS_COMMIT=' found"
-        [ -n "$d_version" ] || echo "base/Dockerfile: no 'ARG BATS_VERSION=' found"
+        [ -n "$d_commit" ] || echo "profiles/base/Dockerfile: no 'ARG BATS_COMMIT=' found"
+        [ -n "$d_version" ] || echo "profiles/base/Dockerfile: no 'ARG BATS_VERSION=' found"
 
         found=0
         for wf in .github/workflows/*.yml .github/workflows/*.yaml; do
@@ -512,9 +512,9 @@ _bats_pin_mismatch() {
             [ -n "$c_version" ] || echo "${wf}: pins BATS_COMMIT but no BATS_VERSION"
 
             [ -z "$d_commit" ] || [ -z "$c_commit" ] || [ "$d_commit" = "$c_commit" ] \
-                || echo "bats commit differs: base/Dockerfile pins ${d_commit}, ${wf} pins ${c_commit}"
+                || echo "bats commit differs: profiles/base/Dockerfile pins ${d_commit}, ${wf} pins ${c_commit}"
             [ -z "$d_version" ] || [ -z "$c_version" ] || [ "$d_version" = "$c_version" ] \
-                || echo "bats version differs: base/Dockerfile pins ${d_version}, ${wf} pins ${c_version}"
+                || echo "bats version differs: profiles/base/Dockerfile pins ${d_version}, ${wf} pins ${c_version}"
         done
 
         # Vacuity guard. If no workflow pins bats at all, every comparison

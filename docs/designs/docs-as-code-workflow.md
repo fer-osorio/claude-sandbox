@@ -273,9 +273,9 @@ optionally `docs/plans/<NNNN>-<slug>-v<N>.md`.
 ### Case E — Container security control change
 
 **Applies to:** Any modification to the files that directly govern what a
-container process can do, read, or write: `base/Dockerfile`,
-`base/entrypoint.sh`, `squid/squid.conf`, or the `permissions` block in
-`settings.json`.
+container process can do, read, or write: `profiles/base/Dockerfile`,
+`profiles/base/entrypoint.sh`, `squid/squid.conf`, or the `permissions`
+block in `settings.json`.
 
 Security-affecting changes carry an additional obligation: the impact on
 the STRIDE threat model must be documented before the implementation is
@@ -307,8 +307,8 @@ Ask the following questions in order. Stop at the first match.
 
 ```
 0. Does this change touch container security controls
-   (base/Dockerfile, base/entrypoint.sh, squid/squid.conf,
-   or the permissions block in settings.json)?
+   (profiles/base/Dockerfile, profiles/base/entrypoint.sh,
+   squid/squid.conf, or the permissions block in settings.json)?
    YES → Case E (and apply Case B/C/D on top as scope warrants).
 
 1. Does this change cross module boundaries, introduce a new abstraction,
@@ -354,9 +354,9 @@ architectural decision, its context, and its consequences. Never deleted;
 superseded by a new ADR when reversed.
 
 **Container security control:** Any file that directly governs what a
-container process can do, read, or write: `base/Dockerfile`,
-`base/entrypoint.sh`, `squid/squid.conf`, or the `permissions` block in
-`settings.json`.
+container process can do, read, or write: `profiles/base/Dockerfile`,
+`profiles/base/entrypoint.sh`, `squid/squid.conf`, or the `permissions`
+block in `settings.json`.
 
 **Design document:** A document describing the current and target structure
 of a component, the motivation for changing it, and the migration path.

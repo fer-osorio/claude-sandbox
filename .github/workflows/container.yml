@@ -54,7 +54,7 @@ on:
     # without touching anything else listed here. lib/ is start.sh's own code,
     # moved into a file creds.sh shares.
     paths:
-      - 'base/**'
+      - 'profiles/**'
       - 'squid/**'
       - 'global-claude/**'
       - 'start.sh'
@@ -94,7 +94,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install bats-core
-        # The same pin as base/Dockerfile and ci.yml. D-10 compares the bats
+        # The same pin as profiles/base/Dockerfile and ci.yml. D-10 compares the bats
         # commit across every workflow that pins one, not ci.yml alone, so a
         # second gate installing a different bats fails that check instead of
         # drifting silently.

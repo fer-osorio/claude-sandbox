@@ -20,7 +20,7 @@
 #   The SO PIN and User PIN are for the development sandbox only.
 #
 # Build (after claude-base exists):
-#   docker build --build-arg HOST_UID=$(id -u) -t claude-crypto ./crypto/
+#   docker build --build-arg HOST_UID=$(id -u) -t claude-crypto ./profiles/crypto/
 FROM claude-base
 
 # ─────────────────────────────────────────────────────────────────────────────

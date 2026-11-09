@@ -55,7 +55,7 @@ teardown() {
 
 # bats test_tags=fast
 @test "B-2: HOST_UID build-arg propagates to the resulting image's user" {
-    engine_build --build-arg HOST_UID=1234 -t claude-base:test "${SANDBOX_DIR}/base/"
+    engine_build --build-arg HOST_UID=1234 -t claude-base:test "${SANDBOX_DIR}/profiles/base/"
     register_image "claude-base:test"
 
     run engine_run --rm claude-base:test id -u
@@ -69,7 +69,7 @@ teardown() {
 
 # bats test_tags=slow
 @test "B-3: each Dockerfile builds cleanly standalone, without a prior full-build cache" {
-    engine_build --no-cache -t claude-base:test "${SANDBOX_DIR}/base/"
+    engine_build --no-cache -t claude-base:test "${SANDBOX_DIR}/profiles/base/"
     register_image "claude-base:test"
 
     # Every child profile hardcodes "FROM claude-base" (the production
@@ -85,7 +85,7 @@ teardown() {
 
     local component
     for component in $(declared_child_profiles); do
-        engine_build --no-cache -t "claude-${component}:test" "${SANDBOX_DIR}/${component}/"
+        engine_build --no-cache -t "claude-${component}:test" "${SANDBOX_DIR}/profiles/${component}/"
         register_image "claude-${component}:test"
     done
 }

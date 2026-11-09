@@ -5,8 +5,6 @@
 #   ./build.sh                  — build all images
 #   ./build.sh base             — build only claude-base
 #   ./build.sh crypto           — build claude-base then claude-crypto
-#   ./build.sh systems          — build claude-base then claude-systems
-#   ./build.sh research         — build claude-base then claude-research
 #   ./build.sh squid            — build only claude-squid (no base dependency)
 #   ./build.sh --no-cache       — build all images, bypassing Docker layer cache
 #   ./build.sh base --no-cache  — build only claude-base, bypassing cache
@@ -15,7 +13,7 @@
 # enforces that: building a child always rebuilds base first (it will be a
 # no-op if nothing has changed, thanks to Docker layer caching).
 #
-# Place this file in the same directory as base/, crypto/, systems/, research/.
+# Place this file in the same directory as base/ and crypto/.
 #
 # Profile list, image prefix, and engine default come from config.sh (and
 # optionally config.local.sh, gitignored, per-machine). Precedence:
@@ -42,11 +40,9 @@ _ENV_IMAGE_PREFIX="${IMAGE_PREFIX:-}"
 # is missing.
 ENGINE="podman"
 IMAGE_PREFIX="claude"
-PROFILES=(base crypto systems research)
+PROFILES=(base crypto)
 declare -A PROFILE_BASE=(
     [crypto]=base
-    [systems]=base
-    [research]=base
 )
 
 # --- Layer 2: committed, project-wide config.

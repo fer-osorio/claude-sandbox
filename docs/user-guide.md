@@ -21,8 +21,8 @@ Full hierarchy and rationale: [`ARCHITECTURE.md`](../ARCHITECTURE.md#image-hiera
 ./start.sh --list                          # registered names, and where each is defined
 ```
 
-If a project is registered by name in `config.sh` (or `config.local.sh`,
-per-machine), `./start.sh @mylib` replaces typing the full path and
+If a project is registered by name in `config/config.sh` (or
+`config/config.local.sh`, per-machine), `./start.sh @mylib` replaces typing the full path and
 remembering its profile every time; an explicit `[profile]` still
 overrides the registry's default. Register a project by adding it to
 `config.sh`'s `PROJECT_PATH`/`PROJECT_PROFILE` (committed, shared with

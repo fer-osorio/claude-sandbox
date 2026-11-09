@@ -59,8 +59,7 @@ _ENV_IMAGE_PREFIX="${IMAGE_PREFIX:-}"
 ENGINE="podman"
 IMAGE_PREFIX="claude"
 
-[ -f "${SANDBOX_DIR}/config.sh" ] && source "${SANDBOX_DIR}/config.sh"
-[ -f "${SANDBOX_DIR}/config.local.sh" ] && source "${SANDBOX_DIR}/config.local.sh"
+source "${SANDBOX_DIR}/lib/config.sh"
 
 ENGINE="${_ENV_ENGINE:-$ENGINE}"
 IMAGE_PREFIX="${_ENV_IMAGE_PREFIX:-$IMAGE_PREFIX}"

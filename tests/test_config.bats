@@ -39,6 +39,7 @@ _reg_fixture_dir() {
     REG_TMPDIR="$(mktemp -d)"
     cp "${SANDBOX_DIR}/start.sh" "${REG_TMPDIR}/start.sh"
     cp -r "${SANDBOX_DIR}/lib" "${REG_TMPDIR}/lib"
+    mkdir "${REG_TMPDIR}/config"
 }
 
 # A project directory plus an empty credential store, both inside REG_TMPDIR
@@ -91,7 +92,7 @@ _path_without_age() {
         cd "'"${SANDBOX_DIR}"'"
         _ENV_ENGINE="${ENGINE:-}"
         ENGINE="podman"
-        source "./config.sh"
+        source "./config/config.sh"
         ENGINE="${_ENV_ENGINE:-$ENGINE}"
         echo "$ENGINE"
     '
@@ -105,7 +106,7 @@ _path_without_age() {
         set -euo pipefail
         cd "'"${SANDBOX_DIR}"'"
         ENGINE="sentinel-default-value"
-        source "./config.sh"
+        source "./config/config.sh"
         echo "$ENGINE"
     '
     [ "$status" -eq 0 ]
@@ -139,7 +140,7 @@ _path_without_age() {
     run bash -c '
         set -euo pipefail
         cd "'"${SANDBOX_DIR}"'"
-        source "./config.sh"
+        source "./config/config.sh"
         for key in "${!PROFILE_BASE[@]}"; do
             printf "%s\n" "${PROFILE_BASE[$key]}"
         done
@@ -149,7 +150,7 @@ _path_without_age() {
     profiles_list=$(bash -c '
         set -euo pipefail
         cd "'"${SANDBOX_DIR}"'"
-        source "./config.sh"
+        source "./config/config.sh"
         printf "%s\n" "${PROFILES[@]}"
     ')
 
@@ -169,15 +170,22 @@ _path_without_age() {
 }
 
 # bats test_tags=fast, hostonly
-@test "C-6: build.sh and start.sh both source config.sh, not a re-copied literal list" {
+@test "C-6: every script reaches config.sh through lib/config.sh, not a re-copied literal list" {
     # Structural guard for the drift problem this design exists to fix:
-    # both scripts must read PROFILES from the same sourced file rather
-    # than hardcoding their own copies that could silently diverge again.
-    # start.sh reaches config.sh through lib/config.sh, which creds.sh
-    # shares (docs/designs/0147-cli-credential-input-and-ergonomics.md).
-    grep -Eq 'source "\$\{?SANDBOX_DIR\}?/config\.sh"' "${SANDBOX_DIR}/build.sh"
-    grep -Eq 'source "\$\{?SANDBOX_DIR\}?/config\.sh"' "${SANDBOX_DIR}/lib/config.sh"
-    grep -Eq 'source "\$\{?SANDBOX_DIR\}?/lib/config\.sh"' "${SANDBOX_DIR}/start.sh"
+    # every script must read PROFILES from the same sourced file rather
+    # than hardcoding its own copy that could silently diverge again. Each
+    # reaches config/config.sh through lib/config.sh, which also refuses a
+    # config.local.sh left at the pre-#189 root path
+    # (docs/designs/0147-cli-credential-input-and-ergonomics.md,
+    # docs/designs/0189-profile-realignment-and-layout.md).
+    grep -Eq 'source "\$\{?SANDBOX_DIR\}?/config/config\.sh"' "${SANDBOX_DIR}/lib/config.sh"
+    local script
+    for script in build.sh start.sh creds.sh check-auto-memory.sh; do
+        grep -Eq 'source "\$\{?SANDBOX_DIR\}?/lib/config\.sh"' "${SANDBOX_DIR}/${script}" \
+            || { echo "${script} does not source lib/config.sh" >&2; return 1; }
+        ! grep -Eq 'source "\$\{?SANDBOX_DIR\}?/config(/config)?(\.local)?\.sh"' "${SANDBOX_DIR}/${script}" \
+            || { echo "${script} sources a config layer directly" >&2; return 1; }
+    done
 }
 
 # C-7 onward: named project registry (docs/designs/0030-named-project-registry.md)
@@ -186,7 +194,7 @@ _path_without_age() {
 @test "C-7: @name resolves to the registered path and its registry profile" {
     _reg_fixture_dir
     mkdir -p "${REG_TMPDIR}/mylib"
-    cat > "${REG_TMPDIR}/config.sh" <<EOF
+    cat > "${REG_TMPDIR}/config/config.sh" <<EOF
 PROJECT_PATH[mylib]="${REG_TMPDIR}/mylib"
 PROJECT_PROFILE[mylib]=crypto
 EOF
@@ -201,7 +209,7 @@ EOF
 @test "C-8: an explicit second argument overrides the registry's profile" {
     _reg_fixture_dir
     mkdir -p "${REG_TMPDIR}/mylib"
-    cat > "${REG_TMPDIR}/config.sh" <<EOF
+    cat > "${REG_TMPDIR}/config/config.sh" <<EOF
 PROJECT_PATH[mylib]="${REG_TMPDIR}/mylib"
 PROJECT_PROFILE[mylib]=crypto
 EOF
@@ -214,7 +222,7 @@ EOF
 # bats test_tags=fast, hostonly
 @test "C-9: an unknown @name exits non-zero and never reaches the engine" {
     _reg_fixture_dir
-    cat > "${REG_TMPDIR}/config.sh" <<EOF
+    cat > "${REG_TMPDIR}/config/config.sh" <<EOF
 PROJECT_PATH[mylib]="${REG_TMPDIR}/mylib"
 PROJECT_PROFILE[mylib]=crypto
 EOF
@@ -234,7 +242,7 @@ EOF
     # message rather than an unbound-variable abort under set -u.
     _reg_fixture_dir
     mkdir -p "${REG_TMPDIR}/orphan"
-    cat > "${REG_TMPDIR}/config.sh" <<EOF
+    cat > "${REG_TMPDIR}/config/config.sh" <<EOF
 PROJECT_PATH[orphan]="${REG_TMPDIR}/orphan"
 EOF
 
@@ -255,7 +263,7 @@ EOF
     # directories are identical.
     _reg_fixture_dir
     mkdir -p "${REG_TMPDIR}/mylib"
-    cat > "${REG_TMPDIR}/config.sh" <<EOF
+    cat > "${REG_TMPDIR}/config/config.sh" <<EOF
 PROJECT_PATH[mylib]="${REG_TMPDIR}/mylib"
 PROJECT_PROFILE[mylib]=crypto
 EOF
@@ -270,8 +278,8 @@ EOF
 @test "C-12: a name added only in config.local.sh resolves correctly" {
     _reg_fixture_dir
     mkdir -p "${REG_TMPDIR}/localonly"
-    : > "${REG_TMPDIR}/config.sh"   # no committed entries
-    cat > "${REG_TMPDIR}/config.local.sh" <<EOF
+    : > "${REG_TMPDIR}/config/config.sh"   # no committed entries
+    cat > "${REG_TMPDIR}/config/config.local.sh" <<EOF
 PROJECT_PATH[localonly]="${REG_TMPDIR}/localonly"
 PROJECT_PROFILE[localonly]=crypto
 EOF
@@ -287,11 +295,11 @@ EOF
 @test "C-13: config.local.sh redefining a committed name is reverted and warned, not honored" {
     _reg_fixture_dir
     mkdir -p "${REG_TMPDIR}/committed-real" "${REG_TMPDIR}/attempted-override"
-    cat > "${REG_TMPDIR}/config.sh" <<EOF
+    cat > "${REG_TMPDIR}/config/config.sh" <<EOF
 PROJECT_PATH[committed]="${REG_TMPDIR}/committed-real"
 PROJECT_PROFILE[committed]=crypto
 EOF
-    cat > "${REG_TMPDIR}/config.local.sh" <<EOF
+    cat > "${REG_TMPDIR}/config/config.local.sh" <<EOF
 PROJECT_PATH[committed]="${REG_TMPDIR}/attempted-override"
 PROJECT_PROFILE[committed]=base
 EOF
@@ -458,7 +466,10 @@ STUB
     # committed config.sh only, so an operator's config.local.sh is never
     # sourced.
     REG_TMPDIR="$(mktemp -d)"
-    cp "${SANDBOX_DIR}/build.sh" "${SANDBOX_DIR}/config.sh" "${REG_TMPDIR}/"
+    cp "${SANDBOX_DIR}/build.sh" "${REG_TMPDIR}/"
+    cp -r "${SANDBOX_DIR}/lib" "${REG_TMPDIR}/lib"
+    mkdir "${REG_TMPDIR}/config"
+    cp "${SANDBOX_DIR}/config/config.sh" "${REG_TMPDIR}/config/"
     _stub_build_engine
     export STUB_LOG="${REG_TMPDIR}/engine.log"
 
@@ -467,7 +478,7 @@ STUB
 
     # Base first, then every other declared profile, then Squid.
     local expected profiles
-    profiles="$(bash -c 'source "$1/config.sh"; printf "%s\n" "${PROFILES[@]}"' _ "${REG_TMPDIR}")"
+    profiles="$(bash -c 'source "$1/config/config.sh"; printf "%s\n" "${PROFILES[@]}"' _ "${REG_TMPDIR}")"
     expected="build claude-base"
     while IFS= read -r p; do
         [ "$p" = "base" ] && continue
@@ -599,7 +610,7 @@ _staged() { sed -n 's/^staged //p' "$STUB_LOG"; }
 # bats test_tags=fast, hostonly
 @test "C-27: config.local.sh sets GLOBAL_SKILLS, and an empty env value still overrides it" {
     _skills_fixture
-    printf 'GLOBAL_SKILLS="alpha"\n' > "${REG_TMPDIR}/config.local.sh"
+    printf 'GLOBAL_SKILLS="alpha"\n' > "${REG_TMPDIR}/config/config.local.sh"
 
     _skills_start base
     [ "$status" -eq 0 ]
@@ -647,7 +658,7 @@ _creds_fixture() {
     _reg_fixture_dir
     _cred_fixture
     cp "${SANDBOX_DIR}/creds.sh" "${REG_TMPDIR}/creds.sh"
-    cat > "${REG_TMPDIR}/config.sh" <<CONF
+    cat > "${REG_TMPDIR}/config/config.sh" <<CONF
 declare -A PROJECT_PATH=( [mylib]="${REG_TMPDIR}/proj" )
 declare -A PROJECT_PROFILE=( [mylib]="base" )
 CONF
@@ -769,11 +780,11 @@ _store_file() {
 @test "C-36: start.sh --list shows each name's path, profile and layer, with no engine" {
     _reg_fixture_dir
     mkdir -p "${REG_TMPDIR}/proj"
-    cat > "${REG_TMPDIR}/config.sh" <<EOF2
+    cat > "${REG_TMPDIR}/config/config.sh" <<EOF2
 declare -A PROJECT_PATH=( [mylib]="${REG_TMPDIR}/proj" [gone]="${REG_TMPDIR}/absent" )
 declare -A PROJECT_PROFILE=( [mylib]=crypto [gone]=base )
 EOF2
-    cat > "${REG_TMPDIR}/config.local.sh" <<EOF2
+    cat > "${REG_TMPDIR}/config/config.local.sh" <<EOF2
 PROJECT_PATH[extra]="${REG_TMPDIR}/proj"; PROJECT_PROFILE[extra]=base
 PROJECT_PATH[mylib]=/etc
 EOF2
@@ -790,7 +801,7 @@ EOF2
 # bats test_tags=fast, hostonly
 @test "C-37: start.sh --list with an empty registry says so and exits 0" {
     _reg_fixture_dir
-    printf 'declare -A PROJECT_PATH=()\ndeclare -A PROJECT_PROFILE=()\n' > "${REG_TMPDIR}/config.sh"
+    printf 'declare -A PROJECT_PATH=()\ndeclare -A PROJECT_PROFILE=()\n' > "${REG_TMPDIR}/config/config.sh"
 
     run env ENGINE=false bash "${REG_TMPDIR}/start.sh" --list
     [ "$status" -eq 0 ]
@@ -845,4 +856,30 @@ EOF2
     run --separate-stderr _creds migrate @mylib "${REG_TMPDIR}/proj"
     [ "$status" -ne 0 ]
     [[ "$stderr" == *"not an @name"* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-40: a config.local.sh left at the pre-#189 root path aborts every launcher" {
+    # Ignoring it would run the session on defaults the operator had
+    # overridden, with nothing to say so. lib/config.sh refuses it instead,
+    # and every script that loads config goes through lib/config.sh (C-6).
+    _reg_fixture_dir
+    mkdir -p "${REG_TMPDIR}/mylib"
+    cat > "${REG_TMPDIR}/config/config.sh" <<EOF
+PROJECT_PATH[mylib]="${REG_TMPDIR}/mylib"
+PROJECT_PROFILE[mylib]=crypto
+EOF
+    printf 'MAIN_MEMORY="8g"\n' > "${REG_TMPDIR}/config.local.sh"
+    cp "${SANDBOX_DIR}/build.sh" "${REG_TMPDIR}/build.sh"
+
+    run bash -c 'cd "'"${REG_TMPDIR}"'" && ENGINE=true bash start.sh @mylib 2>&1'
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"config.local.sh is no longer read."* ]]
+    [[ "$output" == *"${REG_TMPDIR}/config/config.local.sh"* ]]
+    [[ "$output" != *"Project:"* ]]
+
+    run bash -c 'cd "'"${REG_TMPDIR}"'" && ENGINE=true bash build.sh crypto 2>&1'
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"config.local.sh is no longer read."* ]]
+    [[ "$output" != *"Building"* ]]
 }

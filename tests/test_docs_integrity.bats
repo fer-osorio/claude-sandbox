@@ -417,10 +417,10 @@ _cross_boundary_citations() {
             # keeps ~/.claude/... and /absolute/... from matching, so the
             # injected layer's own paths are not reported; strip that
             # character before testing the path.
-            grep -noE '(^|[^~/A-Za-z0-9_.-])(docs|tests|profiles|squid|global-claude|templates)/[A-Za-z0-9_./-]*[A-Za-z0-9_/-]' "$f" \
+            grep -noE '(^|[^~/A-Za-z0-9_.-])(docs|tests|profiles|config|squid|global-claude|templates)/[A-Za-z0-9_./-]*[A-Za-z0-9_/-]' "$f" \
             | while IFS=: read -r ln tok; do
                 case "$tok" in
-                    docs/*|tests/*|profiles/*|squid/*|global-claude/*|templates/*) path="$tok" ;;
+                    docs/*|tests/*|profiles/*|config/*|squid/*|global-claude/*|templates/*) path="$tok" ;;
                     *) path="${tok#?}" ;;
                 esac
                 [ -e "$path" ] || continue

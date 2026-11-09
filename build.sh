@@ -15,8 +15,8 @@
 #
 # Each profile's build context is profiles/<profile>/, next to this file.
 #
-# Profile list, image prefix, and engine default come from config.sh (and
-# optionally config.local.sh, gitignored, per-machine). Precedence:
+# Profile list, image prefix, and engine default come from config/config.sh
+# (and optionally config/config.local.sh, gitignored, per-machine). Precedence:
 # hardcoded defaults below < config.sh < config.local.sh < env var.
 # See docs/designs/0028-sandbox-config-file.md.
 #
@@ -45,11 +45,8 @@ declare -A PROFILE_BASE=(
     [crypto]=base
 )
 
-# --- Layer 2: committed, project-wide config.
-[ -f "${SANDBOX_DIR}/config.sh" ] && source "${SANDBOX_DIR}/config.sh"
-
-# --- Layer 3: gitignored, per-machine overrides.
-[ -f "${SANDBOX_DIR}/config.local.sh" ] && source "${SANDBOX_DIR}/config.local.sh"
+# --- Layers 2 and 3.
+source "${SANDBOX_DIR}/lib/config.sh"
 
 # --- Layer 4: env var wins over everything sourced above.
 ENGINE="${_ENV_ENGINE:-$ENGINE}"

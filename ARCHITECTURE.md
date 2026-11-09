@@ -34,12 +34,15 @@ inside /workspace — they don't need a dedicated image.
 ~/.claude-sandbox/
 ├── build.sh                  — builds all images (or a named target)
 ├── start.sh                  — launches a container for a given project
-├── config.sh                 — profile list, image prefix, engine default,
-│                                resource/log-driver values, project
-│                                registry (committed)
-├── config.local.sh.example   — template for per-machine overrides (committed)
-├── config.local.sh           — your own overrides (gitignored, not present
-│                                until you create it)
+├── config/
+│   ├── config.sh               — profile list, image prefix, engine default,
+│   │                              resource/log-driver values, project
+│   │                              registry (committed)
+│   ├── config.local.sh.example — template for per-machine overrides (committed)
+│   └── config.local.sh         — per-machine overrides (gitignored, absent
+│                                  until created)
+├── lib/
+│   └── config.sh               — loads the two config layers and the registry
 ├── profiles/
 │   ├── base/
 │   │   └── Dockerfile
@@ -48,10 +51,12 @@ inside /workspace — they don't need a dedicated image.
 └── tests/            — bats-core integration test harness (see BUILDING.md)
 ```
 
-`build.sh` and `start.sh` both source `config.sh` (then `config.local.sh`,
-if present) rather than hardcoding the profile list or runtime values
-themselves. Precedence, later wins: hardcoded fallback in the scripts <
-`config.sh` < `config.local.sh` < a matching env var at call time (e.g.
+`build.sh` and `start.sh` both load `config/config.sh` (then
+`config/config.local.sh`, if present) through `lib/config.sh` rather than
+hardcoding the profile list or runtime values themselves. A `config.local.sh`
+left at the repository root, where it lived before #189, aborts the launch.
+Precedence, later wins: hardcoded fallback in the scripts < `config.sh` <
+`config.local.sh` < a matching env var at call time (e.g.
 `ENGINE=docker ./start.sh ...`). Full design rationale:
 [`docs/designs/0028-sandbox-config-file.md`](docs/designs/0028-sandbox-config-file.md).
 
@@ -146,10 +151,11 @@ If it's an npm global tool, add it to the `npm install -g` invocation in
 
 **Adding an entirely new profile** (not just a tool inside an existing
 one) is a different, smaller step since the Podman migration: create the
-`<profile>/Dockerfile`, then register the profile in `config.sh` (add it
-to `PROFILES`, and to `PROFILE_BASE` if it builds on top of `base`).
+`profiles/<profile>/Dockerfile`, then register the profile in
+`config/config.sh` (add it to `PROFILES`, and to `PROFILE_BASE` if it builds
+on top of `base`).
 `build.sh` and `start.sh` both pick it up automatically — no other file
-needs editing. See [`config.sh`](config.sh) and
+needs editing. See [`config/config.sh`](config/config.sh) and
 [`docs/designs/0028-sandbox-config-file.md`](docs/designs/0028-sandbox-config-file.md).
 
 ---
@@ -204,15 +210,15 @@ Add a tool permanently:
   ./build.sh [base|crypto]
 
 Add a new profile:
-  Create profiles/<profile>/Dockerfile, register it in config.sh
+  Create profiles/<profile>/Dockerfile, register it in config/config.sh
   (PROFILES + PROFILE_BASE) — build.sh/start.sh pick it up automatically
 
 Register a project name:
-  Add it to config.sh's PROJECT_PATH/PROJECT_PROFILE (committed, shared),
-  or to config.local.sh (this machine only) — never committed
+  Add it to config/config.sh's PROJECT_PATH/PROJECT_PROFILE (committed,
+  shared), or to config/config.local.sh (this machine only) — never committed
 
 Tune resource limits or engine for this machine only:
-  cp config.local.sh.example config.local.sh, edit — never committed
+  cp config/config.local.sh.example config/config.local.sh, edit — never committed
 
 Try a tool without committing:
   docker exec -u root -it <container-name> bash

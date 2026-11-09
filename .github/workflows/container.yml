@@ -48,7 +48,7 @@ on:
     # the gate, or the gate's own edits are the one class of change it never
     # checks.
     #
-    # config.sh is included because both scripts above source it: PROFILES
+    # config/ is included because both scripts above source it: PROFILES
     # decides which images build.sh builds and which profiles the toolchain
     # group asserts on, so a change to it can break a container assertion
     # without touching anything else listed here. lib/ is start.sh's own code,
@@ -60,7 +60,7 @@ on:
       - 'start.sh'
       - 'lib/**'
       - 'build.sh'
-      - 'config.sh'
+      - 'config/**'
       - 'tests/**'
       - '.github/workflows/container.yml'
 

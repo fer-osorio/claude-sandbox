@@ -263,7 +263,7 @@ sudo dnf install epel-release   # RHEL/CentOS only; Fedora ships bats directly
 sudo dnf install bats
 
 # Any distro — upstream, pinned to the commit the image and CI both install.
-# BATS_VERSION and BATS_COMMIT are declared in base/Dockerfile; use those
+# BATS_VERSION and BATS_COMMIT are declared in profiles/base/Dockerfile; use those
 # values rather than copying them here, so this file cannot drift from them.
 git clone --depth 1 --branch <BATS_VERSION> \
   https://github.com/bats-core/bats-core.git

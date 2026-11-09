@@ -177,15 +177,16 @@ Place all files under `~/.claude-sandbox/`:
 ├── build.sh          — builds all images, or a named target
 ├── start.sh          — launches a container for a given project
 ├── ARCHITECTURE.md   — architecture and dependency management reference
-├── base/
-│   └── Dockerfile
-└── crypto/
-    └── Dockerfile
+└── profiles/
+    ├── base/
+    │   └── Dockerfile
+    └── crypto/
+        └── Dockerfile
 ```
 
 #### 2.2 — The base Dockerfile
 
-`base/Dockerfile` is the root of the hierarchy. All other images inherit from it via `FROM claude-base`. It contains only what every project type needs: version control, Node.js, Python, and Claude Code itself.
+`profiles/base/Dockerfile` is the root of the hierarchy. All other images inherit from it via `FROM claude-base`. It contains only what every project type needs: version control, Node.js, Python, and Claude Code itself.
 
 Key decisions carried forward from earlier implementation work:
 
@@ -201,7 +202,7 @@ Key decisions carried forward from earlier implementation work:
 
 #### 2.3 — The crypto Dockerfile
 
-`crypto/Dockerfile` extends `claude-base` with the full HSM development stack: OpenSSL, p11-kit, SoftHSM2, and GnuTLS.
+`profiles/crypto/Dockerfile` extends `claude-base` with the full HSM development stack: OpenSSL, p11-kit, SoftHSM2, and GnuTLS.
 
 Two failure modes are explicitly addressed in the crypto image:
 

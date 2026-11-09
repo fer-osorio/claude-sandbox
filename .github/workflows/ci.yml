@@ -72,7 +72,7 @@ jobs:
         # distro-independent instruction in BUILDING.md so CI and a local
         # run exercise the same bats version semantics.
         #
-        # Pinned to the same commit as base/Dockerfile's BATS_COMMIT. An
+        # Pinned to the same commit as profiles/base/Dockerfile's BATS_COMMIT. An
         # unpinned clone of the default branch meant the version behind a
         # given green run was never recorded, and the gate could change
         # under us whenever upstream moved. D-10 asserts these two agree;

@@ -5,7 +5,7 @@
 # verification gate deny-scope exists to close.
 #
 # Confirms, empirically, whether Auto Memory is actually active rather than
-# assuming from the CLI's changelog — base/Dockerfile's unpinned
+# assuming from the CLI's changelog — profiles/base/Dockerfile's unpinned
 # `npm install -g @anthropic-ai/claude-code` means the answer can change on
 # any rebuild with no Dockerfile diff to signal it.
 #

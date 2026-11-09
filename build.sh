@@ -13,7 +13,7 @@
 # enforces that: building a child always rebuilds base first (it will be a
 # no-op if nothing has changed, thanks to Docker layer caching).
 #
-# Place this file in the same directory as base/ and crypto/.
+# Each profile's build context is profiles/<profile>/, next to this file.
 #
 # Profile list, image prefix, and engine default come from config.sh (and
 # optionally config.local.sh, gitignored, per-machine). Precedence:
@@ -82,7 +82,7 @@ build_profile() {
     local profile="$1"
     local tag="${IMAGE_PREFIX}-${profile}"
     echo "→ Building ${tag}..."
-    "$ENGINE" build $UID_ARG $NO_CACHE -t "${tag}" "${SANDBOX_DIR}/${profile}/"
+    "$ENGINE" build $UID_ARG $NO_CACHE -t "${tag}" "${SANDBOX_DIR}/profiles/${profile}/"
 }
 
 # Builds a profile's base dependency first (if it has one), then the

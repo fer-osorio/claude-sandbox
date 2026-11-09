@@ -40,10 +40,11 @@ inside /workspace — they don't need a dedicated image.
 ├── config.local.sh.example   — template for per-machine overrides (committed)
 ├── config.local.sh           — your own overrides (gitignored, not present
 │                                until you create it)
-├── base/
-│   └── Dockerfile
-├── crypto/
-│   └── Dockerfile
+├── profiles/
+│   ├── base/
+│   │   └── Dockerfile
+│   └── crypto/
+│       └── Dockerfile
 └── tests/            — bats-core integration test harness (see BUILDING.md)
 ```
 
@@ -108,8 +109,8 @@ for a security-sensitive sandbox.
 **The workflow:**
 
 1. Decide which image the tool belongs in. Ask: which project types need it?
-   - All projects → `base/Dockerfile`
-   - Cryptography projects only → `crypto/Dockerfile`
+   - All projects → `profiles/base/Dockerfile`
+   - Cryptography projects only → `profiles/crypto/Dockerfile`
 2. Add the package to the appropriate `apt-get install` block.
 3. Rebuild:
    ```bash
@@ -130,7 +131,7 @@ for a security-sensitive sandbox.
 **Where to add things:**
 
 If a tool requires a third-party apt repository, follow the pattern in
-`base/Dockerfile` LAYER 2 (GitHub CLI) — add a new named layer with the
+`profiles/base/Dockerfile` LAYER 2 (GitHub CLI) — add a new named layer with the
 keyring setup, then the `apt-get install`.
 
 If it's a pip package:
@@ -141,7 +142,7 @@ The `--break-system-packages` flag is required on Debian bookworm because
 pip is managed alongside the system Python.
 
 If it's an npm global tool, add it to the `npm install -g` invocation in
-`base/Dockerfile` LAYER 3, or add a new `RUN npm install -g <pkg>` line.
+`profiles/base/Dockerfile` LAYER 3, or add a new `RUN npm install -g <pkg>` line.
 
 **Adding an entirely new profile** (not just a tool inside an existing
 one) is a different, smaller step since the Podman migration: create the
@@ -203,7 +204,7 @@ Add a tool permanently:
   ./build.sh [base|crypto]
 
 Add a new profile:
-  Create <profile>/Dockerfile, register it in config.sh
+  Create profiles/<profile>/Dockerfile, register it in config.sh
   (PROFILES + PROFILE_BASE) — build.sh/start.sh pick it up automatically
 
 Register a project name:

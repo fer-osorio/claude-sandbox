@@ -21,6 +21,8 @@
 # actually started. This exercises the real @name resolution and
 # config.local.sh layering code end to end, still without an engine.
 
+load 'lib/profiles'
+
 SANDBOX_DIR="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
 
 teardown() {
@@ -112,17 +114,21 @@ _path_without_age() {
 
 # bats test_tags=fast, hostonly
 @test "C-3: config.sh's PROFILES matches the profile directories actually present" {
-    run bash -c '
-        set -euo pipefail
-        cd "'"${SANDBOX_DIR}"'"
-        source "./config.sh"
-        printf "%s\n" "${PROFILES[@]}"
-    '
+    run declared_profiles
     [ "$status" -eq 0 ]
+    [ -n "$output" ]
 
-    for dir in base crypto systems research; do
-        [ -f "${SANDBOX_DIR}/${dir}/Dockerfile" ]
-        echo "$output" | grep -qx "$dir"
+    # Every declared profile has a build context...
+    local p dir
+    for p in $output; do
+        [ -f "${SANDBOX_DIR}/${p}/Dockerfile" ] || { echo "declared, no Dockerfile: $p" >&2; return 1; }
+    done
+
+    # ...and every build context except Squid's is declared.
+    for dir in "${SANDBOX_DIR}"/*/Dockerfile; do
+        p="$(basename "$(dirname "$dir")")"
+        [ "$p" = squid ] && continue
+        echo "$output" | grep -qx "$p" || { echo "Dockerfile, not declared: $p" >&2; return 1; }
     done
 }
 
@@ -201,9 +207,9 @@ PROJECT_PATH[mylib]="${REG_TMPDIR}/mylib"
 PROJECT_PROFILE[mylib]=crypto
 EOF
 
-    run bash -c 'cd "'"${REG_TMPDIR}"'" && ENGINE=true bash start.sh @mylib systems 2>&1'
+    run bash -c 'cd "'"${REG_TMPDIR}"'" && ENGINE=true bash start.sh @mylib base 2>&1'
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Image:    claude-systems"* ]]
+    [[ "$output" == *"Image:    claude-base"* ]]
 }
 
 # bats test_tags=fast, hostonly
@@ -268,13 +274,13 @@ EOF
     : > "${REG_TMPDIR}/config.sh"   # no committed entries
     cat > "${REG_TMPDIR}/config.local.sh" <<EOF
 PROJECT_PATH[localonly]="${REG_TMPDIR}/localonly"
-PROJECT_PROFILE[localonly]=research
+PROJECT_PROFILE[localonly]=crypto
 EOF
 
     run bash -c 'cd "'"${REG_TMPDIR}"'" && ENGINE=true bash start.sh @localonly 2>&1'
     [ "$status" -eq 0 ]
     [[ "$output" == *"Project:  ${REG_TMPDIR}/localonly"* ]]
-    [[ "$output" == *"Image:    claude-research"* ]]
+    [[ "$output" == *"Image:    claude-crypto"* ]]
     [[ "$output" != *"Warning:"* ]]
 }
 
@@ -288,7 +294,7 @@ PROJECT_PROFILE[committed]=crypto
 EOF
     cat > "${REG_TMPDIR}/config.local.sh" <<EOF
 PROJECT_PATH[committed]="${REG_TMPDIR}/attempted-override"
-PROJECT_PROFILE[committed]=research
+PROJECT_PROFILE[committed]=base
 EOF
 
     run bash -c 'cd "'"${REG_TMPDIR}"'" && ENGINE=true bash start.sh @committed 2>&1'
@@ -428,7 +434,7 @@ case "$1" in
         ;;
     images)
         echo "REPOSITORY              TAG     IMAGE ID      CREATED      SIZE"
-        for name in claude-base claude-crypto claude-systems claude-research claude-squid; do
+        for name in claude-base claude-crypto claude-squid; do
             echo "localhost/${name}  latest  0123456789ab  1 hour ago  1 GB"
         done
         exit 0

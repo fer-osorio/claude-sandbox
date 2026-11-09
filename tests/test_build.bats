@@ -23,6 +23,7 @@
 
 load 'lib/engine'
 load 'lib/teardown'
+load 'lib/profiles'
 
 SANDBOX_DIR="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
 
@@ -71,7 +72,7 @@ teardown() {
     engine_build --no-cache -t claude-base:test "${SANDBOX_DIR}/base/"
     register_image "claude-base:test"
 
-    # crypto/systems/research all hardcode "FROM claude-base" (the production
+    # Every child profile hardcodes "FROM claude-base" (the production
     # tag, not ":test") — that FROM clause can't be parameterized without
     # editing the Dockerfiles, which is out of scope for this suite (SDD
     # §2.3). So isolating *these* builds from a prior full build still
@@ -82,7 +83,8 @@ teardown() {
         return 1
     fi
 
-    for component in crypto systems research; do
+    local component
+    for component in $(declared_child_profiles); do
         engine_build --no-cache -t "claude-${component}:test" "${SANDBOX_DIR}/${component}/"
         register_image "claude-${component}:test"
     done

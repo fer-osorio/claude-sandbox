@@ -90,7 +90,7 @@ You will run Squid as a **companion container** on the same Docker network as Cl
 │                                                          │
 │  ┌────────────────────────┐   ┌────────────────────────┐ │
 │  │  claude-base / crypto  │   │  squid-proxy           │ │
-│  │  / systems / research  │──▶│  (port 3128)           │ │
+│  │                        │──▶│  (port 3128)           │ │
 │  │  (Claude Code)         │   │                        │ │
 │  │  HTTP_PROXY=squid:3128 │   │  Allowlist policy      │ │
 │  │  HTTPS_PROXY=squid:... │   │  Access logs           │ │

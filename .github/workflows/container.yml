@@ -1,7 +1,7 @@
 # container.yml — the second tier of the gate, per
 # docs/designs/0101-container-test-tier-in-ci.md (#101).
 #
-# Runs the 32 tests that ci.yml's `hostonly` selection can never reach: egress
+# Runs the 30 tests that ci.yml's `hostonly` selection can never reach: egress
 # policy, container runtime flags, global-layer injection, image builds and
 # per-profile toolchains. It installs Podman, builds every image and runs
 # `--filter-tags container,!hostfidelity`.
@@ -142,7 +142,7 @@ jobs:
         # the second test that genuinely needs the tag should require a
         # deliberate edit with a reason, not arrive quietly.
         env:
-          CONTAINER_FLOOR: 31
+          CONTAINER_FLOOR: 29
           HOSTFIDELITY_CEILING: 1
         run: |
           count=$(bats --filter-tags 'container,!hostfidelity' --count tests/)
@@ -176,7 +176,7 @@ jobs:
             podman network exists claude-net
 
       - name: Build every image
-        # All four profiles plus Squid. The tier needs them all: R-5 asserts
+        # Every declared profile plus Squid. The tier needs them all: R-5 asserts
         # on an unbuilt tag and now skips when none is unbuilt (#159), the
         # toolchain group asserts per profile, and the runtime group runs
         # against the real production tags read-only.

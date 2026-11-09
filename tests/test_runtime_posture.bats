@@ -25,6 +25,7 @@
 
 load 'lib/engine'
 load 'lib/teardown'
+load 'lib/profiles'
 
 SANDBOX_DIR="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
 SCRATCH_FIXTURE="${BATS_TEST_DIRNAME}/fixtures/scratch-project"
@@ -104,7 +105,7 @@ teardown() {
 # bats test_tags=fast
 @test "R-5: missing (unbuilt) image is rejected with build guidance, not a silent pull" {
     target=""
-    for candidate in crypto systems research; do
+    for candidate in $(declared_child_profiles); do
         if ! engine_inspect "claude-${candidate}" > /dev/null 2>&1; then
             target="$candidate"
             break
@@ -122,7 +123,7 @@ teardown() {
         # One line rather than the five it replaces: bats puts the reason on
         # the TAP line, so a multi-line reason would corrupt the output the
         # harness reads.
-        reason="all of crypto/systems/research are built; R-5 needs an"
+        reason="every non-base profile is built; R-5 needs an"
         reason="${reason} unbuilt tag and must not delete a production image"
         reason="${reason} (SDD §5) — '${ENGINE} rmi claude-crypto' to exercise it"
         skip "$reason"

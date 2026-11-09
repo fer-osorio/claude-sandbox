@@ -18,14 +18,12 @@
 
 # Profiles start.sh accepts and build.sh knows how to build. "base" has no
 # entry in PROFILE_BASE below — it builds directly, not on top of anything.
-PROFILES=(base crypto systems research)
+PROFILES=(base crypto)
 
 # Maps a profile to its base-image dependency. A profile absent from this
 # map builds directly (currently only "base" itself).
 declare -A PROFILE_BASE=(
     [crypto]=base
-    [systems]=base
-    [research]=base
 )
 
 IMAGE_PREFIX="claude"   # image tag = "${IMAGE_PREFIX}-${profile}"

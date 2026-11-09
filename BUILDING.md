@@ -89,8 +89,6 @@ Build a single image and its dependencies:
 ```bash
 ./build.sh base      # base image only
 ./build.sh crypto    # base + crypto
-./build.sh systems   # base + systems
-./build.sh research  # base + research
 ```
 
 Add `--no-cache` to force a full rebuild (pulls updated apt packages):
@@ -105,12 +103,10 @@ Add `--no-cache` to force a full rebuild (pulls updated apt packages):
 ./start.sh <project_directory> [image]
 ```
 
-`image` defaults to `base`. Valid options: `base`, `crypto`, `systems`, `research`.
+`image` defaults to `base`. Valid options: `base`, `crypto`.
 
 ```bash
 ./start.sh ~/projects/mylib crypto      # HSM / cryptography work
-./start.sh ~/projects/myapp systems     # C++ / CMake projects
-./start.sh ~/projects/paper research    # LaTeX documents
 ./start.sh ~/projects/webapp            # web / Python / TypeScript
 ```
 

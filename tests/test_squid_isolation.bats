@@ -49,8 +49,8 @@
 # generically via the default-deny policy, so a future entry added to
 # squid.conf by mistake would not fail this suite.
 #
-# Requires a squid/ directory (Dockerfile + squid.conf) as a sibling of
-# base/crypto/systems/research. That directory is committed: it landed in
+# Requires a squid/ directory (Dockerfile + squid.conf) at the repository
+# root. That directory is committed: it landed in
 # 9269ddb, the commit Change 15 of docs/claude-code-security-plan.md
 # records as closing the gap where Layer 4 of the five-layer defense was
 # documentation only. So this suite builds claude-squid:test from the

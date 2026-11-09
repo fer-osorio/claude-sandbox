@@ -21,11 +21,9 @@
 #
 # Examples:
 #   ./start.sh ~/projects/mylib crypto      — HSM / cryptography work
-#   ./start.sh ~/projects/myapp systems     — C++ / CMake projects
-#   ./start.sh ~/projects/paper research    — LaTeX documents
 #   ./start.sh ~/projects/webapp            — web / Python (uses base)
 #   ./start.sh @mylib                       — registry path + registry profile
-#   ./start.sh @mylib systems               — registry path, profile overridden
+#   ./start.sh @mylib base                  — registry path, profile overridden
 #
 # Before running this for the first time, ensure the network exists:
 #   podman network create --driver bridge claude-net
@@ -64,7 +62,7 @@ _ENV_GLOBAL_SKILLS="${GLOBAL_SKILLS-}"
 # is missing.
 ENGINE="podman"
 IMAGE_PREFIX="claude"
-PROFILES=(base crypto systems research)
+PROFILES=(base crypto)
 MAIN_MEMORY="2g"
 MAIN_CPUS="2"
 MAIN_LOG_MAX_SIZE="50m"

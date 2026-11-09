@@ -3,9 +3,9 @@
 ## Configuration
 
 Profile list, image tag prefix, default engine, and `start.sh`'s resource
-limits / log-driver settings come from `config.sh` (committed) and,
-optionally, `config.local.sh` (gitignored — per-machine overrides, never
-committed). Precedence, later wins:
+limits / log-driver settings come from `config/config.sh` (committed) and,
+optionally, `config/config.local.sh` (gitignored — per-machine overrides,
+never committed). Precedence, later wins:
 
 ```
 hardcoded defaults in build.sh/start.sh  <  config.sh  <  config.local.sh  <  env var
@@ -16,8 +16,8 @@ different default engine) without touching the shared, reviewed
 `config.sh`:
 
 ```bash
-cp config.local.sh.example config.local.sh
-$EDITOR config.local.sh   # uncomment and edit only what you need
+cp config/config.local.sh.example config/config.local.sh
+$EDITOR config/config.local.sh   # uncomment and edit only what you need
 ```
 
 Full design rationale: [`docs/designs/0028-sandbox-config-file.md`](docs/designs/0028-sandbox-config-file.md).

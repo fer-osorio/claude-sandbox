@@ -149,7 +149,7 @@ one) is a different, smaller step since the Podman migration: create the
 `<profile>/Dockerfile`, then register the profile in `config.sh` (add it
 to `PROFILES`, and to `PROFILE_BASE` if it builds on top of `base`).
 `build.sh` and `start.sh` both pick it up automatically — no other file
-needs editing. See [`config.sh`](config.sh) and
+needs editing. See [`config/config.sh`](config/config.sh) and
 [`docs/designs/0028-sandbox-config-file.md`](docs/designs/0028-sandbox-config-file.md).
 
 ---

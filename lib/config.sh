@@ -1,5 +1,7 @@
 # lib/config.sh — config layers 2 and 3, and the project registry. Sourced by
-# start.sh and creds.sh; see docs/designs/0147-cli-credential-input-and-ergonomics.md.
+# start.sh, creds.sh, build.sh and check-auto-memory.sh; see
+# docs/designs/0147-cli-credential-input-and-ergonomics.md. The layers live in
+# config/ (docs/designs/0189-profile-realignment-and-layout.md).
 #
 # The caller sets SANDBOX_DIR and its own layer-1 defaults first, and applies
 # its own layer-4 env overrides after. Sourcing runs the layers at the
@@ -9,8 +11,17 @@
 declare -A PROJECT_PATH=()
 declare -A PROJECT_PROFILE=()
 
+# config.local.sh moved into config/ in #189. One left at the old path would
+# no longer be read, and the session would run on defaults the operator had
+# overridden, so it aborts instead.
+if [ -f "${SANDBOX_DIR}/config.local.sh" ]; then
+    echo "Error: ${SANDBOX_DIR}/config.local.sh is no longer read." >&2
+    echo "Move it: mv '${SANDBOX_DIR}/config.local.sh' '${SANDBOX_DIR}/config/config.local.sh'" >&2
+    exit 1
+fi
+
 # --- Layer 2: committed, project-wide config.
-[ -f "${SANDBOX_DIR}/config.sh" ] && source "${SANDBOX_DIR}/config.sh"
+[ -f "${SANDBOX_DIR}/config/config.sh" ] && source "${SANDBOX_DIR}/config/config.sh"
 
 # Snapshot of the committed registry, taken before config.local.sh can see
 # or touch it. Used below to detect and revert an attempt to redefine a
@@ -26,7 +37,7 @@ done
 unset _name
 
 # --- Layer 3: gitignored, per-machine overrides.
-[ -f "${SANDBOX_DIR}/config.local.sh" ] && source "${SANDBOX_DIR}/config.local.sh"
+[ -f "${SANDBOX_DIR}/config/config.local.sh" ] && source "${SANDBOX_DIR}/config/config.local.sh"
 
 # Revert (and warn about) any committed project name config.local.sh
 # redefined. An operator who wants to repoint a committed name edits

@@ -1,7 +1,9 @@
-# Per-machine config override — see config.local.sh.example and
+# Per-machine config override — see config/config.local.sh.example and
 # docs/designs/0028-sandbox-config-file.md. Never committed: it exists so an
 # operator can tune resource limits / engine choice for their own host
-# without touching the reviewed, shared config.sh.
+# without touching the reviewed, shared config/config.sh. Unanchored on
+# purpose: it also covers a copy left at the pre-#189 root path, which
+# lib/config.sh refuses but an add -A would otherwise stage.
 config.local.sh
 
 # Diagnostic output from check-auto-memory.sh — regenerated on every run,

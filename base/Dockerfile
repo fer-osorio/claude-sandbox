@@ -4,7 +4,7 @@
 # Contains only what every project type needs regardless of domain:
 #   - Shell utilities and version control (git, gh)
 #   - Node.js and npm (Claude Code runtime + web toolchains)
-#   - Python 3 and SQLite (used by both systems and research projects)
+#   - Python 3
 #   - Claude Code itself
 #
 # Web projects use this image directly. No separate claude-web image is needed
@@ -25,7 +25,6 @@ ARG HOST_UID=1000
 # ─────────────────────────────────────────────────────────────────────────────
 # LAYER 1 — APT PACKAGES
 # python3-venv is included so per-project virtualenvs work out of the box.
-# libsqlite3-dev provides headers for projects that build against SQLite.
 # ─────────────────────────────────────────────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
@@ -38,8 +37,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
     python3-venv \
-    sqlite3 \
-    libsqlite3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # ─────────────────────────────────────────────────────────────────────────────

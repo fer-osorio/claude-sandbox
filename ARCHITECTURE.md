@@ -20,10 +20,8 @@ that's your active engine. See `BUILDING.md` for Podman-specific setup and
 
 ```
 debian:bookworm-slim
-    └── claude-base          git, gh, node, npm, python3, sqlite3, Claude Code
-            ├── claude-crypto    + openssl, p11-kit, softhsm2, gnutls
-            ├── claude-systems   + cmake, gcc/g++, gtest, ninja, clang/clang-tidy, cppcheck, lcov, sanitizers
-            └── claude-research  + texlive, latexmk
+    └── claude-base          git, gh, node, npm, python3, Claude Code
+            └── claude-crypto    + openssl, p11-kit, softhsm2, gnutls
 ```
 
 Web projects (Vite, Vitest, TypeScript) use **claude-base** directly. Vite
@@ -45,10 +43,6 @@ inside /workspace — they don't need a dedicated image.
 ├── base/
 │   └── Dockerfile
 ├── crypto/
-│   └── Dockerfile
-├── systems/
-│   └── Dockerfile
-├── research/
 │   └── Dockerfile
 └── tests/            — bats-core integration test harness (see BUILDING.md)
 ```
@@ -80,8 +74,6 @@ Build a single image and its dependencies:
 
 ```bash
 ./build.sh crypto     # rebuilds base first, then crypto
-./build.sh systems
-./build.sh research
 ```
 
 ---
@@ -118,8 +110,6 @@ for a security-sensitive sandbox.
 1. Decide which image the tool belongs in. Ask: which project types need it?
    - All projects → `base/Dockerfile`
    - Cryptography projects only → `crypto/Dockerfile`
-   - C++ projects only → `systems/Dockerfile`
-   - LaTeX/research projects only → `research/Dockerfile`
 2. Add the package to the appropriate `apt-get install` block.
 3. Rebuild:
    ```bash
@@ -202,17 +192,15 @@ itself does not have — the artifact will outlive the container, the tool will 
 ```
 Start a session (pick the right image for your project type):
   ./start.sh ~/projects/myproject crypto      — HSM / cryptography work
-  ./start.sh ~/projects/myproject systems     — C++ / CMake projects
-  ./start.sh ~/projects/myproject research    — LaTeX documents
   ./start.sh ~/projects/myproject base        — Python, web, TypeScript
 
 Start a session for a registered project:
   ./start.sh @mylib                — registry path + registry profile
-  ./start.sh @mylib systems        — registry path, profile overridden
+  ./start.sh @mylib base           — registry path, profile overridden
 
 Add a tool permanently:
   Edit the appropriate Dockerfile, add to the relevant layer
-  ./build.sh [base|crypto|systems|research]
+  ./build.sh [base|crypto]
 
 Add a new profile:
   Create <profile>/Dockerfile, register it in config.sh

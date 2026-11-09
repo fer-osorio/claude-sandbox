@@ -1144,3 +1144,34 @@ same named environment variables it already received.
 - **The real `age` path is unexercised by the suite.** Every new test drives a
   stub, because `age` is a host dependency CI does not have. Encrypt-decrypt
   round-tripping is verified by hand, not by a gate.
+
+---
+
+### Change 27 — Unused Profiles Retired, Their Allowlist Entries and SQLite Removed
+**Affects:** §2 (image hierarchy, 2.1, 2.2, 2.4, 2.5, 2.6, 2.7), Quick
+Reference Card, `squid/squid.conf`, `base/Dockerfile`, `build.sh`,
+`start.sh`, `config.sh`, `tests/`, `.github/workflows/container.yml`.
+Date: 2026-11-09. Issue #189.
+
+**What changed:**
+The `systems` and `research` profiles were retired. `squid/squid.conf` lost
+the four hosts that served only them: `en.cppreference.com`, `cmake.org`,
+`ctan.org` and `tug.org`. `sqlite3` and `libsqlite3-dev` were removed from
+`claude-base`. Python's `sqlite3` module is unaffected, because
+`libsqlite3-0` is a dependency of `python3`.
+
+**Why:** Neither profile is in use. The allowlist is shared by every session,
+so their hosts were reachable from sessions that never needed them. The design
+and its alternatives are in `docs/designs/0189-profile-realignment-and-layout.md`.
+
+**STRIDE mapping (delta only):** as recorded in
+`docs/designs/0189-profile-realignment-and-layout.md §STRIDE impact`.
+Information Disclosure improves: four fewer blind-tunnel destinations, the
+accepted-risk class Change 24 describes, shrunk rather than grown. Tampering
+improves marginally: fewer packages in the root image. No other category
+changes.
+
+**Residual, not yet closed:**
+- **The allowlist is still global, not per profile.** `www.openssl.org`
+  serves only `crypto` and is reachable from every session. Composition work
+  that adds profiles makes this residual larger, not smaller.

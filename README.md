@@ -3,8 +3,8 @@
 Container-based sandboxing (Podman by default, Docker with
 `ENGINE=docker`) for running Claude Code sessions with strict, verifiable
 security controls: non-root execution, dropped capabilities, network-egress
-allowlisting via a Squid proxy, and per-project image profiles (crypto,
-systems, research, or plain web/Python).
+allowlisting via a Squid proxy, and per-project image profiles (crypto, or
+plain web/Python).
 
 Each session runs in an ephemeral container — nothing persists between
 sessions except your project directory and the global instruction layer,
@@ -19,7 +19,7 @@ podman network create --driver bridge claude-net   # once (or docker)
 ./start.sh ~/projects/myproject crypto              # start a session
 ```
 
-`crypto` can be `base`, `crypto`, `systems`, or `research` depending on
+`crypto` can be `base` or `crypto` depending on
 your project — see the [user guide](docs/user-guide.md) for how to choose.
 
 ## Documentation

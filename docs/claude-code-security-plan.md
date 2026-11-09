@@ -160,10 +160,8 @@ The sandbox is structured as a hierarchy of Docker images. A shared base image c
 
 ```
 debian:bookworm-slim
-    └── claude-base          git, gh, node, npm, python3, sqlite3, Claude Code
-            ├── claude-crypto    + openssl, p11-kit, softhsm2, gnutls
-            ├── claude-systems   + cmake, gcc/g++, gtest, ninja
-            └── claude-research  + texlive, latexmk
+    └── claude-base          git, gh, node, npm, python3, Claude Code
+            └── claude-crypto    + openssl, p11-kit, softhsm2, gnutls
 ```
 
 Web projects (Vite, Vitest, TypeScript) use `claude-base` directly. Those tools are project-level `devDependencies` installed via `npm install` inside `/workspace` — they require nothing additional at the image level.
@@ -181,17 +179,13 @@ Place all files under `~/.claude-sandbox/`:
 ├── ARCHITECTURE.md   — architecture and dependency management reference
 ├── base/
 │   └── Dockerfile
-├── crypto/
-│   └── Dockerfile
-├── systems/
-│   └── Dockerfile
-└── research/
+└── crypto/
     └── Dockerfile
 ```
 
 #### 2.2 — The base Dockerfile
 
-`base/Dockerfile` is the root of the hierarchy. All other images inherit from it via `FROM claude-base`. It contains only what every project type needs: version control, Node.js, Python, SQLite, and Claude Code itself.
+`base/Dockerfile` is the root of the hierarchy. All other images inherit from it via `FROM claude-base`. It contains only what every project type needs: version control, Node.js, Python, and Claude Code itself.
 
 Key decisions carried forward from earlier implementation work:
 
@@ -215,17 +209,13 @@ Two failure modes are explicitly addressed in the crypto image:
 
 **Missing `SOFTHSM2_CONF`.** If `softhsm2-util` cannot locate its config file it prints `ERROR: Failed to enumerate object store` even when the directory exists and permissions are correct. `SOFTHSM2_CONF` is declared using Docker's `ENV` instruction rather than a shell `export`. `ENV` persists into every subsequent build layer and into the running container; a shell export survives only the single `RUN` command it appears in.
 
-#### 2.4 — The systems Dockerfile
+#### 2.4 — The systems Dockerfile (retired)
 
-`crypto/Dockerfile` extends `claude-base` with the C++ build toolchain: CMake, GCC/G++, Google Test, Ninja, and pkg-config.
+Retired with the `systems` profile in #189. See Change 27.
 
-`libgtest-dev` on Debian ships source files only — no compiled libraries. The GTest libraries are compiled from source during the image build via `cmake --build` and installed via `cmake --install`. After this, CMake projects can use `find_package(GTest)` without any additional configuration. This is a one-time cost at build time.
+#### 2.5 — The research Dockerfile (retired)
 
-#### 2.5 — The research Dockerfile
-
-`research/Dockerfile` extends `claude-base` with the LaTeX document preparation stack: `texlive-latex-extra`, `texlive-fonts-recommended`, `texlive-science`, and `latexmk`. Python and SQLite are available through the base image without reinstallation.
-
-`texlive-latex-extra` covers the vast majority of real-world documents and papers. `texlive-full` (~5 GB) can be substituted if obscure packages are required.
+Retired with the `research` profile in #189. See Change 27.
 
 #### 2.6 — Build all images
 
@@ -239,8 +229,6 @@ Build a single image and its dependencies:
 
 ```bash
 ./build.sh crypto     # rebuilds base first, then crypto
-./build.sh systems
-./build.sh research
 ```
 
 You only need to rebuild when you change a Dockerfile or want to pull updated package versions. See `ARCHITECTURE.md` for the full dependency management strategy.
@@ -251,8 +239,6 @@ You only need to rebuild when you change a Dockerfile or want to pull updated pa
 
 ```bash
 ./start.sh ~/projects/mylib crypto      # HSM / cryptography work
-./start.sh ~/projects/myapp systems     # C++ / CMake projects
-./start.sh ~/projects/paper research    # LaTeX documents
 ./start.sh ~/projects/webapp            # web / Python (uses base)
 ```
 
@@ -430,15 +416,13 @@ The connection to your cryptography research is also direct: many modern protoco
 ```
 Start a secure Claude session (pick the image for your project type):
   ~/.claude-sandbox/start.sh ~/projects/mylib    crypto    — HSM / cryptography
-  ~/.claude-sandbox/start.sh ~/projects/myapp    systems   — C++ / CMake
-  ~/.claude-sandbox/start.sh ~/projects/paper    research  — LaTeX / documents
   ~/.claude-sandbox/start.sh ~/projects/webapp             — web / Python (base)
 
 Build all images (do this once, and after any Dockerfile change):
   cd ~/.claude-sandbox && ./build.sh
 
 Build a single image and its dependencies:
-  ./build.sh crypto | systems | research
+  ./build.sh crypto
 
 What is protected:
   ✓ All files outside the mounted project directory  (not mounted)
@@ -497,3 +481,4 @@ three files under `tests/`.
 | 24 | Planning-Research Tier Added to the Squid Allowlist |
 | 25 | `bats` Added to the Base Image and Pinned in Both Places |
 | 26 | Per-Project Encrypted Credential Store |
+| 27 | Unused Profiles Retired, Their Allowlist Entries and SQLite Removed |

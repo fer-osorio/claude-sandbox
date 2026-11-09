@@ -10,8 +10,6 @@ Practical, day-to-day usage of claude-sandbox. For build/test commands see
 |---|---|---|
 | `base` | Web, Python, TypeScript | — |
 | `crypto` | HSM / cryptography | OpenSSL, p11-kit, SoftHSM2, GnuTLS |
-| `systems` | C++ / CMake | CMake, GCC/Clang, GTest, sanitizers |
-| `research` | LaTeX documents | TeX Live, latexmk |
 
 Full hierarchy and rationale: [`ARCHITECTURE.md`](../ARCHITECTURE.md#image-hierarchy).
 
@@ -154,7 +152,7 @@ Two options, covered in detail in `ARCHITECTURE.md`:
   [`0006-interpreter-presence-health-check.md`](designs/0006-interpreter-presence-health-check.md),
   [`0007-workspace-artifact-staleness.md`](designs/0007-workspace-artifact-staleness.md).
 - **Session start fails with "unknown image" or "image does not exist"** —
-  check the profile name is one of `base`/`crypto`/`systems`/`research`,
+  check the profile name is one of `base`/`crypto`,
   and that you've built it with `./build.sh <profile>`.
 - **The launch stops with a credential error** — the message names the
   fix; the causes are listed under [Storing credentials](#storing-credentials).

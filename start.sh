@@ -10,11 +10,15 @@
 #                        config.local.sh — see docs/designs/0030-named-project-registry.md)
 #   image              — which sandbox image to use (default: base, or the
 #                        registered project's default profile for @name);
-#                        one of the profiles defined in config.sh
+#                        one of the profiles or combinations (COMBOS) defined
+#                        in config.sh
 #
 # Global layer directories (relative to this script's location):
 #   global-claude/        — base layer, injected into every session
-#   global-<image>/       — per-image overlay, injected when present
+#   global-<image>/       — per-profile overlay, injected when present. Never
+#                           read for a combination, which is refused if any
+#                           member has one (docs/designs/0194-profile-composition.md,
+#                           Decision 5)
 #
 # GLOBAL_SKILLS (config.sh) selects which of global-claude/skills/ are
 # injected; the layer is staged into a per-launch copy and that is mounted.
@@ -150,9 +154,26 @@ if [ ! -d "$PROJECT_DIR" ]; then
     exit 1
 fi
 
-if ! printf '%s\n' "${PROFILES[@]}" | grep -qx "$IMAGE_TAG"; then
+GLOBAL_OVERLAY="${SANDBOX_DIR}/global-${IMAGE_TAG}"
+if is_combo "$IMAGE_TAG"; then
+    # Mounting one member's overlay, or none, would silently drop the others.
+    # Merging them is deferred until a profile has one.
+    read -r -a _members <<< "${COMBOS[$IMAGE_TAG]}"
+    for _member in "${_members[@]}"; do
+        if [ -d "${SANDBOX_DIR}/global-${_member}" ]; then
+            echo "Error: combination '$IMAGE_TAG' cannot start: its member '$_member' has an overlay, global-${_member}/." >&2
+            echo "Overlays are not composed yet; see docs/designs/0194-profile-composition.md, Decision 5." >&2
+            exit 1
+        fi
+    done
+    unset _members _member
+    GLOBAL_OVERLAY=""
+elif ! printf '%s\n' "${PROFILES[@]}" | grep -qx "$IMAGE_TAG"; then
     echo "Error: unknown image '$IMAGE_TAG'." >&2
     echo "Valid options: ${PROFILES[*]}" >&2
+    if [ "${#COMBOS[@]}" -gt 0 ]; then
+        echo "Combinations: $(printf '%s\n' "${!COMBOS[@]}" | sort | tr '\n' ' ')" >&2
+    fi
     echo "Pass one as the second argument, or add the profile to config.sh's PROFILES." >&2
     exit 1
 fi
@@ -179,7 +200,6 @@ if ! "$ENGINE" image inspect "$SQUID_IMAGE_NAME" > /dev/null 2>&1; then
 fi
 
 GLOBAL_BASE="${SANDBOX_DIR}/global-claude"
-GLOBAL_OVERLAY="${SANDBOX_DIR}/global-${IMAGE_TAG}"
 
 echo "Project:  $PROJECT_DIR"
 echo "Image:    $IMAGE_NAME"

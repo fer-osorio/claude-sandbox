@@ -1093,3 +1093,51 @@ sbx-squid none squid" ]
     [ "$status" -ne 0 ]
     [[ "$output" == *"Combinations: bb mm"* ]]
 }
+
+# bats test_tags=fast, hostonly
+@test "C-48: start.sh accepts a combination as the argument or a registry profile, and never reads global-<combination>/" {
+    _combo_fixture 'COMBOS[pair]="alpha beta"
+PROJECT_PATH[mylib]="'"${BATS_TEST_TMPDIR}"'"
+PROJECT_PROFILE[mylib]=pair'
+    mkdir -p "${REG_TMPDIR}/proj" "${REG_TMPDIR}/store" "${REG_TMPDIR}/global-pair/skills/x"
+
+    run env -u GH_TOKEN ENGINE=true CREDENTIALS_DIR="${REG_TMPDIR}/store" \
+        bash "${REG_TMPDIR}/start.sh" "${REG_TMPDIR}/proj" pair
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Image:    claude-pair"* ]]
+    [[ "$output" == *"Overlay:  none for image 'pair'"* ]]
+
+    run env -u GH_TOKEN ENGINE=true CREDENTIALS_DIR="${REG_TMPDIR}/store" \
+        bash "${REG_TMPDIR}/start.sh" @mylib
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Image:    claude-pair"* ]]
+
+    run env ENGINE=true bash "${REG_TMPDIR}/start.sh" "${REG_TMPDIR}/proj" nope
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Combinations: pair"* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-49: a combination whose member has an overlay is refused, naming the member, before any image is touched" {
+    bats_require_minimum_version 1.5.0
+    _combo_fixture 'COMBOS[pair]="alpha beta"'
+    mkdir -p "${REG_TMPDIR}/proj" "${REG_TMPDIR}/store" "${REG_TMPDIR}/global-beta"
+    # Answers start.sh's reachability check and logs every other call.
+    cat > "${REG_TMPDIR}/engine" <<'STUB'
+#!/usr/bin/env bash
+[ "$1" = "info" ] && exit 0
+echo "$*" >> "${STUB_LOG}"
+STUB
+
+    run --separate-stderr env ENGINE="${REG_TMPDIR}/engine" \
+        bash "${REG_TMPDIR}/start.sh" "${REG_TMPDIR}/proj" pair
+    [ "$status" -ne 0 ]
+    [[ "$stderr" == *"combination 'pair' cannot start: its member 'beta' has an overlay, global-beta/."* ]]
+    [ ! -s "$STUB_LOG" ]
+
+    # Without the overlay, the same combination starts.
+    rm -rf "${REG_TMPDIR}/global-beta"
+    run env -u GH_TOKEN ENGINE=true CREDENTIALS_DIR="${REG_TMPDIR}/store" \
+        bash "${REG_TMPDIR}/start.sh" "${REG_TMPDIR}/proj" pair
+    [ "$status" -eq 0 ]
+}

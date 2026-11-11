@@ -10,6 +10,7 @@
 
 declare -A PROJECT_PATH=()
 declare -A PROJECT_PROFILE=()
+declare -A COMBOS=()
 
 # config.local.sh moved into config/ in #189. One left at the old path would
 # no longer be read, and the session would run on defaults the operator had
@@ -36,6 +37,14 @@ for _name in "${!PROJECT_PATH[@]}"; do
 done
 unset _name
 
+# The same snapshot for named combinations
+# (docs/designs/0194-profile-composition.md, Decision 2).
+declare -A COMMITTED_COMBOS=()
+for _name in "${!COMBOS[@]}"; do
+    COMMITTED_COMBOS[$_name]="${COMBOS[$_name]}"
+done
+unset _name
+
 # --- Layer 3: gitignored, per-machine overrides.
 [ -f "${SANDBOX_DIR}/config/config.local.sh" ] && source "${SANDBOX_DIR}/config/config.local.sh"
 
@@ -49,6 +58,15 @@ for _name in "${!COMMITTED_PROJECT_PATH[@]}"; do
              "ignoring the local value (config.sh wins)." >&2
         PROJECT_PATH[$_name]="${COMMITTED_PROJECT_PATH[$_name]}"
         PROJECT_PROFILE[$_name]="${COMMITTED_PROJECT_PROFILE[$_name]}"
+    fi
+done
+unset _name
+
+for _name in "${!COMMITTED_COMBOS[@]}"; do
+    if [[ "${COMBOS[$_name]:-}" != "${COMMITTED_COMBOS[$_name]}" ]]; then
+        echo "Warning: config.local.sh redefines committed combination '$_name';" \
+             "ignoring the local value (config.sh wins)." >&2
+        COMBOS[$_name]="${COMMITTED_COMBOS[$_name]}"
     fi
 done
 unset _name
@@ -91,4 +109,59 @@ resolve_project_name() {
         echo "Add PROJECT_PROFILE[$name] to config.sh, or name one: ./start.sh @$name <profile>" >&2
         exit 1
     fi
+}
+
+# True when the name is a declared combination.
+is_combo() {
+    [[ -n "${COMBOS[$1]+set}" ]]
+}
+
+# Aborts on the first invalid combination, in name order, naming it and the
+# rule it breaks. Called by build.sh and start.sh after layer 4; creds.sh and
+# check-auto-memory.sh do not call it, so a typo in a combination does not
+# block credential management. See docs/designs/0194-profile-composition.md,
+# Decision 2.
+_combo_invalid() {
+    echo "Error: invalid combination '$1' in config: $2." >&2
+    exit 1
+}
+
+validate_combos() {
+    local name member p seen found
+    local -a members
+    while IFS= read -r name; do
+        [ -z "$name" ] && continue
+        [[ "$name" =~ ^[a-z0-9][a-z0-9-]*$ ]] \
+            || _combo_invalid "$name" "the name must match ^[a-z0-9][a-z0-9-]*\$"
+        case "$name" in
+            all|squid) _combo_invalid "$name" "'$name' is a reserved build target" ;;
+        esac
+        for p in "${PROFILES[@]}"; do
+            if [ "$p" = "$name" ]; then
+                _combo_invalid "$name" "the name is already a profile"
+            fi
+        done
+
+        read -r -a members <<< "${COMBOS[$name]}"
+        [ "${#members[@]}" -ge 2 ] \
+            || _combo_invalid "$name" "it needs at least two members"
+        seen=" "
+        for member in "${members[@]}"; do
+            if [[ "$seen" == *" $member "* ]]; then
+                _combo_invalid "$name" "member '$member' is repeated"
+            fi
+            seen+="$member "
+            found=""
+            for p in "${PROFILES[@]}"; do
+                if [ "$p" = "$member" ]; then found=1; fi
+            done
+            [ -n "$found" ] \
+                || _combo_invalid "$name" "member '$member' is not a profile in PROFILES"
+            [ "$member" != "base" ] \
+                || _combo_invalid "$name" "'base' is not a member; every member builds on it"
+            [ "${PROFILE_BASE[$member]:-}" = "base" ] \
+                || _combo_invalid "$name" "member '$member' does not build on base"
+        done
+    done < <(printf '%s\n' "${!COMBOS[@]}" | sort)
+    return 0
 }

@@ -958,3 +958,89 @@ EOF
     expected+=$'\n'"sbx-squid none"
     [ "$(cat "${STUB_LOG}.parents")" = "$expected" ]
 }
+
+# A build.sh fixture with three fixture profiles beside base: alpha and beta
+# build on base, gamma builds on alpha. The committed config.sh is not
+# copied, so these tests do not move when real profiles do. $1, if given, is
+# appended to config.sh.
+_combo_fixture() {
+    REG_TMPDIR="$(mktemp -d)"
+    cp "${SANDBOX_DIR}/build.sh" "${SANDBOX_DIR}/start.sh" "${REG_TMPDIR}/"
+    cp -r "${SANDBOX_DIR}/lib" "${REG_TMPDIR}/lib"
+    mkdir "${REG_TMPDIR}/config"
+    cat > "${REG_TMPDIR}/config/config.sh" <<CONF
+PROFILES=(base alpha beta gamma)
+declare -A PROFILE_BASE=( [alpha]=base [beta]=base [gamma]=alpha )
+declare -A COMBOS=()
+${1:-}
+CONF
+    _stub_build_engine
+    export STUB_LOG="${REG_TMPDIR}/engine.log"
+}
+
+# bats test_tags=fast, hostonly
+@test "C-43: every invalid combination aborts build.sh, naming it and the rule, before any build" {
+    bats_require_minimum_version 1.5.0
+    local def expect
+    while IFS='|' read -r def expect; do
+        _combo_fixture "$def"
+        run --separate-stderr env -u IMAGE_PREFIX ENGINE="${REG_TMPDIR}/engine" \
+            bash "${REG_TMPDIR}/build.sh" squid
+        [ "$status" -ne 0 ] || { echo "accepted: $def" >&2; return 1; }
+        [[ "$stderr" == *"invalid combination"*"$expect"* ]] \
+            || { echo "for $def, stderr was: $stderr" >&2; return 1; }
+        [ ! -s "$STUB_LOG" ] || { echo "built despite: $def" >&2; return 1; }
+        rm -rf "$REG_TMPDIR"
+    done <<'CASES'
+COMBOS[Bad_Name]="alpha beta"|must match
+COMBOS[all]="alpha beta"|reserved build target
+COMBOS[squid]="alpha beta"|reserved build target
+COMBOS[alpha]="alpha beta"|already a profile
+COMBOS[solo]="alpha"|at least two members
+COMBOS[twice]="alpha alpha"|'alpha' is repeated
+COMBOS[ghost]="alpha nope"|'nope' is not a profile
+COMBOS[withbase]="base alpha"|'base' is not a member
+COMBOS[nested]="beta gamma"|'gamma' does not build on base
+CASES
+}
+
+# bats test_tags=fast, hostonly
+@test "C-44: config.local.sh may add a combination but not redefine a committed one" {
+    bats_require_minimum_version 1.5.0
+    _combo_fixture 'COMBOS[shared]="alpha beta"'
+    cat > "${REG_TMPDIR}/config/config.local.sh" <<'LOCAL'
+COMBOS[shared]="beta alpha"
+COMBOS[mine]="beta alpha"
+LOCAL
+
+    run --separate-stderr bash -c '
+        set -euo pipefail
+        SANDBOX_DIR="$1"
+        source "$1/lib/config.sh"
+        validate_combos
+        for n in $(printf "%s\n" "${!COMBOS[@]}" | sort); do echo "$n=${COMBOS[$n]}"; done
+    ' _ "$REG_TMPDIR"
+    [ "$status" -eq 0 ]
+    [ "$output" = $'mine=beta alpha\nshared=alpha beta' ]
+    [[ "$stderr" == *"Warning: config.local.sh redefines committed combination 'shared'; ignoring the local value (config.sh wins)."* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-45: an invalid combination does not block creds.sh or start.sh --list" {
+    # Credential management and the registry listing read no combination,
+    # so a typo in one must not lock the operator out of them.
+    _combo_fixture 'COMBOS[solo]="alpha"'
+    cp "${SANDBOX_DIR}/creds.sh" "${REG_TMPDIR}/"
+    mkdir -p "${REG_TMPDIR}/store"
+
+    run env ENGINE=true bash "${REG_TMPDIR}/start.sh" --list
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"No projects registered"* ]]
+
+    run env CREDENTIALS_DIR="${REG_TMPDIR}/store" bash "${REG_TMPDIR}/creds.sh" list --all
+    [[ "$output" != *"invalid combination"* ]]
+
+    run env ENGINE=true bash "${REG_TMPDIR}/start.sh" "${REG_TMPDIR}" base
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"invalid combination 'solo'"* ]]
+}

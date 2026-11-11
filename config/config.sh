@@ -26,6 +26,19 @@ declare -A PROFILE_BASE=(
     [crypto]=base
 )
 
+# ── Named combinations ───────────────────────────────────────────
+# Maps a combination name to an ordered list of child profiles. build.sh
+# builds the first member on base, then each later member on the previous
+# result; start.sh accepts the name wherever it accepts a profile. Order is
+# build order: files and ENV values set by a later member win. Every member
+# must build on base. See docs/designs/0194-profile-composition.md.
+#
+# config.local.sh may add a combination; it may not redefine one listed
+# here, which is reverted with a warning, as for the project registry below.
+declare -A COMBOS=(
+    # [crypto-rust]="crypto rust"
+)
+
 IMAGE_PREFIX="claude"   # image tag = "${IMAGE_PREFIX}-${profile}"
 ENGINE="podman"         # container engine binary; ENGINE env var overrides at call time
 

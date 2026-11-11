@@ -52,6 +52,8 @@ source "${SANDBOX_DIR}/lib/config.sh"
 ENGINE="${_ENV_ENGINE:-$ENGINE}"
 IMAGE_PREFIX="${_ENV_IMAGE_PREFIX:-$IMAGE_PREFIX}"
 
+validate_combos
+
 is_profile() {
     local candidate="$1"
     local p

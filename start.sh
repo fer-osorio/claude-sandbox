@@ -118,6 +118,10 @@ if [ "${1:-}" = "--list" ]; then
     exit 0
 fi
 
+# After --list, which reads only the registry and must keep working while a
+# combination is being fixed.
+validate_combos
+
 PROJECT_ARG="${1:-$(pwd)}"
 IMAGE_TAG="${2:-}"
 

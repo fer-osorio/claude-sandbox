@@ -1,7 +1,8 @@
 # Workspace Artifact Staleness — Software Design Document
 
 > **Document type:** Software Design Document (SDD)
-> **Status:** Accepted
+> **Status:** Accepted. §5.1, the CMake check, was removed in #193; see Change 28 in
+> `claude-code-security-plan-changelog.md`.
 > **Relates to:** `claude-code-security-plan.md` (Phase 5, Audit Logging; STRIDE coverage map),
 > `0006-interpreter-presence-health-check.md` (companion SDD; handles the Python venv case that
 > motivated this generalization), `global_layer_injection_sdd.md` (entrypoint mechanism this

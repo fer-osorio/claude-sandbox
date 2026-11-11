@@ -16,6 +16,7 @@
 
 load 'lib/engine'
 load 'lib/teardown'
+load 'lib/profiles'
 
 SANDBOX_DIR="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
 
@@ -40,6 +41,34 @@ teardown() {
 
     register_container "$CONTAINER_NAME"
     run engine_run --rm --name "$CONTAINER_NAME" claude-crypto \
-        sh -c 'softhsm2-util --show-slots && p11-kit list-modules'
+        sh -c "$(profile_smoke_command crypto)"
     [ "$status" -eq 0 ]
+}
+
+# bats test_tags=slow
+@test "T-4: every committed combination passes each member's smoke test" {
+    # A later member can break an earlier one: its files and ENV values win
+    # (docs/designs/0194-profile-composition.md, Consequences). B-5 shows the
+    # mechanism on fixtures; this runs the real members in the real images.
+    local combos
+    combos="$(declared_combos)"
+    if [ -z "$combos" ]; then
+        skip "no combination is committed in config/config.sh"
+    fi
+
+    local name members member cmd n=0
+    while read -r name members; do
+        if ! engine_inspect "claude-${name}" > /dev/null 2>&1; then
+            echo "claude-${name} image not found — build it first with: ./build.sh ${name}" >&2
+            return 1
+        fi
+        for member in $members; do
+            cmd="$(profile_smoke_command "$member")" \
+                || { echo "no smoke command for member '${member}' in tests/lib/profiles.bash" >&2; return 1; }
+            n=$(( n + 1 ))
+            register_container "${CONTAINER_NAME}-${n}"
+            run engine_run --rm --name "${CONTAINER_NAME}-${n}" "claude-${name}" sh -c "$cmd"
+            [ "$status" -eq 0 ] || { echo "${name}: ${member}'s smoke test failed: $output" >&2; return 1; }
+        done
+    done <<< "$combos"
 }

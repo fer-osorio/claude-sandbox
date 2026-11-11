@@ -16,3 +16,21 @@ declared_profiles() {
 declared_child_profiles() {
     declared_profiles | grep -vx base
 }
+
+# Every declared combination as "<name> <member> <member>...", one per line,
+# in name order.
+declared_combos() {
+    bash -c 'set -eu; declare -A COMBOS=(); source "$1/config/config.sh"
+             for n in "${!COMBOS[@]}"; do echo "$n ${COMBOS[$n]}"; done | sort' \
+        _ "${SANDBOX_DIR:?declared_combos needs SANDBOX_DIR}"
+}
+
+# The command that shows a child profile's toolchain works, run inside its
+# image by T-1 and, for every member, inside each combination by T-4.
+# Fails for a profile with none, so T-4 cannot pass a member it never ran.
+profile_smoke_command() {
+    case "$1" in
+        crypto) echo 'softhsm2-util --show-slots && p11-kit list-modules' ;;
+        *) return 1 ;;
+    esac
+}

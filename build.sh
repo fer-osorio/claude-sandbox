@@ -5,6 +5,8 @@
 #   ./build.sh                  — build all images
 #   ./build.sh base             — build only claude-base
 #   ./build.sh crypto           — build claude-base then claude-crypto
+#   ./build.sh <combination>    — build claude-base, then each member of a
+#                                 COMBOS entry on the previous one
 #   ./build.sh squid            — build only claude-squid (no base dependency)
 #   ./build.sh --no-cache       — build all images, bypassing Docker layer cache
 #   ./build.sh base --no-cache  — build only claude-base, bypassing cache
@@ -83,12 +85,50 @@ done
 # non-default IMAGE_PREFIX built children on a stale or missing claude-base.
 build_profile() {
     local profile="$1"
-    local tag="${IMAGE_PREFIX}-${profile}"
     local parent="${PROFILE_BASE[$profile]:-}"
+    build_image "$profile" "${IMAGE_PREFIX}-${profile}" "${parent:+${IMAGE_PREFIX}-${parent}}"
+}
+
+# Builds profiles/<profile>/ as <tag>, on <parent> when one is given.
+build_image() {
+    local profile="$1" tag="$2" parent="${3:-}"
     local parent_arg=()
-    [ -n "$parent" ] && parent_arg=(--build-arg "PARENT_IMAGE=${IMAGE_PREFIX}-${parent}")
-    echo "→ Building ${tag}..."
+    [ -n "$parent" ] && parent_arg=(--build-arg "PARENT_IMAGE=${parent}")
+    echo "→ Building ${tag}${parent:+ (${profile} on ${parent})}..."
     "$ENGINE" build $UID_ARG $NO_CACHE "${parent_arg[@]}" -t "${tag}" "${SANDBOX_DIR}/profiles/${profile}/"
+}
+
+# A combination is a chain of member builds (docs/designs/0194-profile-composition.md,
+# Decision 3): base, the first member as its own profile image, then each
+# later member on the previous result. The last is tagged
+# ${IMAGE_PREFIX}-<combination>; with three or more members, the result
+# after n members is tagged ${IMAGE_PREFIX}-<combination>:part-<n>.
+build_combo() {
+    local combo="$1"
+    local -a members
+    read -r -a members <<< "${COMBOS[$combo]}"
+    local last=$(( ${#members[@]} - 1 ))
+    local parent i tag
+
+    build_profile "base"
+    build_profile "${members[0]}"
+    parent="${IMAGE_PREFIX}-${members[0]}"
+    for (( i = 1; i <= last; i++ )); do
+        if [ "$i" -eq "$last" ]; then
+            tag="${IMAGE_PREFIX}-${combo}"
+        else
+            tag="${IMAGE_PREFIX}-${combo}:part-$(( i + 1 ))"
+        fi
+        build_image "${members[$i]}" "$tag" "$parent"
+        parent="$tag"
+    done
+}
+
+# Declared combinations in name order, one per line.
+combo_names() {
+    if [ "${#COMBOS[@]}" -gt 0 ]; then
+        printf '%s\n' "${!COMBOS[@]}" | sort
+    fi
 }
 
 # Builds a profile's base dependency first (if it has one), then the
@@ -116,6 +156,11 @@ case "$TARGET" in
             [ "$p" = "base" ] && continue
             build_profile "$p"
         done
+        # Each rebuilds base and its first member, which the layer cache
+        # makes a no-op after the loop above.
+        while IFS= read -r c; do
+            [ -n "$c" ] && build_combo "$c"
+        done < <(combo_names)
         build_squid
         echo ""
         echo "All images built:"
@@ -124,7 +169,7 @@ case "$TARGET" in
         # engine's listing couples this line to its naming. Podman shows local
         # images as localhost/<name>, so a ^-anchored grep found nothing and
         # pipefail made a fully successful build exit 1.
-        for p in "${PROFILES[@]}" squid; do
+        for p in "${PROFILES[@]}" $(combo_names) squid; do
             echo "  ${IMAGE_PREFIX}-${p}"
         done
         ;;
@@ -134,10 +179,15 @@ case "$TARGET" in
     *)
         if is_profile "$TARGET"; then
             build_with_deps "$TARGET"
+        elif is_combo "$TARGET"; then
+            build_combo "$TARGET"
         else
             joined_profiles="$(IFS='|'; echo "${PROFILES[*]}")"
             echo "Unknown target: $TARGET"
             echo "Usage: $0 [all|${joined_profiles}|squid]"
+            if [ "${#COMBOS[@]}" -gt 0 ]; then
+                echo "Combinations: $(combo_names | tr '\n' ' ')"
+            fi
             exit 1
         fi
         ;;

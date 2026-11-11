@@ -85,6 +85,34 @@ teardown() {
     done
 }
 
+# bats test_tags=slow
+@test "B-5: two contract-following profiles compose into one working image" {
+    # The image-level half of composition: a member built on another
+    # member keeps both members' files and PATH entries, still runs as
+    # claude-agent, and still starts through the base entrypoint. Built
+    # directly with ":test" tags, as B-2 and B-3 are, so teardown can remove
+    # them (SDD §5); build.sh's chaining of the same arguments is C-46.
+    local fx="${SANDBOX_DIR}/tests/fixtures/profiles"
+    engine_build -t claude-base:test "${SANDBOX_DIR}/profiles/base/"
+    register_image "claude-base:test"
+    engine_build --build-arg PARENT_IMAGE=claude-base:test \
+        -t claude-fixture-a:test "${fx}/fixture-a/"
+    register_image "claude-fixture-a:test"
+    engine_build --build-arg PARENT_IMAGE=claude-fixture-a:test \
+        -t claude-fixture-ab:test "${fx}/fixture-b/"
+    register_image "claude-fixture-ab:test"
+
+    run engine_run --rm claude-fixture-ab:test \
+        sh -c 'cat /etc/fixture-a.marker /etc/fixture-b.marker; fixture-a; fixture-b; whoami'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"[entrypoint] Starting global layer injection"* ]]
+    [ "$(echo "$output" | grep -v '^\[entrypoint\]')" = "a
+b
+fixture-a
+fixture-b
+claude-agent" ]
+}
+
 # B-4 lives in tests/test_control_declarations.bats (Group 9). It greps two
 # tracked scripts and starts no container, so it does not belong behind this
 # file's engine gate — see SDD §6.2.

@@ -435,15 +435,17 @@ case "$1" in
     build)
         # PARENT_IMAGE goes to its own log, so C-21's exact comparison of
         # the build order is unaffected by it.
-        parent=""
+        # The build context is the last argument; its directory name is the
+        # profile built.
+        parent="" tag="" context="${!#}"
         while [ "$#" -gt 0 ]; do
             case "$1" in
                 --build-arg) [[ "$2" == PARENT_IMAGE=* ]] && parent="${2#PARENT_IMAGE=}" ;;
-                -t) echo "build $2" >> "${STUB_LOG}"
-                    echo "$2 ${parent:-none}" >> "${STUB_LOG}.parents" ;;
+                -t) tag="$2"; echo "build $2" >> "${STUB_LOG}" ;;
             esac
             shift
         done
+        echo "${tag} ${parent:-none} $(basename "$context")" >> "${STUB_LOG}.parents"
         exit 0
         ;;
     images)
@@ -898,13 +900,17 @@ EOF
     # Composition builds one member on top of another, so each child must
     # take its parent as an argument and leave the image as it found it:
     # Decision 1 of the design. Instructions are matched case-insensitively,
-    # as the engine reads them.
+    # as the engine reads them. B-5's fixture profiles are held to it too,
+    # since B-5 is what shows the contract is enough.
     local p f first_user last_user first_run line
-    local children
-    children="$(declared_child_profiles)"
-    [ -n "$children" ]
-    for p in $children; do
-        f="${SANDBOX_DIR}/profiles/${p}/Dockerfile"
+    local -a files=()
+    for p in $(declared_child_profiles); do
+        files+=("${SANDBOX_DIR}/profiles/${p}/Dockerfile")
+    done
+    [ "${#files[@]}" -gt 0 ]
+    files+=("${SANDBOX_DIR}"/tests/fixtures/profiles/*/Dockerfile)
+    for f in "${files[@]}"; do
+        p="${f#"${SANDBOX_DIR}/"}"
 
         [ "$(grep -ciE '^[[:space:]]*FROM[[:space:]]' "$f")" -eq 1 ] \
             || { echo "${p}: not exactly one FROM" >&2; return 1; }
@@ -951,16 +957,16 @@ EOF
     [ "$status" -eq 0 ]
 
     local p expected
-    expected="sbx-base none"
+    expected="sbx-base none base"
     for p in $(declared_child_profiles); do
-        expected+=$'\n'"sbx-${p} sbx-base"
+        expected+=$'\n'"sbx-${p} sbx-base ${p}"
     done
-    expected+=$'\n'"sbx-squid none"
+    expected+=$'\n'"sbx-squid none squid"
     [ "$(cat "${STUB_LOG}.parents")" = "$expected" ]
 }
 
-# A build.sh fixture with three fixture profiles beside base: alpha and beta
-# build on base, gamma builds on alpha. The committed config.sh is not
+# A build.sh fixture with four fixture profiles beside base: alpha, beta and
+# delta build on base, gamma builds on alpha. The committed config.sh is not
 # copied, so these tests do not move when real profiles do. $1, if given, is
 # appended to config.sh.
 _combo_fixture() {
@@ -969,8 +975,8 @@ _combo_fixture() {
     cp -r "${SANDBOX_DIR}/lib" "${REG_TMPDIR}/lib"
     mkdir "${REG_TMPDIR}/config"
     cat > "${REG_TMPDIR}/config/config.sh" <<CONF
-PROFILES=(base alpha beta gamma)
-declare -A PROFILE_BASE=( [alpha]=base [beta]=base [gamma]=alpha )
+PROFILES=(base alpha beta gamma delta)
+declare -A PROFILE_BASE=( [alpha]=base [beta]=base [gamma]=alpha [delta]=base )
 declare -A COMBOS=()
 ${1:-}
 CONF
@@ -1043,4 +1049,47 @@ LOCAL
     run env ENGINE=true bash "${REG_TMPDIR}/start.sh" "${REG_TMPDIR}" base
     [ "$status" -ne 0 ]
     [[ "$output" == *"invalid combination 'solo'"* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-46: build.sh <combination> builds base, then each member on the previous result" {
+    _combo_fixture 'COMBOS[trio]="beta alpha delta"
+COMBOS[pair]="delta alpha"'
+
+    run env IMAGE_PREFIX=sbx ENGINE="${REG_TMPDIR}/engine" bash "${REG_TMPDIR}/build.sh" trio
+    [ "$status" -eq 0 ]
+    [ "$(cat "${STUB_LOG}.parents")" = "sbx-base none base
+sbx-beta sbx-base beta
+sbx-trio:part-2 sbx-beta alpha
+sbx-trio sbx-trio:part-2 delta" ]
+
+    # Two members leave no intermediate tag.
+    rm "${STUB_LOG}.parents"
+    run env IMAGE_PREFIX=sbx ENGINE="${REG_TMPDIR}/engine" bash "${REG_TMPDIR}/build.sh" pair
+    [ "$status" -eq 0 ]
+    [ "$(cat "${STUB_LOG}.parents")" = "sbx-base none base
+sbx-delta sbx-base delta
+sbx-pair sbx-delta alpha" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-47: bare build.sh builds combinations after profiles, in name order, and names them" {
+    # Bash lists these two keys as "mm bb", so the order asserted is the
+    # sort, not the hash table's.
+    _combo_fixture 'COMBOS[mm]="alpha beta"
+COMBOS[bb]="beta alpha"'
+
+    run env IMAGE_PREFIX=sbx ENGINE="${REG_TMPDIR}/engine" bash "${REG_TMPDIR}/build.sh"
+    [ "$status" -eq 0 ]
+    # Profiles, then bb's chain, then mm's, then Squid. The repeated base and
+    # first-member builds are layer-cache no-ops on a real engine.
+    [ "$(grep -E '^sbx-(bb|mm|squid)' "${STUB_LOG}.parents")" = "sbx-bb sbx-beta alpha
+sbx-mm sbx-alpha beta
+sbx-squid none squid" ]
+    [ "$(sed -n '1,5p' "${STUB_LOG}.parents" | cut -d' ' -f1 | tr '\n' ' ')" = "sbx-base sbx-alpha sbx-beta sbx-gamma sbx-delta " ]
+    [[ "$output" == *"  sbx-bb"*"  sbx-mm"*"  sbx-squid"* ]]
+
+    run env ENGINE="${REG_TMPDIR}/engine" bash "${REG_TMPDIR}/build.sh" nope
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Combinations: bb mm"* ]]
 }

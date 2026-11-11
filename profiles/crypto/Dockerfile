@@ -21,7 +21,12 @@
 #
 # Build (after claude-base exists):
 #   docker build --build-arg HOST_UID=$(id -u) -t claude-crypto ./profiles/crypto/
-FROM claude-base
+#
+# This file follows the profile contract (docs/designs/0194-profile-composition.md,
+# Decision 1), so it can also be built on another profile's image: build.sh
+# passes the parent as PARENT_IMAGE. The default serves a standalone build.
+ARG PARENT_IMAGE=claude-base
+FROM ${PARENT_IMAGE}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BUILD ARGUMENTS
@@ -74,5 +79,3 @@ USER claude-agent
 RUN mkdir -p /home/claude-agent/.config/pkcs11/modules \
     && printf 'module: /usr/lib/softhsm/libsofthsm2.so\n' \
        > /home/claude-agent/.config/pkcs11/modules/softhsm2.module
-
-CMD ["claude"]

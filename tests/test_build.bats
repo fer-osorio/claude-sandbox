@@ -72,20 +72,15 @@ teardown() {
     engine_build --no-cache -t claude-base:test "${SANDBOX_DIR}/profiles/base/"
     register_image "claude-base:test"
 
-    # Every child profile hardcodes "FROM claude-base" (the production
-    # tag, not ":test") — that FROM clause can't be parameterized without
-    # editing the Dockerfiles, which is out of scope for this suite (SDD
-    # §2.3). So isolating *these* builds from a prior full build still
-    # requires claude-base to already exist; fail loudly and name the fix
-    # rather than silently aliasing or skipping (SDD §8).
-    if ! engine_inspect claude-base > /dev/null 2>&1; then
-        echo "claude-base image not found — build it first with: ./build.sh base" >&2
-        return 1
-    fi
-
+    # Children are built on the claude-base:test just built, through the
+    # PARENT_IMAGE argument every child takes (C-41,
+    # docs/designs/0194-profile-composition.md). Before #194 they named
+    # claude-base literally, so this test needed a production base from an
+    # earlier build and was not isolated from it.
     local component
     for component in $(declared_child_profiles); do
-        engine_build --no-cache -t "claude-${component}:test" "${SANDBOX_DIR}/profiles/${component}/"
+        engine_build --no-cache --build-arg PARENT_IMAGE=claude-base:test \
+            -t "claude-${component}:test" "${SANDBOX_DIR}/profiles/${component}/"
         register_image "claude-${component}:test"
     done
 }

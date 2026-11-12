@@ -433,8 +433,15 @@ _stub_build_engine() {
 #!/usr/bin/env bash
 case "$1" in
     build)
+        # PARENT_IMAGE goes to its own log, so C-21's exact comparison of
+        # the build order is unaffected by it.
+        parent=""
         while [ "$#" -gt 0 ]; do
-            [ "$1" = "-t" ] && { echo "build $2" >> "${STUB_LOG}"; break; }
+            case "$1" in
+                --build-arg) [[ "$2" == PARENT_IMAGE=* ]] && parent="${2#PARENT_IMAGE=}" ;;
+                -t) echo "build $2" >> "${STUB_LOG}"
+                    echo "$2 ${parent:-none}" >> "${STUB_LOG}.parents" ;;
+            esac
             shift
         done
         exit 0
@@ -882,4 +889,72 @@ EOF
     [ "$status" -ne 0 ]
     [[ "$output" == *"config.local.sh is no longer read."* ]]
     [[ "$output" != *"Building"* ]]
+}
+
+# C-41 onward: profile composition (docs/designs/0194-profile-composition.md)
+
+# bats test_tags=fast, hostonly
+@test "C-41: every child Dockerfile follows the profile contract" {
+    # Composition builds one member on top of another, so each child must
+    # take its parent as an argument and leave the image as it found it:
+    # Decision 1 of the design. Instructions are matched case-insensitively,
+    # as the engine reads them.
+    local p f first_user last_user first_run line
+    local children
+    children="$(declared_child_profiles)"
+    [ -n "$children" ]
+    for p in $children; do
+        f="${SANDBOX_DIR}/profiles/${p}/Dockerfile"
+
+        [ "$(grep -ciE '^[[:space:]]*FROM[[:space:]]' "$f")" -eq 1 ] \
+            || { echo "${p}: not exactly one FROM" >&2; return 1; }
+        grep -qiE '^[[:space:]]*FROM[[:space:]]+\$\{PARENT_IMAGE\}[[:space:]]*$' "$f" \
+            || { echo "${p}: FROM is not \${PARENT_IMAGE}" >&2; return 1; }
+        grep -qiE '^[[:space:]]*ARG[[:space:]]+PARENT_IMAGE=claude-base[[:space:]]*$' "$f" \
+            || { echo "${p}: no ARG PARENT_IMAGE=claude-base default" >&2; return 1; }
+
+        ! grep -qiE '^[[:space:]]*(ENTRYPOINT|CMD)([[:space:]]|\[)' "$f" \
+            || { echo "${p}: sets ENTRYPOINT or CMD, which claude-base owns" >&2; return 1; }
+
+        first_user="$(grep -niE '^[[:space:]]*USER[[:space:]]' "$f" | head -1)"
+        last_user="$(grep -iE '^[[:space:]]*USER[[:space:]]' "$f" | tail -1 | awk '{print $2}')"
+        first_run="$(grep -niE '^[[:space:]]*(RUN|COPY|ADD)[[:space:]]' "$f" | head -1 | cut -d: -f1)"
+        if [ -n "$first_run" ]; then
+            [ -n "$first_user" ] && [ "${first_user%%:*}" -lt "$first_run" ] \
+                && [ "$(echo "${first_user#*:}" | awk '{print $2}')" = "root" ] \
+                || { echo "${p}: work starts before an explicit USER root" >&2; return 1; }
+        fi
+        [ "$last_user" = "claude-agent" ] \
+            || { echo "${p}: does not end as USER claude-agent" >&2; return 1; }
+
+        while IFS= read -r line; do
+            [[ "$line" == *'${PATH}'* || "$line" == *'$PATH'* ]] \
+                || { echo "${p}: ENV PATH replaces PATH: ${line}" >&2; return 1; }
+        done < <(grep -iE '^[[:space:]]*ENV[[:space:]]+PATH[=[:space:]]' "$f")
+    done
+}
+
+# bats test_tags=fast, hostonly
+@test "C-42: build.sh builds each child on its parent under the configured IMAGE_PREFIX" {
+    # Before #194 the child named claude-base literally, so a non-default
+    # IMAGE_PREFIX built it on a stale or missing image. Base and Squid have
+    # no parent and are given none.
+    REG_TMPDIR="$(mktemp -d)"
+    cp "${SANDBOX_DIR}/build.sh" "${REG_TMPDIR}/"
+    cp -r "${SANDBOX_DIR}/lib" "${REG_TMPDIR}/lib"
+    mkdir "${REG_TMPDIR}/config"
+    cp "${SANDBOX_DIR}/config/config.sh" "${REG_TMPDIR}/config/"
+    _stub_build_engine
+    export STUB_LOG="${REG_TMPDIR}/engine.log"
+
+    run env IMAGE_PREFIX=sbx ENGINE="${REG_TMPDIR}/engine" bash "${REG_TMPDIR}/build.sh"
+    [ "$status" -eq 0 ]
+
+    local p expected
+    expected="sbx-base none"
+    for p in $(declared_child_profiles); do
+        expected+=$'\n'"sbx-${p} sbx-base"
+    done
+    expected+=$'\n'"sbx-squid none"
+    [ "$(cat "${STUB_LOG}.parents")" = "$expected" ]
 }

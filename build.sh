@@ -75,11 +75,18 @@ for arg in "$@"; do
   esac
 done
 
+# A child profile is built on its parent's image under this IMAGE_PREFIX,
+# passed as PARENT_IMAGE (docs/designs/0194-profile-composition.md). The
+# Dockerfile's own default names the default prefix, so without this a
+# non-default IMAGE_PREFIX built children on a stale or missing claude-base.
 build_profile() {
     local profile="$1"
     local tag="${IMAGE_PREFIX}-${profile}"
+    local parent="${PROFILE_BASE[$profile]:-}"
+    local parent_arg=()
+    [ -n "$parent" ] && parent_arg=(--build-arg "PARENT_IMAGE=${IMAGE_PREFIX}-${parent}")
     echo "→ Building ${tag}..."
-    "$ENGINE" build $UID_ARG $NO_CACHE -t "${tag}" "${SANDBOX_DIR}/profiles/${profile}/"
+    "$ENGINE" build $UID_ARG $NO_CACHE "${parent_arg[@]}" -t "${tag}" "${SANDBOX_DIR}/profiles/${profile}/"
 }
 
 # Builds a profile's base dependency first (if it has one), then the

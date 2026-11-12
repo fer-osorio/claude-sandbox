@@ -1175,3 +1175,35 @@ changes.
 - **The allowlist is still global, not per profile.** `www.openssl.org`
   serves only `crypto` and is reachable from every session. Composition work
   that adds profiles makes this residual larger, not smaller.
+
+---
+
+### Change 28 — CMake Staleness Check Removed From the Entrypoint
+**Affects:** `profiles/base/entrypoint.sh`, `ARCHITECTURE.md`,
+`docs/user-guide.md`, `docs/designs/0007-workspace-artifact-staleness.md`.
+Date: 2026-11-11. Issue #193.
+
+**What changed:**
+The CMake build-directory check that Change 14 added to the entrypoint is
+removed. The entrypoint no longer searches `/workspace` for `CMakeCache.txt`
+or reads the compiler paths those files record. The interpreter check and
+the Node.js native addon check from Changes 13 and 14 are unchanged.
+
+**Why:** The check guarded caches configured against a compiler inside the
+image. Change 27 retired the last profile that shipped one. Neither
+`claude-base` nor `claude-crypto` installs a C or C++ compiler, so no cache
+the check could flag can be produced in a session.
+
+**STRIDE mapping (delta only):**
+
+| Threat (STRIDE) | Control removed |
+|---|---|
+| **Repudiation (R)** | The session-start record of stale CMake toolchain paths that Change 14 added is gone. No profile can produce the condition it recorded. |
+| **Tampering (T)** | Slight improvement: the entrypoint no longer parses a workspace-controlled file. A crafted `CMakeCache.txt` can no longer put text into the session-start log, the residual that §6.2 of `docs/designs/0007-workspace-artifact-staleness.md` accepted. |
+
+No other STRIDE category is affected. No privilege, mount, or egress changes.
+
+**Residual, not yet closed:**
+- A profile that ships a C or C++ compiler again has to bring the check back
+  with it. Its design is still §5.1 of
+  `docs/designs/0007-workspace-artifact-staleness.md`.

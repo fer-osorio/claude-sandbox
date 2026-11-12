@@ -285,16 +285,11 @@ The ephemeral install pattern (Strategy B) gives you the same in-session
 flexibility without any of these downsides.
 
 **Don't build workspace artifacts against ephemeral toolchains.** The
-entrypoint checks three artifact classes at every session start, each
+entrypoint checks two artifact classes at every session start, each
 with a documented detection ceiling:
 
 - **Python venvs** — checked by testing the `bin/python3*` interpreter
   binary directly. Full detection (Tier 1).
-- **CMake build directories** — checked by reading `CMakeCache.txt` and
-  testing whether the recorded compiler paths are executable. Full
-  detection for compiler-path staleness (Tier 1). Does not detect other
-  forms of CMake cache staleness (changed system headers, changed
-  `find_package` results).
 - **Node.js native addons** (`.node` files) — presence warning only
   (Tier 2). Full ABI verification would require executing the addon or
   parsing its ELF NAPI tag, both of which are unsafe or impractical

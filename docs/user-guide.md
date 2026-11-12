@@ -152,12 +152,11 @@ Two options, covered in detail in `ARCHITECTURE.md`:
 
 ## Troubleshooting
 
-- **"broken interpreter reference" / "stale CMake toolchain path" warnings
-  at session start** — usually means a venv or CMake build directory in
-  your project was built against a tool installed via Strategy B that was
-  never promoted to the Dockerfile. The warning names the fix. Background:
-  [`0006-interpreter-presence-health-check.md`](designs/0006-interpreter-presence-health-check.md),
-  [`0007-workspace-artifact-staleness.md`](designs/0007-workspace-artifact-staleness.md).
+- **"broken interpreter reference" warning at session start** — usually
+  means a venv in your project was built against an interpreter installed
+  via Strategy B that was never promoted to the Dockerfile. The warning
+  names the fix. Background:
+  [`0006-interpreter-presence-health-check.md`](designs/0006-interpreter-presence-health-check.md).
 - **Session start fails with "unknown image" or "image does not exist"** —
   check the name is a profile or a combination (the error lists both),
   and that you've built it with `./build.sh <name>`.

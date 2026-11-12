@@ -483,3 +483,4 @@ three files under `tests/`.
 | 25 | `bats` Added to the Base Image and Pinned in Both Places |
 | 26 | Per-Project Encrypted Credential Store |
 | 27 | Unused Profiles Retired, Their Allowlist Entries and SQLite Removed |
+| 28 | CMake Staleness Check Removed From the Entrypoint |

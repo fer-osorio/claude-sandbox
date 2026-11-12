@@ -39,3 +39,10 @@
 #
 # PROJECT_PATH[scratch-thing]="${PROJECT_BASE}/scratch-thing"
 # PROJECT_PROFILE[scratch-thing]=base
+
+# Named combinations: the same rule as the registry. Adding one here is
+# supported; redefining one config.sh declares is reverted with a warning.
+# Members must be profiles config.sh declares. See
+# docs/designs/0194-profile-composition.md.
+#
+# COMBOS[my-combo]="crypto other-profile"

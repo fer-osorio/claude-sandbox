@@ -28,6 +28,28 @@ Web projects (Vite, Vitest, TypeScript) use **claude-base** directly. Vite
 and Vitest are project-level devDependencies installed via `npm install`
 inside /workspace — they don't need a dedicated image.
 
+### Combinations
+
+A project that needs two child profiles uses a named combination rather than
+a Dockerfile of its own. `config.sh`'s `COMBOS` maps a name to an ordered
+member list; `./build.sh <name>` builds base, the first member, then each
+later member on the previous result, and `./start.sh` accepts the name
+wherever it accepts a profile:
+
+```
+claude-base
+    └── claude-<first member>
+            └── claude-<combination>:part-2      (three or more members only)
+                    └── claude-<combination>
+```
+
+Order is build order: files and `ENV` values set by a later member win.
+`config.local.sh` may add a combination but not redefine a committed one. A
+combination whose member has an overlay (`global-<member>/`) is refused until
+overlays can be merged. No combination is committed yet, because `crypto` is
+the only child profile. Full design:
+[`docs/designs/0194-profile-composition.md`](docs/designs/0194-profile-composition.md).
+
 ### Directory layout
 
 ```
@@ -155,7 +177,12 @@ one) is a different, smaller step since the Podman migration: create the
 `config/config.sh` (add it to `PROFILES`, and to `PROFILE_BASE` if it builds
 on top of `base`).
 `build.sh` and `start.sh` both pick it up automatically — no other file
-needs editing. See [`config/config.sh`](config/config.sh) and
+needs editing. The Dockerfile must follow the profile contract, which C-41
+checks: it is built on `${PARENT_IMAGE}`, brackets its root work with
+`USER root` and `USER claude-agent`, sets no `ENTRYPOINT` or `CMD`, and
+extends `PATH` ([ADR 014](docs/adr/014-the-profile-contract.md)). A profile
+that follows it can be a combination member. Add its smoke command to
+`tests/lib/profiles.bash`, which T-4 runs for each combination's members. See [`config/config.sh`](config/config.sh) and
 [`docs/designs/0028-sandbox-config-file.md`](docs/designs/0028-sandbox-config-file.md).
 
 ---
@@ -211,7 +238,12 @@ Add a tool permanently:
 
 Add a new profile:
   Create profiles/<profile>/Dockerfile, register it in config/config.sh
-  (PROFILES + PROFILE_BASE) — build.sh/start.sh pick it up automatically
+  (PROFILES + PROFILE_BASE) — build.sh/start.sh pick it up automatically.
+  It must follow the profile contract (ADR 014)
+
+Combine profiles into one image:
+  Add COMBOS[<name>]="<member> <member>..." to config/config.sh
+  ./build.sh <name>, then ./start.sh <project> <name>
 
 Register a project name:
   Add it to config/config.sh's PROJECT_PATH/PROJECT_PROFILE (committed,

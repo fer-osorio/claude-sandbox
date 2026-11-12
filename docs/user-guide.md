@@ -13,10 +13,17 @@ Practical, day-to-day usage of claude-sandbox. For build/test commands see
 
 Full hierarchy and rationale: [`ARCHITECTURE.md`](../ARCHITECTURE.md#image-hierarchy).
 
+A project that needs two of them uses a **combination**: a name in
+`config/config.sh`'s `COMBOS` for an ordered list of profiles, built into one
+image with `./build.sh <name>` and started like a profile,
+`./start.sh <project> <name>`. `config.local.sh` may add one, but not
+redefine a committed one. See
+[`ARCHITECTURE.md`](../ARCHITECTURE.md#combinations).
+
 ## Starting a session
 
 ```bash
-./start.sh <project_directory> [profile]   # profile defaults to base
+./start.sh <project_directory> [profile]   # profile or combination; defaults to base
 ./start.sh @<name> [profile]               # registered project — see below
 ./start.sh --list                          # registered names, and where each is defined
 ```
@@ -151,8 +158,14 @@ Two options, covered in detail in `ARCHITECTURE.md`:
   names the fix. Background:
   [`0006-interpreter-presence-health-check.md`](designs/0006-interpreter-presence-health-check.md).
 - **Session start fails with "unknown image" or "image does not exist"** —
-  check the profile name is one of `base`/`crypto`,
-  and that you've built it with `./build.sh <profile>`.
+  check the name is a profile or a combination (the error lists both),
+  and that you've built it with `./build.sh <name>`.
+- **"invalid combination" from `build.sh` or `start.sh`** — the message
+  names the combination and the rule it breaks. `creds.sh` and
+  `start.sh --list` keep working meanwhile.
+- **A combination "cannot start: its member … has an overlay"** — overlays
+  are not merged across members yet. Start the member's own profile, or
+  remove the overlay.
 - **The launch stops with a credential error** — the message names the
   fix; the causes are listed under [Storing credentials](#storing-credentials).
 - **`creds.sh add` says there is no terminal to read the passphrase from** —

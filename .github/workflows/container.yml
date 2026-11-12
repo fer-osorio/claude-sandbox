@@ -142,7 +142,7 @@ jobs:
         # the second test that genuinely needs the tag should require a
         # deliberate edit with a reason, not arrive quietly.
         env:
-          CONTAINER_FLOOR: 29
+          CONTAINER_FLOOR: 31
           HOSTFIDELITY_CEILING: 1
         run: |
           count=$(bats --filter-tags 'container,!hostfidelity' --count tests/)

@@ -435,15 +435,17 @@ case "$1" in
     build)
         # PARENT_IMAGE goes to its own log, so C-21's exact comparison of
         # the build order is unaffected by it.
-        parent=""
+        # The build context is the last argument; its directory name is the
+        # profile built.
+        parent="" tag="" context="${!#}"
         while [ "$#" -gt 0 ]; do
             case "$1" in
                 --build-arg) [[ "$2" == PARENT_IMAGE=* ]] && parent="${2#PARENT_IMAGE=}" ;;
-                -t) echo "build $2" >> "${STUB_LOG}"
-                    echo "$2 ${parent:-none}" >> "${STUB_LOG}.parents" ;;
+                -t) tag="$2"; echo "build $2" >> "${STUB_LOG}" ;;
             esac
             shift
         done
+        echo "${tag} ${parent:-none} $(basename "$context")" >> "${STUB_LOG}.parents"
         exit 0
         ;;
     images)
@@ -898,13 +900,17 @@ EOF
     # Composition builds one member on top of another, so each child must
     # take its parent as an argument and leave the image as it found it:
     # Decision 1 of the design. Instructions are matched case-insensitively,
-    # as the engine reads them.
+    # as the engine reads them. B-5's fixture profiles are held to it too,
+    # since B-5 is what shows the contract is enough.
     local p f first_user last_user first_run line
-    local children
-    children="$(declared_child_profiles)"
-    [ -n "$children" ]
-    for p in $children; do
-        f="${SANDBOX_DIR}/profiles/${p}/Dockerfile"
+    local -a files=()
+    for p in $(declared_child_profiles); do
+        files+=("${SANDBOX_DIR}/profiles/${p}/Dockerfile")
+    done
+    [ "${#files[@]}" -gt 0 ]
+    files+=("${SANDBOX_DIR}"/tests/fixtures/profiles/*/Dockerfile)
+    for f in "${files[@]}"; do
+        p="${f#"${SANDBOX_DIR}/"}"
 
         [ "$(grep -ciE '^[[:space:]]*FROM[[:space:]]' "$f")" -eq 1 ] \
             || { echo "${p}: not exactly one FROM" >&2; return 1; }
@@ -951,10 +957,187 @@ EOF
     [ "$status" -eq 0 ]
 
     local p expected
-    expected="sbx-base none"
+    expected="sbx-base none base"
     for p in $(declared_child_profiles); do
-        expected+=$'\n'"sbx-${p} sbx-base"
+        expected+=$'\n'"sbx-${p} sbx-base ${p}"
     done
-    expected+=$'\n'"sbx-squid none"
+    expected+=$'\n'"sbx-squid none squid"
     [ "$(cat "${STUB_LOG}.parents")" = "$expected" ]
+}
+
+# A build.sh fixture with four fixture profiles beside base: alpha, beta and
+# delta build on base, gamma builds on alpha. The committed config.sh is not
+# copied, so these tests do not move when real profiles do. $1, if given, is
+# appended to config.sh.
+_combo_fixture() {
+    REG_TMPDIR="$(mktemp -d)"
+    cp "${SANDBOX_DIR}/build.sh" "${SANDBOX_DIR}/start.sh" "${REG_TMPDIR}/"
+    cp -r "${SANDBOX_DIR}/lib" "${REG_TMPDIR}/lib"
+    mkdir "${REG_TMPDIR}/config"
+    cat > "${REG_TMPDIR}/config/config.sh" <<CONF
+PROFILES=(base alpha beta gamma delta)
+declare -A PROFILE_BASE=( [alpha]=base [beta]=base [gamma]=alpha [delta]=base )
+declare -A COMBOS=()
+${1:-}
+CONF
+    _stub_build_engine
+    export STUB_LOG="${REG_TMPDIR}/engine.log"
+}
+
+# bats test_tags=fast, hostonly
+@test "C-43: every invalid combination aborts build.sh, naming it and the rule, before any build" {
+    bats_require_minimum_version 1.5.0
+    local def expect
+    while IFS='|' read -r def expect; do
+        _combo_fixture "$def"
+        run --separate-stderr env -u IMAGE_PREFIX ENGINE="${REG_TMPDIR}/engine" \
+            bash "${REG_TMPDIR}/build.sh" squid
+        [ "$status" -ne 0 ] || { echo "accepted: $def" >&2; return 1; }
+        [[ "$stderr" == *"invalid combination"*"$expect"* ]] \
+            || { echo "for $def, stderr was: $stderr" >&2; return 1; }
+        [ ! -s "$STUB_LOG" ] || { echo "built despite: $def" >&2; return 1; }
+        rm -rf "$REG_TMPDIR"
+    done <<'CASES'
+COMBOS[Bad_Name]="alpha beta"|must match
+COMBOS[all]="alpha beta"|reserved build target
+COMBOS[squid]="alpha beta"|reserved build target
+COMBOS[alpha]="alpha beta"|already a profile
+COMBOS[solo]="alpha"|at least two members
+COMBOS[twice]="alpha alpha"|'alpha' is repeated
+COMBOS[ghost]="alpha nope"|'nope' is not a profile
+COMBOS[withbase]="base alpha"|'base' is not a member
+COMBOS[nested]="beta gamma"|'gamma' does not build on base
+CASES
+}
+
+# bats test_tags=fast, hostonly
+@test "C-44: config.local.sh may add a combination but not redefine a committed one" {
+    bats_require_minimum_version 1.5.0
+    _combo_fixture 'COMBOS[shared]="alpha beta"'
+    cat > "${REG_TMPDIR}/config/config.local.sh" <<'LOCAL'
+COMBOS[shared]="beta alpha"
+COMBOS[mine]="beta alpha"
+LOCAL
+
+    run --separate-stderr bash -c '
+        set -euo pipefail
+        SANDBOX_DIR="$1"
+        source "$1/lib/config.sh"
+        validate_combos
+        for n in $(printf "%s\n" "${!COMBOS[@]}" | sort); do echo "$n=${COMBOS[$n]}"; done
+    ' _ "$REG_TMPDIR"
+    [ "$status" -eq 0 ]
+    [ "$output" = $'mine=beta alpha\nshared=alpha beta' ]
+    [[ "$stderr" == *"Warning: config.local.sh redefines committed combination 'shared'; ignoring the local value (config.sh wins)."* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-45: an invalid combination does not block creds.sh or start.sh --list" {
+    # Credential management and the registry listing read no combination,
+    # so a typo in one must not lock the operator out of them.
+    _combo_fixture 'COMBOS[solo]="alpha"'
+    cp "${SANDBOX_DIR}/creds.sh" "${REG_TMPDIR}/"
+    mkdir -p "${REG_TMPDIR}/store"
+
+    run env ENGINE=true bash "${REG_TMPDIR}/start.sh" --list
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"No projects registered"* ]]
+
+    run env CREDENTIALS_DIR="${REG_TMPDIR}/store" bash "${REG_TMPDIR}/creds.sh" list --all
+    [[ "$output" != *"invalid combination"* ]]
+
+    run env ENGINE=true bash "${REG_TMPDIR}/start.sh" "${REG_TMPDIR}" base
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"invalid combination 'solo'"* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-46: build.sh <combination> builds base, then each member on the previous result" {
+    _combo_fixture 'COMBOS[trio]="beta alpha delta"
+COMBOS[pair]="delta alpha"'
+
+    run env IMAGE_PREFIX=sbx ENGINE="${REG_TMPDIR}/engine" bash "${REG_TMPDIR}/build.sh" trio
+    [ "$status" -eq 0 ]
+    [ "$(cat "${STUB_LOG}.parents")" = "sbx-base none base
+sbx-beta sbx-base beta
+sbx-trio:part-2 sbx-beta alpha
+sbx-trio sbx-trio:part-2 delta" ]
+
+    # Two members leave no intermediate tag.
+    rm "${STUB_LOG}.parents"
+    run env IMAGE_PREFIX=sbx ENGINE="${REG_TMPDIR}/engine" bash "${REG_TMPDIR}/build.sh" pair
+    [ "$status" -eq 0 ]
+    [ "$(cat "${STUB_LOG}.parents")" = "sbx-base none base
+sbx-delta sbx-base delta
+sbx-pair sbx-delta alpha" ]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-47: bare build.sh builds combinations after profiles, in name order, and names them" {
+    # Bash lists these two keys as "mm bb", so the order asserted is the
+    # sort, not the hash table's.
+    _combo_fixture 'COMBOS[mm]="alpha beta"
+COMBOS[bb]="beta alpha"'
+
+    run env IMAGE_PREFIX=sbx ENGINE="${REG_TMPDIR}/engine" bash "${REG_TMPDIR}/build.sh"
+    [ "$status" -eq 0 ]
+    # Profiles, then bb's chain, then mm's, then Squid. The repeated base and
+    # first-member builds are layer-cache no-ops on a real engine.
+    [ "$(grep -E '^sbx-(bb|mm|squid)' "${STUB_LOG}.parents")" = "sbx-bb sbx-beta alpha
+sbx-mm sbx-alpha beta
+sbx-squid none squid" ]
+    [ "$(sed -n '1,5p' "${STUB_LOG}.parents" | cut -d' ' -f1 | tr '\n' ' ')" = "sbx-base sbx-alpha sbx-beta sbx-gamma sbx-delta " ]
+    [[ "$output" == *"  sbx-bb"*"  sbx-mm"*"  sbx-squid"* ]]
+
+    run env ENGINE="${REG_TMPDIR}/engine" bash "${REG_TMPDIR}/build.sh" nope
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Combinations: bb mm"* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-48: start.sh accepts a combination as the argument or a registry profile, and never reads global-<combination>/" {
+    _combo_fixture 'COMBOS[pair]="alpha beta"
+PROJECT_PATH[mylib]="'"${BATS_TEST_TMPDIR}"'"
+PROJECT_PROFILE[mylib]=pair'
+    mkdir -p "${REG_TMPDIR}/proj" "${REG_TMPDIR}/store" "${REG_TMPDIR}/global-pair/skills/x"
+
+    run env -u GH_TOKEN ENGINE=true CREDENTIALS_DIR="${REG_TMPDIR}/store" \
+        bash "${REG_TMPDIR}/start.sh" "${REG_TMPDIR}/proj" pair
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Image:    claude-pair"* ]]
+    [[ "$output" == *"Overlay:  none for image 'pair'"* ]]
+
+    run env -u GH_TOKEN ENGINE=true CREDENTIALS_DIR="${REG_TMPDIR}/store" \
+        bash "${REG_TMPDIR}/start.sh" @mylib
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Image:    claude-pair"* ]]
+
+    run env ENGINE=true bash "${REG_TMPDIR}/start.sh" "${REG_TMPDIR}/proj" nope
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Combinations: pair"* ]]
+}
+
+# bats test_tags=fast, hostonly
+@test "C-49: a combination whose member has an overlay is refused, naming the member, before any image is touched" {
+    bats_require_minimum_version 1.5.0
+    _combo_fixture 'COMBOS[pair]="alpha beta"'
+    mkdir -p "${REG_TMPDIR}/proj" "${REG_TMPDIR}/store" "${REG_TMPDIR}/global-beta"
+    # Answers start.sh's reachability check and logs every other call.
+    cat > "${REG_TMPDIR}/engine" <<'STUB'
+#!/usr/bin/env bash
+[ "$1" = "info" ] && exit 0
+echo "$*" >> "${STUB_LOG}"
+STUB
+
+    run --separate-stderr env ENGINE="${REG_TMPDIR}/engine" \
+        bash "${REG_TMPDIR}/start.sh" "${REG_TMPDIR}/proj" pair
+    [ "$status" -ne 0 ]
+    [[ "$stderr" == *"combination 'pair' cannot start: its member 'beta' has an overlay, global-beta/."* ]]
+    [ ! -s "$STUB_LOG" ]
+
+    # Without the overlay, the same combination starts.
+    rm -rf "${REG_TMPDIR}/global-beta"
+    run env -u GH_TOKEN ENGINE=true CREDENTIALS_DIR="${REG_TMPDIR}/store" \
+        bash "${REG_TMPDIR}/start.sh" "${REG_TMPDIR}/proj" pair
+    [ "$status" -eq 0 ]
 }

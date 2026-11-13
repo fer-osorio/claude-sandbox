@@ -267,6 +267,8 @@ exists rather than the tests simply being retagged.
 | T-1 | crypto | `softhsm2-util --show-slots` and `p11-kit list-modules` exit 0 |
 | T-2 | systems | Minimal fixture `CMakeLists.txt` (from `fixtures/cpp-minimal/`) configures, builds, and links against the pre-built GTest without additional `find_package` configuration |
 | T-3 | research | Minimal fixture `.tex` (from `fixtures/research-minimal/`) compiles successfully via `latexmk` |
+| T-4 | every committed combination | Each member's smoke command, from `tests/lib/profiles.bash`, exits 0 inside the combination's image |
+| T-5 | rust | A fresh `cargo new` crate builds, runs, passes `cargo clippy` and `cargo fmt --check`, all `--offline` |
 
 ### 4.6 Group 6 — Layered Config
 

@@ -37,7 +37,7 @@ declare -A PROFILE_BASE=(
 # config.local.sh may add a combination; it may not redefine one listed
 # here, which is reverted with a warning, as for the project registry below.
 declare -A COMBOS=(
-    # [crypto-rust]="crypto rust"
+    [crypto-rust]="crypto rust"
 )
 
 IMAGE_PREFIX="claude"   # image tag = "${IMAGE_PREFIX}-${profile}"

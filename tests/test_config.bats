@@ -464,6 +464,25 @@ STUB
     chmod +x "${REG_TMPDIR}/engine"
 }
 
+# The builds build.sh makes for one combination, as "<tag> <parent> <profile>"
+# lines: base, the first member on base, then each later member on the
+# previous result (docs/designs/0194-profile-composition.md, Decision 3).
+# Args: <prefix> <combination> <member>...
+_combo_chain() {
+    local prefix="$1" name="$2"; shift 2
+    local -a m=("$@")
+    local last=$(( ${#m[@]} - 1 )) parent tag i
+    echo "${prefix}-base none base"
+    echo "${prefix}-${m[0]} ${prefix}-base ${m[0]}"
+    parent="${prefix}-${m[0]}"
+    for (( i = 1; i <= last; i++ )); do
+        if [ "$i" -eq "$last" ]; then tag="${prefix}-${name}"
+        else tag="${prefix}-${name}:part-$(( i + 1 ))"; fi
+        echo "${tag} ${parent} ${m[$i]}"
+        parent="$tag"
+    done
+}
+
 # bats test_tags=fast, hostonly
 @test "C-21: bare build.sh exits 0 once every image builds, under Podman's image naming" {
     # The `all` path is the one no other test reaches: B-1 builds a single
@@ -493,6 +512,12 @@ STUB
         [ "$p" = "base" ] && continue
         expected+=$'\n'"build claude-${p}"
     done <<< "$profiles"
+    # Then each committed combination's chain, in name order (C-46, C-47).
+    local name members
+    while read -r name members; do
+        [ -n "$name" ] || continue
+        expected+=$'\n'"$(_combo_chain claude "$name" $members | cut -d' ' -f1 | sed 's/^/build /')"
+    done <<< "$(declared_combos)"
     expected+=$'\n'"build claude-squid"
     [ "$(cat "$STUB_LOG")" = "$expected" ]
 }
@@ -961,6 +986,11 @@ EOF
     for p in $(declared_child_profiles); do
         expected+=$'\n'"sbx-${p} sbx-base ${p}"
     done
+    local name members
+    while read -r name members; do
+        [ -n "$name" ] || continue
+        expected+=$'\n'"$(_combo_chain sbx "$name" $members)"
+    done <<< "$(declared_combos)"
     expected+=$'\n'"sbx-squid none squid"
     [ "$(cat "${STUB_LOG}.parents")" = "$expected" ]
 }

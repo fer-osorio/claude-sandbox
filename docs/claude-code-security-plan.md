@@ -162,6 +162,7 @@ The sandbox is structured as a hierarchy of Docker images. A shared base image c
 debian:bookworm-slim
     └── claude-base          git, gh, node, npm, python3, Claude Code
             └── claude-crypto    + openssl, p11-kit, softhsm2, gnutls
+            └── claude-rust      + rustc, cargo, clippy, rustfmt, gcc
 ```
 
 Web projects (Vite, Vitest, TypeScript) use `claude-base` directly. Those tools are project-level `devDependencies` installed via `npm install` inside `/workspace` — they require nothing additional at the image level.
@@ -180,7 +181,9 @@ Place all files under `~/.claude-sandbox/`:
 └── profiles/
     ├── base/
     │   └── Dockerfile
-    └── crypto/
+    ├── crypto/
+    │   └── Dockerfile
+    └── rust/
         └── Dockerfile
 ```
 
@@ -209,6 +212,12 @@ Two failure modes are explicitly addressed in the crypto image:
 **Wrong group ownership.** The `softhsm2` package on Debian creates a group called `ods` and sets `/var/lib/softhsm` to `drwxr-x---` owned by `ods:ods`. The correct access pattern is to add `claude-agent` to the `ods` group and set the token directory to `root:ods 0770`. Adding `claude-agent` to the `root` group instead would grant far broader implicit permissions than needed and is a security smell — the same root cause as the host-level SoftHSM2 permission errors documented in `softhsm2-token-init-error.md`.
 
 **Missing `SOFTHSM2_CONF`.** If `softhsm2-util` cannot locate its config file it prints `ERROR: Failed to enumerate object store` even when the directory exists and permissions are correct. `SOFTHSM2_CONF` is declared using Docker's `ENV` instruction rather than a shell `export`. `ENV` persists into every subsequent build layer and into the running container; a shell export survives only the single `RUN` command it appears in.
+
+#### 2.3a — The rust Dockerfile
+
+`profiles/rust/Dockerfile` extends `claude-base` with a Rust toolchain installed by `rustup`, because Debian bookworm's `rustc` 1.63 cannot build much of current crates.io. `rustup-init` is pinned by version and SHA-256; the toolchain is pinned by version, and `rustup` checks each component against its release manifest's hashes over TLS. The toolchain is root-owned, so a session cannot install another one and never needs `static.rust-lang.org`. Crate fetches go through Squid to `index.crates.io` and `static.crates.io`. See Change 29.
+
+`crypto-rust` combines the two: `rust` built on `crypto` (`docs/adr/014-the-profile-contract.md`).
 
 #### 2.4 — The systems Dockerfile (retired)
 
@@ -484,3 +493,4 @@ three files under `tests/`.
 | 26 | Per-Project Encrypted Credential Store |
 | 27 | Unused Profiles Retired, Their Allowlist Entries and SQLite Removed |
 | 28 | CMake Staleness Check Removed From the Entrypoint |
+| 29 | Rust Profile and the `crypto-rust` Combination Added |

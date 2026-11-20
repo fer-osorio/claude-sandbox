@@ -42,9 +42,10 @@ _ENV_IMAGE_PREFIX="${IMAGE_PREFIX:-}"
 # is missing.
 ENGINE="podman"
 IMAGE_PREFIX="claude"
-PROFILES=(base crypto)
+PROFILES=(base crypto rust)
 declare -A PROFILE_BASE=(
     [crypto]=base
+    [rust]=base
 )
 
 # --- Layers 2 and 3.

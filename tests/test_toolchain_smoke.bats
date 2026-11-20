@@ -46,6 +46,19 @@ teardown() {
 }
 
 # bats test_tags=slow
+@test "T-5: rust profile — cargo builds, lints and formats a crate offline" {
+    if ! engine_inspect claude-rust > /dev/null 2>&1; then
+        echo "claude-rust image not found — build it first with: ./build.sh rust" >&2
+        return 1
+    fi
+
+    register_container "$CONTAINER_NAME"
+    run engine_run --rm --name "$CONTAINER_NAME" claude-rust \
+        sh -c "$(profile_smoke_command rust)"
+    [ "$status" -eq 0 ]
+}
+
+# bats test_tags=slow
 @test "T-4: every committed combination passes each member's smoke test" {
     # A later member can break an earlier one: its files and ENV values win
     # (docs/designs/0194-profile-composition.md, Consequences). B-5 shows the

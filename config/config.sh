@@ -18,12 +18,13 @@
 
 # Profiles start.sh accepts and build.sh knows how to build. "base" has no
 # entry in PROFILE_BASE below — it builds directly, not on top of anything.
-PROFILES=(base crypto)
+PROFILES=(base crypto rust)
 
 # Maps a profile to its base-image dependency. A profile absent from this
 # map builds directly (currently only "base" itself).
 declare -A PROFILE_BASE=(
     [crypto]=base
+    [rust]=base
 )
 
 # ── Named combinations ───────────────────────────────────────────
@@ -36,7 +37,7 @@ declare -A PROFILE_BASE=(
 # config.local.sh may add a combination; it may not redefine one listed
 # here, which is reverted with a warning, as for the project registry below.
 declare -A COMBOS=(
-    # [crypto-rust]="crypto rust"
+    [crypto-rust]="crypto rust"
 )
 
 IMAGE_PREFIX="claude"   # image tag = "${IMAGE_PREFIX}-${profile}"

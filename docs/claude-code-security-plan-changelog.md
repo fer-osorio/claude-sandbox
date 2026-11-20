@@ -1207,3 +1207,67 @@ No other STRIDE category is affected. No privilege, mount, or egress changes.
 - A profile that ships a C or C++ compiler again has to bring the check back
   with it. Its design is still §5.1 of
   `docs/designs/0007-workspace-artifact-staleness.md`.
+
+---
+
+### Change 29 — Rust Profile and the `crypto-rust` Combination Added
+**Affects:** §2 (image hierarchy, 2.1, 2.3a), `profiles/rust/Dockerfile`,
+`squid/squid.conf`, `config/config.sh`, `build.sh`, `start.sh`, `tests/`,
+`.github/workflows/container.yml`.
+Date: 2026-11-13. Issue #199.
+
+**What changed:**
+A `rust` profile adds a pinned Rust toolchain (rustc, cargo, clippy, rustfmt)
+and `gcc`/`libc6-dev`, which rustc links with. `crypto-rust` is the first
+committed combination: `rust` built on `crypto`. `squid/squid.conf` gains
+`index.crates.io` and `static.crates.io`, which cargo fetches crates from,
+and `doc.rust-lang.org` in the reference tier.
+
+**Why:** Rust work needs a toolchain newer than Debian bookworm's rustc 1.63,
+and crate fetches need the registry hosts. Authorization for the allowlist
+change was granted before implementation.
+
+**How the toolchain is trusted:** `rustup-init` is fetched by exact version
+and checked against a pinned SHA-256. The toolchain is pinned by exact
+version, and rustup checks each component against the SHA-256 in that
+release's manifest, fetched over TLS from `static.rust-lang.org`. rustup
+verifies no signature, so TLS to that host is the trust root for the
+toolchain. Both pins are taken from `rust-lang/docker-rust` at the commit the
+Dockerfile names. These fetches happen at build time, on the host's network,
+not through Squid.
+
+**STRIDE mapping (delta only):**
+
+| Threat (STRIDE) | Change |
+|---|---|
+| **Information Disclosure (I)** | Three more blind-tunnel destinations, in the accepted-risk class of Change 24. `static.crates.io` is the notable one: it serves arbitrary published crate files, so it is a large surface to hide a lookup in, though not a place a session can write to. Like `www.openssl.org`, all three are reachable from every session, not only `rust` ones. |
+| **Tampering (T)** | Build time: two new sources of image content, `static.rust-lang.org` (rustup-init, pinned by hash; the toolchain, pinned by version and manifest hash) and Debian's `gcc`. Session time: `cargo build` runs `build.rs` scripts and proc macros of every dependency, which is arbitrary code from crates.io executing as `claude-agent`. It gets no more than the agent already has, but it is a new path for third-party code into a session, comparable to `npm install` lifecycle scripts and `pip install` of an sdist, both already reachable. |
+| **Elevation of Privilege (E)** | No change. `RUSTUP_HOME` and the tool binaries are root-owned, so a session cannot replace the toolchain; a compiler adds no privilege under `--cap-drop=ALL` and `no-new-privileges`. |
+
+Spoofing, Repudiation and Denial of Service are unaffected. No mount,
+capability or runtime-flag changes. `crates.io` itself, `static.rust-lang.org`
+and `docs.rs` are deliberately not allowlisted; the comment beside the
+entries in `squid/squid.conf` gives each reason.
+
+**Change 28's residual:** that residual asked a profile shipping a C or C++
+compiler to bring the CMake check back. `rust` ships `gcc` but not `cmake`,
+so the condition the check recorded, a `CMakeCache.txt` configured against a
+compiler in the image, still cannot be produced in a session. The trigger is
+now `cmake`, not a compiler. Cargo needs no equivalent: its fingerprints
+include the rustc version, so a toolchain bump rebuilds `target/` by itself.
+
+**Residual, not yet closed:**
+- **The allowlist is still global.** Change 27's residual grows by three hosts.
+- **Direct egress bypasses the allowlist.** On 2026-11-19 a container started with the
+  session's flags reached a refused host directly with `curl --noproxy '*'`.
+  `claude-net` routes outbound traffic, so Squid filters only clients that
+  honor `HTTPS_PROXY`. This predates Change 29, but the `build.rs` and proc
+  macro path in the Tampering row above is exactly such a client. It is
+  tracked as its own Case E issue, #200.
+
+**Verified after the first draft:** the crates.io hosts were taken from
+cargo's documented behaviour. On 2026-11-19 the operator ran `cargo fetch`
+in a `rust` session and read Squid's access log: `index.crates.io` and
+`static.crates.io` tunnelled and nothing was refused. S-11 now asserts it,
+and R-9 asserts the Elevation of Privilege row; neither has yet run on a
+runner.

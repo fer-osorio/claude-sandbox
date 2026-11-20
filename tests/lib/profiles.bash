@@ -31,6 +31,7 @@ declared_combos() {
 profile_smoke_command() {
     case "$1" in
         crypto) echo 'softhsm2-util --show-slots && p11-kit list-modules' ;;
+        rust) echo 'd=$(mktemp -d) && cd "$d" && cargo new -q --vcs none smoke && cd smoke && cargo build -q --offline && ./target/debug/smoke && cargo clippy -q --offline && cargo fmt --check' ;;
         *) return 1 ;;
     esac
 }

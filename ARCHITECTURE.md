@@ -22,6 +22,7 @@ that's your active engine. See `BUILDING.md` for Podman-specific setup and
 debian:bookworm-slim
     └── claude-base          git, gh, node, npm, python3, Claude Code
             └── claude-crypto    + openssl, p11-kit, softhsm2, gnutls
+            └── claude-rust      + rustc, cargo, clippy, rustfmt, gcc
 ```
 
 Web projects (Vite, Vitest, TypeScript) use **claude-base** directly. Vite
@@ -46,8 +47,7 @@ claude-base
 Order is build order: files and `ENV` values set by a later member win.
 `config.local.sh` may add a combination but not redefine a committed one. A
 combination whose member has an overlay (`global-<member>/`) is refused until
-overlays can be merged. No combination is committed yet, because `crypto` is
-the only child profile. Full design:
+overlays can be merged. One combination is committed: `crypto-rust`, `rust` built on `crypto`. Full design:
 [`docs/designs/0194-profile-composition.md`](docs/designs/0194-profile-composition.md).
 
 ### Directory layout
@@ -68,7 +68,9 @@ the only child profile. Full design:
 ├── profiles/
 │   ├── base/
 │   │   └── Dockerfile
-│   └── crypto/
+│   ├── crypto/
+│   │   └── Dockerfile
+│   └── rust/
 │       └── Dockerfile
 └── tests/            — bats-core integration test harness (see BUILDING.md)
 ```
@@ -102,6 +104,7 @@ Build a single image and its dependencies:
 
 ```bash
 ./build.sh crypto     # rebuilds base first, then crypto
+./build.sh crypto-rust  # base, crypto, then rust on crypto
 ```
 
 ---
@@ -138,6 +141,7 @@ for a security-sensitive sandbox.
 1. Decide which image the tool belongs in. Ask: which project types need it?
    - All projects → `profiles/base/Dockerfile`
    - Cryptography projects only → `profiles/crypto/Dockerfile`
+   - Rust projects only → `profiles/rust/Dockerfile`
 2. Add the package to the appropriate `apt-get install` block.
 3. Rebuild:
    ```bash
@@ -226,6 +230,8 @@ itself does not have — the artifact will outlive the container, the tool will 
 ```
 Start a session (pick the right image for your project type):
   ./start.sh ~/projects/myproject crypto      — HSM / cryptography work
+  ./start.sh ~/projects/myproject rust        — Rust
+  ./start.sh ~/projects/myproject crypto-rust — both, in one image
   ./start.sh ~/projects/myproject base        — Python, web, TypeScript
 
 Start a session for a registered project:
@@ -234,7 +240,7 @@ Start a session for a registered project:
 
 Add a tool permanently:
   Edit the appropriate Dockerfile, add to the relevant layer
-  ./build.sh [base|crypto]
+  ./build.sh [base|crypto|rust|crypto-rust]
 
 Add a new profile:
   Create profiles/<profile>/Dockerfile, register it in config/config.sh

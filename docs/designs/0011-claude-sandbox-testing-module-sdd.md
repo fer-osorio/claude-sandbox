@@ -219,6 +219,7 @@ gate. Its ID is unchanged.
 | R-6 | Memory limit actually enforced | `--memory=100m` container allocating 500MB is killed (`exit 137`) with `OOMKilled: true` — added post-migration after `0025-podman-migration.md` §6.2-D/Change 17 found rootless Podman under WSL2 can accept `--memory` without enforcing it when cgroups v2 `memory` delegation is absent |
 | R-7 | `/workspace` bind mount genuinely readable/writable under SELinux | A host-side file written before the container starts is readable inside it, and a file written inside the container lands on the host — added after `0025-podman-migration.md` §6.2-T/Change 19 found a bind mount with correct POSIX bits still `EACCES` on an SELinux-enforcing host because Podman never relabeled it. Skips on non-SELinux-enforcing hosts, where the bug isn't observable |
 | R-8 | `relabel=shared` (not `private`) works across concurrent sessions | Two containers concurrently mounting the same host path can both read it — distinguishes the Change 19 `shared` choice from `private`/`:Z`, which would pass a single-container check but break a second concurrent mount. Podman-only, skips on non-SELinux-enforcing hosts |
+| R-9 | Rust toolchain not writable | As `claude-agent` in `claude-rust`, `$RUSTUP_HOME`, its `toolchains/`, `/usr/local/cargo/bin` and the active `rustc` all exist and none is writable — Change 29's claim that a session cannot replace the toolchain (#199). Asserted on permissions, because `rustup toolchain install` would fail on the network anyway |
 
 ### 4.3 Group 3 — Squid Egress Enforcement
 
@@ -230,6 +231,8 @@ gate. Its ID is unchanged.
 | S-4 | `docs.anthropic.com` reachable | Reference-tier allowlist addition from issue #32 resolves and tunnels |
 | S-5 | `code.claude.com` reachable | Reference-tier allowlist addition from issue #32 resolves and tunnels |
 | S-6 | `mintcdn.com` reachable | The `dstdom_regex` CDN exception from issue #32, curled at the bare apex — Mintlify's CSP documentation lists plain `mintcdn.com` as required, so it is a directly-addressable host and not merely a wildcard zone |
+| S-10 | `doc.rust-lang.org` reachable | Reference-tier allowlist addition from issue #199 resolves and tunnels |
+| S-11 | crates.io fetch through the proxy | `cargo fetch` of an exact-pinned, dependency-free crate succeeds from `claude-rust`, the access log shows `TCP_TUNNEL/200` for `index.crates.io` and `static.crates.io` and no denied crates.io or rust-lang.org host, and the crate lands in `$CARGO_HOME` (#199). The log lines also show cargo used the proxy rather than the direct route |
 
 Mirrors `docs/squid-proxy-guide.md` Part 3 Step 5 exactly, wrapped as assertions instead of manual `docker logs` inspection.
 
@@ -267,6 +270,8 @@ exists rather than the tests simply being retagged.
 | T-1 | crypto | `softhsm2-util --show-slots` and `p11-kit list-modules` exit 0 |
 | T-2 | systems | Minimal fixture `CMakeLists.txt` (from `fixtures/cpp-minimal/`) configures, builds, and links against the pre-built GTest without additional `find_package` configuration |
 | T-3 | research | Minimal fixture `.tex` (from `fixtures/research-minimal/`) compiles successfully via `latexmk` |
+| T-4 | every committed combination | Each member's smoke command, from `tests/lib/profiles.bash`, exits 0 inside the combination's image |
+| T-5 | rust | A fresh `cargo new` crate builds, runs, passes `cargo clippy` and `cargo fmt --check`, all `--offline` |
 
 ### 4.6 Group 6 — Layered Config
 

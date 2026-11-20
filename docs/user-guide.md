@@ -10,6 +10,7 @@ Practical, day-to-day usage of claude-sandbox. For build/test commands see
 |---|---|---|
 | `base` | Web, Python, TypeScript | — |
 | `crypto` | HSM / cryptography | OpenSSL, p11-kit, SoftHSM2, GnuTLS |
+| `rust` | Rust | rustc, cargo, clippy, rustfmt (pinned), gcc |
 
 Full hierarchy and rationale: [`ARCHITECTURE.md`](../ARCHITECTURE.md#image-hierarchy).
 
@@ -17,7 +18,7 @@ A project that needs two of them uses a **combination**: a name in
 `config/config.sh`'s `COMBOS` for an ordered list of profiles, built into one
 image with `./build.sh <name>` and started like a profile,
 `./start.sh <project> <name>`. `config.local.sh` may add one, but not
-redefine a committed one. See
+redefine a committed one. `crypto-rust` is committed. See
 [`ARCHITECTURE.md`](../ARCHITECTURE.md#combinations).
 
 ## Starting a session

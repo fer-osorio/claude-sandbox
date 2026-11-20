@@ -66,7 +66,7 @@ _ENV_GLOBAL_SKILLS="${GLOBAL_SKILLS-}"
 # is missing.
 ENGINE="podman"
 IMAGE_PREFIX="claude"
-PROFILES=(base crypto)
+PROFILES=(base crypto rust)
 MAIN_MEMORY="2g"
 MAIN_CPUS="2"
 MAIN_LOG_MAX_SIZE="50m"

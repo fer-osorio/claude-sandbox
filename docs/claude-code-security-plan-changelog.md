@@ -1258,7 +1258,16 @@ include the rustc version, so a toolchain bump rebuilds `target/` by itself.
 
 **Residual, not yet closed:**
 - **The allowlist is still global.** Change 27's residual grows by three hosts.
-- **The crates.io hosts are unverified from a session.** Which hosts a sparse
-  fetch touches was taken from cargo's documented behaviour, not observed
-  through this proxy. The first `cargo fetch` in a `rust` session, read
-  against Squid's access log, confirms or corrects them.
+- **Direct egress bypasses the allowlist.** On 2026-11-19 a container started with the
+  session's flags reached a refused host directly with `curl --noproxy '*'`.
+  `claude-net` routes outbound traffic, so Squid filters only clients that
+  honor `HTTPS_PROXY`. This predates Change 29, but the `build.rs` and proc
+  macro path in the Tampering row above is exactly such a client. It is
+  tracked as its own Case E issue, #200.
+
+**Verified after the first draft:** the crates.io hosts were taken from
+cargo's documented behaviour. On 2026-11-19 the operator ran `cargo fetch`
+in a `rust` session and read Squid's access log: `index.crates.io` and
+`static.crates.io` tunnelled and nothing was refused. S-11 now asserts it,
+and R-9 asserts the Elevation of Privilege row; neither has yet run on a
+runner.

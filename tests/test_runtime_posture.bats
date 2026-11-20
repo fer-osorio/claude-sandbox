@@ -262,3 +262,28 @@ teardown() {
     [ "$status" -eq 0 ]
     [ "$output" = "shared-content" ]
 }
+
+# bats test_tags=fast
+@test "R-9: the rust toolchain is not writable by the session user" {
+    # Change 29's Elevation of Privilege row: a session cannot replace the
+    # toolchain. Asserted on permissions, not by running
+    # "rustup toolchain install": with no route to static.rust-lang.org
+    # that fails on the network and would pass with the property broken.
+    if ! engine_inspect claude-rust > /dev/null 2>&1; then
+        echo "claude-rust image not found — build it first with: ./build.sh rust" >&2
+        return 1
+    fi
+    register_container "$CONTAINER_NAME"
+    run engine_run --rm --name "$CONTAINER_NAME" claude-rust sh -c '
+        rc=0
+        for p in "$RUSTUP_HOME" "$RUSTUP_HOME/toolchains" /usr/local/cargo/bin \
+                 "$(rustup which rustc)"; do
+            [ -e "$p" ] || { echo "missing: $p"; rc=1; continue; }
+            [ -w "$p" ] && { echo "writable: $p"; rc=1; }
+        done
+        whoami
+        exit $rc'
+    echo "$output" >&2
+    [ "$status" -eq 0 ]
+    [ "$(echo "$output" | grep -v '^\[entrypoint\]' | tail -1)" = "claude-agent" ]
+}

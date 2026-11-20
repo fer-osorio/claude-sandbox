@@ -41,6 +41,9 @@
 # just "*.mintcdn.com") as required for img-src/connect-src, confirming
 # it's a directly-addressable host and not merely a wildcard zone.
 #
+# S-10 covers doc.rust-lang.org, and S-11 the crates.io hosts by letting
+# cargo fetch a crate, both from issue #199.
+#
 # S-7/S-8/S-9 cover the planning-research tier from issue #91 —
 # arxiv.org, datatracker.ietf.org and www.rfc-editor.org, the
 # primary/technical sources swe-prior-art-research retrieves from. They
@@ -135,6 +138,21 @@ setup_file() {
         docker.io/curlimages/curl:latest sleep 86400 >&2
     echo "$client_name" > "${BATS_FILE_TMPDIR}/client_name"
 
+    # S-11's client, started here rather than in the test for the same
+    # reason: a container starting inside the test would open the
+    # aardvark-dns window just before cargo's first lookup. A missing image
+    # fails S-11 alone, not every test in the file.
+    if engine_inspect claude-rust > /dev/null 2>&1; then
+        rust_client_name="test-claude-squid-rust-$$"
+        engine_run -d --name "$rust_client_name" --network claude-net \
+            --env HTTP_PROXY="http://${proxy_name}:3128" \
+            --env HTTPS_PROXY="http://${proxy_name}:3128" \
+            --env NO_PROXY="localhost,127.0.0.1" \
+            --cap-drop=ALL --security-opt=no-new-privileges \
+            claude-rust sleep 86400 >&2
+        echo "$rust_client_name" > "${BATS_FILE_TMPDIR}/rust_client_name"
+    fi
+
     # Both starts above open that window, so wait until the client resolves
     # the proxy's name before the first request. telnet:// to a closed port
     # resolves without sending the proxy anything, which keeps the access log
@@ -223,11 +241,14 @@ _s_diagnose() {
 }
 
 teardown_file() {
-    client_name="$(cat "${BATS_FILE_TMPDIR}/client_name" 2>/dev/null || true)"
-    if [ -n "$client_name" ] && [[ "$client_name" == test-* ]]; then
-        engine_rm -f "$client_name" > /dev/null 2>&1 \
-            || echo "WARNING: teardown failed to remove container '$client_name'" >&2
-    fi
+    local c
+    for c in client_name rust_client_name; do
+        client_name="$(cat "${BATS_FILE_TMPDIR}/${c}" 2>/dev/null || true)"
+        if [ -n "$client_name" ] && [[ "$client_name" == test-* ]]; then
+            engine_rm -f "$client_name" > /dev/null 2>&1 \
+                || echo "WARNING: teardown failed to remove container '$client_name'" >&2
+        fi
+    done
     proxy_name="$(cat "${BATS_FILE_TMPDIR}/proxy_name" 2>/dev/null || true)"
     if [ -n "$proxy_name" ] && [[ "$proxy_name" == test-* ]]; then
         engine_stop "$proxy_name" > /dev/null 2>&1 || true
@@ -261,7 +282,8 @@ _s_retries=0
 # Requested by setup_file in this order, which is also the order the
 # assertions read them in; S-3 reads all of them.
 _S_HOSTS=(api.anthropic.com example.com docs.anthropic.com code.claude.com
-          mintcdn.com arxiv.org datatracker.ietf.org www.rfc-editor.org)
+          mintcdn.com arxiv.org datatracker.ietf.org www.rfc-editor.org
+          doc.rust-lang.org)
 
 # Fails the calling test if setup could not get an answer for any host it
 # names, printing setup's diagnosis as that test's own output. Without it the
@@ -374,8 +396,8 @@ proxy_request() {
     run proxy_logs
     [ "$status" -eq 0 ]
     line_count=$(echo "$output" | grep -cE '^[0-9]+\.[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9.]+[[:space:]]+\S+/[0-9]+')
-    # One line per request issued in setup_file: 5 from issue #32's era plus
-    # the 3 planning-research hosts from issue #91. The bound is set at the
+    # One line per request issued in setup_file: 5 from issue #32's era, the
+    # 3 planning-research hosts from issue #91 and doc.rust-lang.org (#199). The bound is set at the
     # number of requests, not below it — a floor below the real count stops
     # detecting a request that silently produced no log line at all, which is
     # the failure this test exists to catch.
@@ -384,7 +406,7 @@ proxy_request() {
     # leaves the failed attempt's NONE_NONE/500 line in the log as well. Those
     # extra lines are a record of what was attempted; what must never happen
     # is fewer than one line per host.
-    [ "$line_count" -ge 8 ]
+    [ "$line_count" -ge 9 ]
 }
 
 # bats test_tags=slow
@@ -427,4 +449,55 @@ proxy_request() {
     _s_require_answered www.rfc-editor.org
     run proxy_logs
     [[ "$output" =~ TCP_TUNNEL/200[[:space:]]+[0-9]+[[:space:]]+CONNECT[[:space:]]+www\.rfc-editor\.org:443 ]]
+}
+
+# bats test_tags=slow
+@test "S-10: request to doc.rust-lang.org (issue #199 rust profile reference tier) succeeds" {
+    _s_require_answered doc.rust-lang.org
+    run proxy_logs
+    [[ "$output" =~ TCP_TUNNEL/200[[:space:]]+[0-9]+[[:space:]]+CONNECT[[:space:]]+doc\.rust-lang\.org:443 ]]
+}
+
+# bats test_tags=slow
+@test "S-11: cargo fetches a crate through the proxy, from the allowlisted crates.io hosts only" {
+    # The allowlist names the hosts cargo was documented to need (#199,
+    # Change 29). Curling them would show they are allowed, not that they
+    # are enough: this lets cargo choose its own hosts, so a host crates.io
+    # starts sending it to fails here as TCP_DENIED.
+    #
+    # The log assertions also show the fetch went through Squid. The session
+    # network still routes directly (see the direct-egress issue), so a
+    # cargo that ignored HTTPS_PROXY would fetch successfully and leave no
+    # line.
+    local rust_client
+    rust_client="$(cat "${BATS_FILE_TMPDIR}/rust_client_name" 2>/dev/null || true)"
+    if [ -z "$rust_client" ]; then
+        echo "claude-rust image not found — build it first with: ./build.sh rust" >&2
+        return 1
+    fi
+
+    # An exact pin on a crate with no dependencies keeps resolution, and so
+    # the hosts contacted, the same on every run without a committed lock.
+    run engine_exec "$rust_client" sh -c '
+        d=$(mktemp -d) && cd "$d" && mkdir src && : > src/lib.rs &&
+        printf "[package]\nname = \"s11\"\nversion = \"0.0.0\"\nedition = \"2021\"\n\n[dependencies]\ncfg-if = \"=1.0.0\"\n" > Cargo.toml &&
+        cargo fetch &&
+        ls "$CARGO_HOME"/registry/cache/*/cfg-if-1.0.0.crate'
+    if [ "$status" -ne 0 ]; then
+        echo "cargo fetch failed (exit ${status}):" >&2
+        echo "$output" >&2
+        echo "--- access log ---" >&2
+        proxy_logs | grep -E 'crates\.io|rust-lang' >&2 || true
+        return 1
+    fi
+
+    run proxy_logs
+    [[ "$output" =~ TCP_TUNNEL/200[[:space:]]+[0-9]+[[:space:]]+CONNECT[[:space:]]+index\.crates\.io:443 ]]
+    [[ "$output" =~ TCP_TUNNEL/200[[:space:]]+[0-9]+[[:space:]]+CONNECT[[:space:]]+static\.crates\.io:443 ]]
+    # Nothing cargo asked for was refused. An explicit return: a bare "! cmd"
+    # fails a bats test only when it happens to be the last line.
+    if echo "$output" | grep -E 'TCP_DENIED/[0-9]+[[:space:]]+[0-9]+[[:space:]]+CONNECT[[:space:]]+[^ ]*(crates\.io|rust-lang\.org):443' >&2; then
+        echo "cargo asked for a host the allowlist refuses (above)" >&2
+        return 1
+    fi
 }

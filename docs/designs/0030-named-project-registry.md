@@ -8,10 +8,9 @@ Accepted
 `docs/designs/0028-sandbox-config-file.md` centralized profile, image, engine,
 and resource configuration into `config.sh`, layered four ways
 (`default_values ← config.sh ← config.local.sh ← env var`). That document
-explicitly scoped out one element of the `dev-env` config pattern it drew
-from — a named project registry:
+explicitly scoped out one element — a named project registry:
 
-> | `[projects.<name>]` registry + `$PROJECT_BASE` | **No (v1)** | Confirmed out of scope with the operator — `start.sh`'s positional `<project_dir>` interface stays as-is. |
+> | A named-project registry + `$PROJECT_BASE` | **No (v1)** | Confirmed out of scope with the operator — `start.sh`'s positional `<project_dir>` interface stays as-is. |
 >
 > — `0028-sandbox-config-file.md` §What carries over vs. what doesn't,
 > reaffirmed in §v1 scope
@@ -86,9 +85,9 @@ below.
 
 ### Data structure: two parallel associative arrays
 
-Bash has no nested data structures, so `dev-env`'s `[projects.<name>]`
-block — which carries both a path and a profile per project — maps onto
-two associative arrays keyed identically:
+Bash has no nested data structures, so a project entry — which carries
+both a path and a profile — maps onto two associative arrays keyed
+identically:
 
 ```bash
 # ── Project Registry ─────────────────────────────────────────────
@@ -129,13 +128,11 @@ entry lives in.
 That placement is only tenable with the `${PROJECT_BASE}` indirection.
 Writing `/home/fernando/projects/mylib` into a committed, shared file
 hardcodes one operator's filesystem layout into project-wide
-configuration; writing `${PROJECT_BASE}/mylib` does not. This is precisely
-why `dev-env`'s `config.toml` uses the same mechanism (lines 96–105 of
-that file) and can claim to be "identical across all machines".
+configuration; writing `${PROJECT_BASE}/mylib` does not, so the file
+stays identical across machines.
 
-`claude-sandbox` gets the expansion for free where `dev-env` needed
-`os.path.expandvars()`: `config.sh` is sourced Bash, so `"${PROJECT_BASE}/mylib"`
-expands at source time with no parser involved.
+The expansion comes for free: `config.sh` is sourced Bash, so
+`"${PROJECT_BASE}/mylib"` expands at source time with no parser involved.
 
 **Unset behavior:** `PROJECT_BASE` defaults to `$HOME/projects` when not
 exported. Confirmed with the operator. This fails safe — if the default is
@@ -259,13 +256,11 @@ Four properties this establishes:
 
 **Revised from the original draft.** This document originally kept the
 registry `config.sh`-only and documented — but did not enforce — that
-`config.local.sh` should not touch it. Revisited: `dev-env`'s
-`config.local.toml` (`automation-sdd-v3.1-config-local-override.md`) faced
-the identical underlying need, and its own motivating problem was an
-unprotected, untracked `configuracion.toml` holding an operator's real
-per-machine project list — exactly the failure mode of leaving
-`claude-sandbox`'s equivalent undocumented rather than designed for. That
-precedent, plus the fact that Bash's inability to seal an array meant the
+`config.local.sh` should not touch it. Revisited: an operator's real
+per-machine project list has to live somewhere, and with no designed place
+for it, it ends up in an untracked, unprotected copy of the config — the
+failure mode of leaving the need undocumented rather than designed for.
+That, plus the fact that Bash's inability to seal an array meant the
 original prohibition was unenforced prose to begin with, is why this
 document now designs the extension in rather than declining it.
 
@@ -274,9 +269,9 @@ document now designs the extension in rather than declining it.
 resolution path as any committed entry.
 
 **What's not allowed:** `config.local.sh` redefining a name `config.sh`
-already registers. This is not the same hazard class as `dev-env`'s
-`[registry]`/`runtime.forbidden_flags` protection — claude-sandbox has no
-analogue to either (see the carry-over table in `0028-sandbox-config-file.md`).
+already registers. This is not a protected key namespace, such as an
+approved-registry list or a forbidden-flags guard — claude-sandbox has
+neither (see the element table in `0028-sandbox-config-file.md`).
 The hazard here is identity, not a key namespace: a name an operator
 trusts because it's committed and reviewed silently resolving to a
 different, unreviewed path is the same silent-wrong-mount failure the `@`
@@ -320,16 +315,14 @@ registry operates at.
 
 Three deliberate choices in that mechanism:
 
-1. **Warn-and-revert, not warn-and-allow.** `dev-env`'s `_strip_protected`
-   strips rather than merges protected keys; the same shape is used here —
-   the local value is discarded, not just flagged, so a stale or mistaken
-   local override can't silently win. An operator who genuinely wants to
+1. **Warn-and-revert, not warn-and-allow.** The local value is discarded,
+   not just flagged, so a stale or mistaken local override can't silently
+   win. An operator who genuinely wants to
    repoint a committed name edits `config.sh`, a one-line, reviewed
    change.
-2. **Keyed on name collision, not a fixed path list.** `dev-env` protects
-   two fixed schema paths because they're the corporate-gated controls.
-   claude-sandbox's registry has no such fixed set to protect — any
-   committed name is equally trust-bearing — so the check is "does this
+2. **Keyed on name collision, not a fixed path list.** claude-sandbox's
+   registry has no fixed set of protected keys — any committed name is
+   equally trust-bearing — so the check is "does this
    name already exist in the committed snapshot," evaluated against
    whatever `config.sh` happens to contain, not a hardcoded list.
 3. **Two-array sync validation is unchanged.** The existing `:-`-guarded
@@ -482,8 +475,8 @@ be re-evaluated against Case E at that time.
   it — the exact property the plain additive version was originally
   declined for. Restricting the guard to name collisions, rather than
   reinstating the full rejection, keeps that property for every name
-  `config.sh` actually registers while still allowing the addition
-  `dev-env`'s precedent showed is the real-world need.
+  `config.sh` actually registers while still allowing the addition a
+  per-machine project list needs.
 - **Strict mode (reject unregistered paths).** Rejected: would convert
   the registry from documentation into enforcement, but at the cost of
   breaking ad-hoc use, which is a primary workflow for a single-user
@@ -494,7 +487,7 @@ be re-evaluated against Case E at that time.
   Rejected: requires parsing, and breaks on any path containing the
   delimiter. Two keyed arrays plus an explicit sync check is simpler to
   read and to validate.
-- **TOML + a parser, matching `dev-env` directly.** Rejected for the
+- **TOML + a parser.** Rejected for the
   reasons already settled in `0028-sandbox-config-file.md` §Alternatives
   considered —
   introducing Python or `yq` as a host prerequisite for a pure-Bash

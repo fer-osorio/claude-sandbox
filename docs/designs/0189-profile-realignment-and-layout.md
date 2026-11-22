@@ -5,10 +5,8 @@ Accepted
 
 ## Context
 
-The `systems` (C/C++) and `research` (LaTeX) profiles are not in use. This is
-the problem that the dev-env project's planning scope and charter (Go on
-2026-09-15) already settled for its own `cpp` and `research` profiles. The
-same reasoning applies here. In this repository an unused profile also costs:
+The `systems` (C/C++) and `research` (LaTeX) profiles are not in use. An
+unused profile still costs:
 
 - **Egress.** `squid/squid.conf` allows `en.cppreference.com`, `cmake.org`,
   `ctan.org` and `tug.org` for every session, whatever its profile.
@@ -19,9 +17,9 @@ same reasoning applies here. In this repository an unused profile also costs:
   other user.
 
 Separately, profile build contexts and configuration files sit at the
-repository root next to the scripts. `dev-env` already groups its profiles
-under `profiles/`, and the planned profile composition work is easier to
-build on top of a `profiles/` directory.
+repository root next to the scripts. Grouping them under `profiles/` leaves
+the root to the scripts, and the planned profile composition work is easier
+to build on top of a `profiles/` directory.
 
 ## Decision
 
@@ -88,7 +86,7 @@ Rust profile adds the crates.io hosts to every session.
 - **Keep `research` under a less ambiguous name (`latex`).** Rejected: the
   profile is not in use, and renaming leaves its CI and egress costs in
   place.
-- **A per-profile directory key, as in dev-env's `containerfile_dir`.**
+- **A per-profile key in `config.sh` naming each profile's build directory.**
   Rejected: it would add a way to point a build at an arbitrary directory,
   for no current need.
 - **Rename to `config/defaults.sh` and `config/local.sh`.** Rejected: more

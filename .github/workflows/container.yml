@@ -91,7 +91,7 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install bats-core
         # The same pin as profiles/base/Dockerfile and ci.yml. D-10 compares the bats

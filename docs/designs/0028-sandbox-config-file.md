@@ -2,9 +2,8 @@
 
 ## Status
 Accepted (revision 2 — adds a layered override mechanism on top of the
-previously drafted `config.sh`; the "what carries over from dev-env",
-format, and Case classification decisions below are unchanged from
-revision 1)
+previously drafted `config.sh`; the scope, format, and Case
+classification decisions below are unchanged from revision 1)
 
 ## Context
 
@@ -27,34 +26,18 @@ across two files:
   (`--memory="2g"`, `--cpus="2"`, `--log-opt max-size=...`) as literals.
 
 The profile list already has to be kept in sync by hand across both
-files — a real, pre-existing duplication problem independent of any
-comparison to `dev-env`. That duplication is the concrete motivation for
-this change; `dev-env` is the reference point because it's a sibling
-project (see repo tour, previous turn in this conversation) solving an
-adjacent problem — profile-aware containerized dev sessions — with a
-`config.toml` + `helpers.py` layer that centralizes exactly this kind of
-data.
+files. That duplication is the concrete motivation for this change.
 
-The two projects' threat models and constraints diverge in ways that
-matter for this design:
+Constraints that shape the design:
 
-- `dev-env` targets a **managed corporate Windows/WSL2 laptop** with a
-  security team that gates registry approval and reviews `config.toml`
-  changes against an ADR/SDD. `claude-sandbox` targets a single-user
-  local workstation (`docs/claude-code-security-plan.md`, Scope) — there
-  is no external reviewing body and no registry-approval control in its
-  existing threat model.
-- `dev-env`'s `run.sh` constructs its `podman run` command in a way that
-  makes a `forbidden_flags` runtime guard meaningful. `start.sh` has no
-  equivalent input path — its sandboxing flags (`--cap-drop=ALL`,
+- `claude-sandbox` targets a single-user local workstation
+  (`docs/claude-code-security-plan.md`, Scope). There is no external
+  reviewing body and no registry-approval control in its threat model.
+- `start.sh`'s sandboxing flags (`--cap-drop=ALL`,
   `--security-opt=no-new-privileges`, `--userns=keep-id`) are written
   directly into the one `run` invocation, not assembled from
-  project-supplied input. There is nothing for a forbidden-flags check to
-  guard against here.
-- `dev-env` is a Python-using project (`helpers.py`, `tomllib`) with a
-  named-project registry (`[projects.<name>]`, resolved via
-  `$PROJECT_BASE`) and a `Makefile` as its sole public interface.
-  `claude-sandbox` is pure Bash today (`build.sh`, `start.sh`, plus
+  project-supplied input.
+- `claude-sandbox` is pure Bash today (`build.sh`, `start.sh`, plus
   `tests/lib/engine.bash` for the bats-core harness), has no project
   registry — `start.sh <project_dir> [profile]` takes an ad-hoc directory
   positionally — and no `Makefile`. Per an explicit decision with the
@@ -81,26 +64,28 @@ that's under code review.
 
 ## Decision
 
-### What carries over vs. what doesn't
+### What the config file holds, and what it does not
 
-| dev-env element | Carries over? | Rationale |
+Candidate elements of a central config for profile-aware container
+sessions, and whether each is adopted here.
+
+| Element | Adopted? | Rationale |
 |---|---|---|
 | Per-profile block shape (`containerfile_dir`, `image_name`, `image_version`, optional `base` dependency edge) | **Yes** | Directly maps onto `build.sh`'s existing base/crypto/systems/research hierarchy; removes the two-file duplication that motivated this change. |
-| A single source of truth read by both build and run scripts | **Yes** | Same problem dev-env solved (`setup.sh`/`run.sh` never hand-hardcode profile data); this is the core reusable idea, independent of file format. |
-| `[defaults]` username / workspace_mount | **No** | `claude-sandbox`'s user (`claude-agent`) and mount point (`/workspace`) are baked into the Dockerfiles and referenced directly by `start.sh`/`ARCHITECTURE.md`; there's no second consumer that needs them centralized, and `--userns=keep-id:uid=1000,gid=1000` already hardcodes the UID convention per `0025-podman-migration.md` §3.A. |
-| `[registry] allowed[] / default` | **No** | This is a corporate approved-registry control gated by a security team review process `claude-sandbox` doesn't have. `claude-sandbox`'s equivalent control is digest-pinning the base image (`0025-podman-migration.md` §5.3), a different and already-implemented mechanism. |
-| `runtime.forbidden_flags[]` + `check-forbidden-flags` guard | **No** | No analogue: `start.sh` never assembles its container-run command from project- or user-supplied flags, so there's nothing to check against a denylist. |
-| `[projects.<name>]` registry + `$PROJECT_BASE` | **No (v1)** | Confirmed out of scope with the operator — `start.sh`'s positional `<project_dir>` interface stays as-is. |
-| `helpers.py` as a Python CLI layer | **No** | See format decision below — introducing Python as a new host dependency isn't justified here. |
-| `Makefile` as sole public interface | **No** | `claude-sandbox` has no `Makefile` today and `ARCHITECTURE.md`'s documented Cheat Sheet already treats `build.sh`/`start.sh` as the direct entry points; adding an interface layer is out of scope for a config-centralization change. |
+| A single source of truth read by both build and run scripts | **Yes** | Neither script hand-hardcodes profile data; this is the core idea, independent of file format. |
+| Centralized username / workspace mount | **No** | `claude-sandbox`'s user (`claude-agent`) and mount point (`/workspace`) are baked into the Dockerfiles and referenced directly by `start.sh`/`ARCHITECTURE.md`; there's no second consumer that needs them centralized, and `--userns=keep-id:uid=1000,gid=1000` already hardcodes the UID convention per `0025-podman-migration.md` §3.A. |
+| An approved-registry list | **No** | A registry-approval control presupposes a reviewing body `claude-sandbox` doesn't have. `claude-sandbox`'s equivalent control is digest-pinning the base image (`0025-podman-migration.md` §5.3), a different and already-implemented mechanism. |
+| A forbidden-flags guard on the run command | **No** | No analogue: `start.sh` never assembles its container-run command from project- or user-supplied flags, so there's nothing to check against a denylist. |
+| A named-project registry + `$PROJECT_BASE` | **No (v1)** | Confirmed out of scope with the operator — `start.sh`'s positional `<project_dir>` interface stays as-is. |
+| A Python CLI layer over the config | **No** | See format decision below — introducing Python as a new host dependency isn't justified here. |
+| A `Makefile` as sole public interface | **No** | `claude-sandbox` has no `Makefile` today and `ARCHITECTURE.md`'s documented Cheat Sheet already treats `build.sh`/`start.sh` as the direct entry points; adding an interface layer is out of scope for a config-centralization change. |
 | TOML as the format | **No** | See below. |
-| Resource limits / log-driver options as named, version-controlled fields | **Yes (spirit)** | Not present in dev-env's config at all, but the same principle — these are exactly the kind of value dev-env's config.toml header calls "security-relevant and version-controlled" — applies to `start.sh`'s `--memory`/`--cpus`/log-opt literals, which are currently undocumented magic strings. |
+| Resource limits / log-driver options as named, version-controlled fields | **Yes** | Security-relevant values belong under version control; `start.sh`'s `--memory`/`--cpus`/log-opt literals are currently undocumented magic strings. |
 
 ### Format: a sourced Bash config, not TOML+Python
 
-`dev-env` uses TOML parsed by `helpers.py` (Python's `tomllib`) because it
-was already reasonable to assume a Python toolchain there. `claude-sandbox`
-has no Python anywhere — not in `build.sh`, not in `start.sh`, not in the
+TOML parsed by a Python helper is a natural format where a Python
+toolchain can be assumed. `claude-sandbox` has no Python anywhere — not in `build.sh`, not in `start.sh`, not in the
 bats-core test harness. Its established pattern for cross-script shared
 logic is `tests/lib/engine.bash`: a plain Bash library, sourced directly,
 no parser needed.
@@ -176,9 +161,7 @@ fields the operator actually wants to change:
 
 `config.local.sh.example` (the template above, with every field commented
 out) is committed — it's the discoverable list of what's overridable,
-the same role `dev-env`'s commented-out `[projects.another-project]`
-block plays in its `config.toml`. `config.local.sh` itself is never
-committed.
+`config.local.sh` itself is never committed.
 
 **Layer 4 — env var.** Highest precedence, resolved last, at the point of
 use in `build.sh`/`start.sh` — matching the existing `ENGINE` convention
@@ -346,11 +329,11 @@ that time, since it would then be altering runtime security posture.
 
 ## Alternatives considered
 
-- **Port `helpers.py` + TOML as-is.** Rejected: introduces Python as a
+- **TOML + a Python helper.** Rejected: introduces Python as a
   new host prerequisite for a project that is currently pure Bash
   end-to-end, for no benefit `config.sh` doesn't already provide at this
   scope. Revisit only if a future need (e.g. genuinely complex nested
-  config, or a CLI wrapper with many subcommands like dev-env's) justifies
+  config, or a CLI wrapper with many subcommands) justifies
   the added dependency.
 - **`yq` (YAML/TOML/JSON CLI parser).** Rejected: adds a new host binary
   dependency for the same reason a Python parser would, without even the

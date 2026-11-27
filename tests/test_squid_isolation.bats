@@ -2,8 +2,9 @@
 # test_squid_isolation.bats — Group 3: Squid Egress Enforcement (SDD §4.3)
 #
 # Slow tier. Builds a test-tagged Squid image and runs it as a sibling
-# container on the shared claude-net network (never deleting that network,
-# per SDD §5). All allowed requests and the one blocked request are made
+# container on the shared networks, as start.sh does: started on
+# claude-egress, then connected to the internal claude-net its clients are
+# on (never deleting either network, per SDD §5; #200). All allowed requests and the one blocked request are made
 # in setup_file() so every assertion reads the same accumulated access
 # log. State crosses the setup_file/test/teardown_file process boundary
 # via BATS_FILE_TMPDIR, since each of those runs in its own subshell.
@@ -127,8 +128,9 @@ setup_file() {
     engine_build -t claude-squid:test "$SQUID_DIR" >&2
 
     proxy_name="test-claude-squid-$$"
-    engine_run -d --name "$proxy_name" --network claude-net claude-squid:test >&2
+    engine_run -d --name "$proxy_name" --network claude-egress claude-squid:test >&2
     echo "$proxy_name" > "${BATS_FILE_TMPDIR}/proxy_name"
+    engine_network connect claude-net "$proxy_name" >&2
 
     # One client for every request, as a real session has one long-lived
     # client container. A container starting on claude-net makes aardvark-dns
@@ -491,10 +493,9 @@ proxy_request() {
     # are enough: this lets cargo choose its own hosts, so a host crates.io
     # starts sending it to fails here as TCP_DENIED.
     #
-    # The log assertions also show the fetch went through Squid. The session
-    # network still routes directly (see the direct-egress issue), so a
-    # cargo that ignored HTTPS_PROXY would fetch successfully and leave no
-    # line.
+    # The log assertions also show the fetch went through Squid. S-12 is
+    # what shows there is no other way; these lines show cargo took this
+    # one.
     local rust_client
     rust_client="$(cat "${BATS_FILE_TMPDIR}/rust_client_name" 2>/dev/null || true)"
     if [ -z "$rust_client" ]; then

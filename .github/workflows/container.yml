@@ -142,7 +142,7 @@ jobs:
         # the second test that genuinely needs the tag should require a
         # deliberate edit with a reason, not arrive quietly.
         env:
-          CONTAINER_FLOOR: 35
+          CONTAINER_FLOOR: 36
           HOSTFIDELITY_CEILING: 1
         run: |
           count=$(bats --filter-tags 'container,!hostfidelity' --count tests/)
@@ -166,14 +166,18 @@ jobs:
           fi
           exit "$fail"
 
-      - name: Create the claude-net network
-        # Never deleted afterwards, per SDD §5 — the suites attach to it and
-        # one of them creates it if absent, but doing it here means a failure
-        # to create is reported as a setup problem rather than as nine
-        # assertion failures.
+      - name: Create the claude-net and claude-egress networks
+        # Never deleted afterwards, per SDD §5 — the suites attach to them and
+        # one of them creates them if absent, but doing it here means a failure
+        # to create is reported as a setup problem rather than as a dozen
+        # assertion failures. claude-net is internal, as start.sh requires
+        # (#200); the Internal check fails this step if an existing one routes.
         run: |
-          podman network create claude-net || \
+          podman network create --internal claude-net || \
             podman network exists claude-net
+          podman network create claude-egress || \
+            podman network exists claude-egress
+          test "$(podman network inspect claude-net --format '{{.Internal}}')" = true
 
       - name: Build every image
         # Every declared profile plus Squid. The tier needs them all: R-5 asserts

@@ -15,15 +15,19 @@
 # .gitignore entry, not test tooling, is the boundary here). The registry
 # tests below (C-7 onward) are no exception: each writes its own
 # config.sh/config.local.sh pair into a throwaway REG_TMPDIR, copies the
-# real start.sh alongside them, and runs that copy with ENGINE=true — a
-# no-op stand-in that makes every "$ENGINE ..." check in start.sh succeed
-# trivially and return immediately, with no daemon contacted and nothing
-# actually started. This exercises the real @name resolution and
+# real start.sh alongside them, and runs that copy with ENGINE set to
+# tests/fixtures/engine-stub — a stand-in that makes every "$ENGINE ..."
+# check in start.sh succeed and return immediately, with no daemon contacted
+# and nothing actually started. Unlike ENGINE=true, it answers
+# `network inspect --format`, which start.sh reads to refuse a routable
+# claude-net (#200). This exercises the real @name resolution and
 # config.local.sh layering code end to end, still without an engine.
 
 load 'lib/profiles'
 
 SANDBOX_DIR="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
+# Exported: most tests reach start.sh through a nested bash -c.
+export ENGINE_STUB="${SANDBOX_DIR}/tests/fixtures/engine-stub"
 
 teardown() {
     # See tests/test_runtime_posture.bats for why this is a separate
@@ -199,7 +203,7 @@ PROJECT_PATH[mylib]="${REG_TMPDIR}/mylib"
 PROJECT_PROFILE[mylib]=crypto
 EOF
 
-    run bash -c 'cd "'"${REG_TMPDIR}"'" && ENGINE=true bash start.sh @mylib 2>&1'
+    run bash -c 'cd "'"${REG_TMPDIR}"'" && ENGINE="$ENGINE_STUB" bash start.sh @mylib 2>&1'
     [ "$status" -eq 0 ]
     [[ "$output" == *"Project:  ${REG_TMPDIR}/mylib"* ]]
     [[ "$output" == *"Image:    claude-crypto"* ]]
@@ -214,7 +218,7 @@ PROJECT_PATH[mylib]="${REG_TMPDIR}/mylib"
 PROJECT_PROFILE[mylib]=crypto
 EOF
 
-    run bash -c 'cd "'"${REG_TMPDIR}"'" && ENGINE=true bash start.sh @mylib base 2>&1'
+    run bash -c 'cd "'"${REG_TMPDIR}"'" && ENGINE="$ENGINE_STUB" bash start.sh @mylib base 2>&1'
     [ "$status" -eq 0 ]
     [[ "$output" == *"Image:    claude-base"* ]]
 }
@@ -227,7 +231,7 @@ PROJECT_PATH[mylib]="${REG_TMPDIR}/mylib"
 PROJECT_PROFILE[mylib]=crypto
 EOF
 
-    run bash -c 'cd "'"${REG_TMPDIR}"'" && ENGINE=true bash start.sh @doesnotexist 2>&1'
+    run bash -c 'cd "'"${REG_TMPDIR}"'" && ENGINE="$ENGINE_STUB" bash start.sh @doesnotexist 2>&1'
     [ "$status" -ne 0 ]
     [[ "$output" == *"Error: unknown project 'doesnotexist'."* ]]
     [[ "$output" == *"mylib"* ]]                # registered-projects listing
@@ -246,7 +250,7 @@ EOF
 PROJECT_PATH[orphan]="${REG_TMPDIR}/orphan"
 EOF
 
-    run bash -c 'cd "'"${REG_TMPDIR}"'" && ENGINE=true bash start.sh @orphan 2>&1'
+    run bash -c 'cd "'"${REG_TMPDIR}"'" && ENGINE="$ENGINE_STUB" bash start.sh @orphan 2>&1'
     [ "$status" -ne 0 ]
     [[ "$output" == *"Error: project 'orphan' has a path but no profile in config.sh."* ]]
     [[ "$output" != *"unbound variable"* ]]
@@ -268,7 +272,7 @@ PROJECT_PATH[mylib]="${REG_TMPDIR}/mylib"
 PROJECT_PROFILE[mylib]=crypto
 EOF
 
-    run bash -c 'cd "'"${REG_TMPDIR}"'" && ENGINE=true bash start.sh mylib 2>&1'
+    run bash -c 'cd "'"${REG_TMPDIR}"'" && ENGINE="$ENGINE_STUB" bash start.sh mylib 2>&1'
     [ "$status" -eq 0 ]
     [[ "$output" == *"Project:  ${REG_TMPDIR}/mylib"* ]]
     [[ "$output" == *"Image:    claude-base"* ]]
@@ -284,7 +288,7 @@ PROJECT_PATH[localonly]="${REG_TMPDIR}/localonly"
 PROJECT_PROFILE[localonly]=crypto
 EOF
 
-    run bash -c 'cd "'"${REG_TMPDIR}"'" && ENGINE=true bash start.sh @localonly 2>&1'
+    run bash -c 'cd "'"${REG_TMPDIR}"'" && ENGINE="$ENGINE_STUB" bash start.sh @localonly 2>&1'
     [ "$status" -eq 0 ]
     [[ "$output" == *"Project:  ${REG_TMPDIR}/localonly"* ]]
     [[ "$output" == *"Image:    claude-crypto"* ]]
@@ -304,7 +308,7 @@ PROJECT_PATH[committed]="${REG_TMPDIR}/attempted-override"
 PROJECT_PROFILE[committed]=base
 EOF
 
-    run bash -c 'cd "'"${REG_TMPDIR}"'" && ENGINE=true bash start.sh @committed 2>&1'
+    run bash -c 'cd "'"${REG_TMPDIR}"'" && ENGINE="$ENGINE_STUB" bash start.sh @committed 2>&1'
     [ "$status" -eq 0 ]
     [[ "$output" == *"Warning: config.local.sh redefines committed project 'committed'; ignoring the local value (config.sh wins)."* ]]
     [[ "$output" == *"Project:  ${REG_TMPDIR}/committed-real"* ]]
@@ -321,7 +325,7 @@ EOF
     _reg_fixture_dir
     _cred_fixture
 
-    run bash -c 'cd "'"${REG_TMPDIR}"'" && env -u GH_TOKEN ENGINE=true \
+    run bash -c 'cd "'"${REG_TMPDIR}"'" && env -u GH_TOKEN ENGINE="$ENGINE_STUB" \
         CREDENTIALS_DIR="'"${REG_TMPDIR}"'/store" \
         bash start.sh "'"${REG_TMPDIR}"'/proj" 2>&1'
     [ "$status" -eq 0 ]
@@ -335,7 +339,7 @@ EOF
     _reg_fixture_dir
     _cred_fixture
 
-    run bash -c 'cd "'"${REG_TMPDIR}"'" && ENGINE=true GH_TOKEN=unused-by-this-test \
+    run bash -c 'cd "'"${REG_TMPDIR}"'" && ENGINE="$ENGINE_STUB" GH_TOKEN=unused-by-this-test \
         CREDENTIALS_DIR="'"${REG_TMPDIR}"'/store" \
         bash start.sh "'"${REG_TMPDIR}"'/proj" 2>&1'
     [ "$status" -eq 0 ]
@@ -351,7 +355,7 @@ EOF
     local nobin
     nobin="$(_path_without_age)"
 
-    run bash -c 'cd "'"${REG_TMPDIR}"'" && env -u GH_TOKEN PATH="'"${nobin}"'" ENGINE=true \
+    run bash -c 'cd "'"${REG_TMPDIR}"'" && env -u GH_TOKEN PATH="'"${nobin}"'" ENGINE="$ENGINE_STUB" \
         CREDENTIALS_DIR="'"${REG_TMPDIR}"'/store" \
         bash start.sh "'"${REG_TMPDIR}"'/proj" 2>&1'
     [ "$status" -ne 0 ]
@@ -372,7 +376,7 @@ EOF
     _stub_age 'exit 1'
 
     run bash -c 'cd "'"${REG_TMPDIR}"'" && env -u GH_TOKEN PATH="'"${REG_TMPDIR}"'/bin:$PATH" \
-        ENGINE=true CREDENTIALS_DIR="'"${REG_TMPDIR}"'/store" \
+        ENGINE="$ENGINE_STUB" CREDENTIALS_DIR="'"${REG_TMPDIR}"'/store" \
         bash start.sh "'"${REG_TMPDIR}"'/proj" 2>&1'
     [ "$status" -eq 1 ]
     [[ "$output" == *"failed to decrypt"* ]]
@@ -388,7 +392,7 @@ EOF
     _stub_age 'printf "GH_TOKEN=must-not-appear\nPYPI_TOKEN=also-secret\n"'
 
     run bash -c 'cd "'"${REG_TMPDIR}"'" && env -u GH_TOKEN PATH="'"${REG_TMPDIR}"'/bin:$PATH" \
-        ENGINE=true CREDENTIALS_DIR="'"${REG_TMPDIR}"'/store" \
+        ENGINE="$ENGINE_STUB" CREDENTIALS_DIR="'"${REG_TMPDIR}"'/store" \
         bash start.sh "'"${REG_TMPDIR}"'/proj" 2>&1'
     [ "$status" -eq 0 ]
     [[ "$output" == *"Creds:    2 injected (GH_TOKEN, PYPI_TOKEN)"* ]]
@@ -405,7 +409,7 @@ EOF
     _stub_age 'printf "GH_TOKEN=leaked\n"'
 
     run bash -c 'cd "'"${REG_TMPDIR}"'" && env -u GH_TOKEN PATH="'"${REG_TMPDIR}"'/bin:$PATH" \
-        ENGINE=true CREDENTIALS_DIR="'"${REG_TMPDIR}"'/proj/credentials" \
+        ENGINE="$ENGINE_STUB" CREDENTIALS_DIR="'"${REG_TMPDIR}"'/proj/credentials" \
         bash start.sh "'"${REG_TMPDIR}"'/proj" 2>&1'
     [ "$status" -ne 0 ]
     [[ "$output" == *"is inside the project directory"* ]]
@@ -867,7 +871,7 @@ EOF2
     bats_require_minimum_version 1.5.0
     _creds_fixture
 
-    run --separate-stderr env ENGINE=true bash "${REG_TMPDIR}/start.sh" @nosuch
+    run --separate-stderr env ENGINE="$ENGINE_STUB" bash "${REG_TMPDIR}/start.sh" @nosuch
     [ "$status" -ne 0 ]
     [ -z "$output" ]
     [[ "$stderr" == *"unknown project 'nosuch'"* ]]
@@ -906,7 +910,7 @@ EOF
     printf 'MAIN_MEMORY="8g"\n' > "${REG_TMPDIR}/config.local.sh"
     cp "${SANDBOX_DIR}/build.sh" "${REG_TMPDIR}/build.sh"
 
-    run bash -c 'cd "'"${REG_TMPDIR}"'" && ENGINE=true bash start.sh @mylib 2>&1'
+    run bash -c 'cd "'"${REG_TMPDIR}"'" && ENGINE="$ENGINE_STUB" bash start.sh @mylib 2>&1'
     [ "$status" -ne 0 ]
     [[ "$output" == *"config.local.sh is no longer read."* ]]
     [[ "$output" == *"${REG_TMPDIR}/config/config.local.sh"* ]]
@@ -1069,14 +1073,14 @@ LOCAL
     cp "${SANDBOX_DIR}/creds.sh" "${REG_TMPDIR}/"
     mkdir -p "${REG_TMPDIR}/store"
 
-    run env ENGINE=true bash "${REG_TMPDIR}/start.sh" --list
+    run env ENGINE="$ENGINE_STUB" bash "${REG_TMPDIR}/start.sh" --list
     [ "$status" -eq 0 ]
     [[ "$output" == *"No projects registered"* ]]
 
     run env CREDENTIALS_DIR="${REG_TMPDIR}/store" bash "${REG_TMPDIR}/creds.sh" list --all
     [[ "$output" != *"invalid combination"* ]]
 
-    run env ENGINE=true bash "${REG_TMPDIR}/start.sh" "${REG_TMPDIR}" base
+    run env ENGINE="$ENGINE_STUB" bash "${REG_TMPDIR}/start.sh" "${REG_TMPDIR}" base
     [ "$status" -ne 0 ]
     [[ "$output" == *"invalid combination 'solo'"* ]]
 }
@@ -1131,18 +1135,18 @@ PROJECT_PATH[mylib]="'"${BATS_TEST_TMPDIR}"'"
 PROJECT_PROFILE[mylib]=pair'
     mkdir -p "${REG_TMPDIR}/proj" "${REG_TMPDIR}/store" "${REG_TMPDIR}/global-pair/skills/x"
 
-    run env -u GH_TOKEN ENGINE=true CREDENTIALS_DIR="${REG_TMPDIR}/store" \
+    run env -u GH_TOKEN ENGINE="$ENGINE_STUB" CREDENTIALS_DIR="${REG_TMPDIR}/store" \
         bash "${REG_TMPDIR}/start.sh" "${REG_TMPDIR}/proj" pair
     [ "$status" -eq 0 ]
     [[ "$output" == *"Image:    claude-pair"* ]]
     [[ "$output" == *"Overlay:  none for image 'pair'"* ]]
 
-    run env -u GH_TOKEN ENGINE=true CREDENTIALS_DIR="${REG_TMPDIR}/store" \
+    run env -u GH_TOKEN ENGINE="$ENGINE_STUB" CREDENTIALS_DIR="${REG_TMPDIR}/store" \
         bash "${REG_TMPDIR}/start.sh" @mylib
     [ "$status" -eq 0 ]
     [[ "$output" == *"Image:    claude-pair"* ]]
 
-    run env ENGINE=true bash "${REG_TMPDIR}/start.sh" "${REG_TMPDIR}/proj" nope
+    run env ENGINE="$ENGINE_STUB" bash "${REG_TMPDIR}/start.sh" "${REG_TMPDIR}/proj" nope
     [ "$status" -ne 0 ]
     [[ "$output" == *"Combinations: pair"* ]]
 }
@@ -1167,7 +1171,7 @@ STUB
 
     # Without the overlay, the same combination starts.
     rm -rf "${REG_TMPDIR}/global-beta"
-    run env -u GH_TOKEN ENGINE=true CREDENTIALS_DIR="${REG_TMPDIR}/store" \
+    run env -u GH_TOKEN ENGINE="$ENGINE_STUB" CREDENTIALS_DIR="${REG_TMPDIR}/store" \
         bash "${REG_TMPDIR}/start.sh" "${REG_TMPDIR}/proj" pair
     [ "$status" -eq 0 ]
 }

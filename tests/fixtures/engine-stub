@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# engine-stub — stands in for podman or docker in the hostonly start.sh tests
+# (tests/test_config.bats). Every command succeeds and prints nothing, except
+# `network inspect <name> [--format ...]`, which answers from:
+#
+#   STUB_NETWORKS  space-separated networks that exist
+#                  (default: claude-net claude-egress)
+#   STUB_INTERNAL  what --format prints for claude-net (default: true);
+#                  any other network prints false
+#
+# A missing network exits 125, as podman does. If STUB_LOG is set, each call's
+# arguments are appended to it, one call per line, so a test can assert which
+# commands were or were not issued.
+
+if [ -n "${STUB_LOG:-}" ]; then
+    printf '%s\n' "$*" >> "$STUB_LOG"
+fi
+
+if [ "${1:-}" = network ] && [ "${2:-}" = inspect ]; then
+    name="${3:-}"
+    case " ${STUB_NETWORKS-claude-net claude-egress} " in
+        *" ${name} "*) ;;
+        *) echo "Error: network ${name}: unable to find network" >&2; exit 125 ;;
+    esac
+    case " $* " in
+        *" --format "*)
+            if [ "$name" = claude-net ]; then
+                echo "${STUB_INTERNAL:-true}"
+            else
+                echo false
+            fi
+            ;;
+    esac
+fi
+
+exit 0

@@ -564,7 +564,9 @@ _skills_fixture() {
     : > "$STUB_LOG"
     cat > "${REG_TMPDIR}/engine" <<'STUB'
 #!/usr/bin/env bash
-[ "$1" = "run" ] || exit 0
+# Everything but run goes to the shared stub, unlogged, so the network checks
+# get their answers and this log keeps only what the C-22 group reads.
+[ "$1" = "run" ] || STUB_LOG= exec "$ENGINE_STUB" "$@"
 echo "run" >> "$STUB_LOG"
 for arg in "$@"; do
     case "$arg" in

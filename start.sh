@@ -29,9 +29,13 @@
 #   ./start.sh @mylib                       — registry path + registry profile
 #   ./start.sh @mylib base                  — registry path, profile overridden
 #
-# Before running this for the first time, ensure the network exists:
-#   podman network create --driver bridge claude-net
-#   (or: docker network create --driver bridge claude-net, under ENGINE=docker)
+# Before running this for the first time, create the two networks:
+#   podman network create --internal claude-net
+#   podman network create claude-egress
+#   (or the same with docker, under ENGINE=docker)
+# claude-net has no route out; sessions join only it. The proxy joins both,
+# so it is the only way out. A routable claude-net is refused below.
+# See docs/designs/0200-egress-only-through-the-proxy.md.
 #
 # Profile list, image prefix, engine default, and resource/log-driver
 # settings come from config.sh (and optionally config.local.sh, gitignored,
@@ -186,9 +190,26 @@ if ! "$ENGINE" image inspect "$IMAGE_NAME" > /dev/null 2>&1; then
     exit 1
 fi
 
+# On a routable claude-net, a session reaches any host by ignoring
+# HTTPS_PROXY, and the allowlist binds only clients that honor it (#200).
+# Refused rather than repaired: the networks are operator-created, and
+# recreating one under running sessions would cut them off.
 if ! "$ENGINE" network inspect claude-net > /dev/null 2>&1; then
     echo "Error: network 'claude-net' does not exist." >&2
-    echo "Create it with: $ENGINE network create --driver bridge claude-net" >&2
+    echo "Create it with: $ENGINE network create --internal claude-net" >&2
+    exit 1
+fi
+if [ "$("$ENGINE" network inspect claude-net --format '{{.Internal}}')" != "true" ]; then
+    echo "Error: network 'claude-net' is not internal, so a session could reach the internet without the proxy." >&2
+    echo "Recreate it, with no session running:" >&2
+    echo "  $ENGINE network rm claude-net" >&2
+    echo "  $ENGINE network create --internal claude-net" >&2
+    echo "See docs/designs/0200-egress-only-through-the-proxy.md." >&2
+    exit 1
+fi
+if ! "$ENGINE" network inspect claude-egress > /dev/null 2>&1; then
+    echo "Error: network 'claude-egress' does not exist." >&2
+    echo "Create it with: $ENGINE network create claude-egress" >&2
     exit 1
 fi
 
@@ -203,7 +224,7 @@ GLOBAL_BASE="${SANDBOX_DIR}/global-claude"
 
 echo "Project:  $PROJECT_DIR"
 echo "Image:    $IMAGE_NAME"
-echo "Network:  claude-net via ${SQUID_IMAGE_NAME} proxy (see squid/squid.conf for allowlist)"
+echo "Network:  claude-net (internal), out only via ${SQUID_IMAGE_NAME} on claude-egress (see squid/squid.conf for allowlist)"
 
 if [ -d "$GLOBAL_BASE" ]; then
     echo "Global:   $GLOBAL_BASE"
@@ -453,15 +474,23 @@ fi
 PROXY_LOG_ARGS=(--log-driver json-file --log-opt "max-size=${PROXY_LOG_MAX_SIZE}" --log-opt "max-file=${PROXY_LOG_MAX_FILE}")
 MAIN_LOG_ARGS=(--log-driver json-file --log-opt "max-size=${MAIN_LOG_MAX_SIZE}" --log-opt "max-file=${MAIN_LOG_MAX_FILE}")
 
+# The proxy starts on claude-egress, its route out, and is then connected to
+# claude-net, where sessions reach it by name. A failed connect leaves a
+# proxy the session cannot reach; it aborts, and cleanup() removes the proxy.
 echo "Starting Squid proxy ($PROXY_NAME)..."
 if ! "$ENGINE" run -d \
     --name "$PROXY_NAME" \
-    --network claude-net \
+    --network claude-egress \
     --cap-drop=ALL \
     --security-opt=no-new-privileges \
     "${PROXY_LOG_ARGS[@]}" \
     "$SQUID_IMAGE_NAME" > /dev/null; then
     echo "Error: Squid proxy failed to start." >&2
+    echo "Fail-closed per docs/designs/0012-squid-proxy-integration.md §6.3 — aborting session." >&2
+    exit 1
+fi
+if ! "$ENGINE" network connect claude-net "$PROXY_NAME" > /dev/null; then
+    echo "Error: could not connect the Squid proxy to claude-net." >&2
     echo "Fail-closed per docs/designs/0012-squid-proxy-integration.md §6.3 — aborting session." >&2
     exit 1
 fi

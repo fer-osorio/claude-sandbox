@@ -173,9 +173,15 @@ Two options, covered in detail in `ARCHITECTURE.md`:
   the project already has a file, so `add` must decrypt it, and `age` reads
   the passphrase from the terminal. Run it from one; only a project's first
   `add` works without.
-- **`podman network create` (or `docker`) errors because `claude-net`
-  already exists** —
-  expected on any machine that's already run a session; safe to ignore.
+- **`podman network create` (or `docker`) errors because `claude-net` or
+  `claude-egress` already exists** — expected on any machine that's already
+  run a session; safe to ignore.
+- **The launch stops with "network 'claude-net' is not internal"** — the
+  network predates the change that stopped sessions reaching the internet
+  around the proxy. Close running sessions and run the two commands the
+  message prints; see [`BUILDING.md`](../BUILDING.md#first-time-network-setup).
+- **The launch stops with "network 'claude-egress' does not exist"** — run
+  the command the message prints, once.
 
 ## Running the test suite
 

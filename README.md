@@ -14,7 +14,8 @@ next.
 ## Quickstart
 
 ```bash
-podman network create --driver bridge claude-net   # once (or docker)
+podman network create --internal claude-net        # once (or docker)
+podman network create claude-egress                 # once
 ./build.sh                                          # build all images
 ./start.sh ~/projects/myproject crypto              # start a session
 ```

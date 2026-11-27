@@ -214,3 +214,25 @@ it's unused.
 
 **Security posture:** The allowlist grows by exactly one entry, required for Claude Code to
 function at all. No change to the default-deny posture or any other control.
+
+---
+
+### Change 10 — Proxy Made the Only Route Out
+**Affects:** Objectives, Scope, Part 2 (architecture), Step 5 (isolation
+test). Date: 2026-11-27. Issue #200.
+
+**What changed:**
+The guide said all traffic from a Claude container must pass through Squid.
+It did not: `claude-net` was a plain bridge, which routes, so a client that
+ignored `HTTPS_PROXY` reached any host directly. `claude-net` is now internal
+and Squid joins a second network, `claude-egress`, as the only member of
+both. Part 2's diagram shows the two networks; Step 5 starts the test proxy
+the same way and adds a test of the route around it.
+
+**Why:** A claim of enforcement that a single `curl --noproxy '*'` disproved.
+The design and its spike are in
+`docs/designs/0200-egress-only-through-the-proxy.md`.
+
+**Security posture:** The allowlist becomes a control on every client rather
+than on cooperative ones. The STRIDE delta is recorded once, as Change 30 of
+`docs/claude-code-security-plan-changelog.md`.

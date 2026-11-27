@@ -1271,3 +1271,60 @@ in a `rust` session and read Squid's access log: `index.crates.io` and
 `static.crates.io` tunnelled and nothing was refused. S-11 now asserts it,
 and R-9 asserts the Elevation of Privilege row; neither has yet run on a
 runner.
+
+---
+
+### Change 30 — Sessions Reach the Internet Only Through the Proxy
+**Affects:** §2.8, §2.9, `start.sh`, `tests/`, `.github/workflows/`,
+`BUILDING.md`, `README.md`, `docs/user-guide.md`, `docs/squid-proxy-guide.md`.
+Date: 2026-11-27. Issue #200.
+
+**What changed:**
+`claude-net` becomes an internal network, with no route out. A second
+network, `claude-egress`, is a plain bridge. `start.sh` starts the proxy on
+`claude-egress` and connects it to `claude-net`, so the proxy is the only
+member of both; sessions join `claude-net` only. `start.sh` refuses to
+launch when `claude-net` is not internal or `claude-egress` is missing, and
+prints the commands that fix it. The design, its alternatives and the spike
+it rests on are in `docs/designs/0200-egress-only-through-the-proxy.md`.
+
+**Why:** On 2026-11-19 a container started with the session's flags reached a
+refused host directly with `curl --noproxy '*'`. Squid filtered only clients
+that honored `HTTPS_PROXY`, so §2.8's claim that the allowlist stops
+exfiltration was false for code that ignores the variable: code the agent
+writes, `build.rs` and proc macros (Change 29), npm lifecycle scripts, raw
+sockets.
+
+**STRIDE mapping (delta only):**
+
+| Threat (STRIDE) | Change |
+|---|---|
+| **Information Disclosure (I)** | The direct route closes, so egress is only through the allowlist. DNS closes too: on rootless Podman the internal network's resolver answers external names with NXDOMAIN, also when queried directly. What remains is the blind-tunnel class through allowlisted hosts (Change 24). |
+| **Repudiation (R)** | Every outbound connection now leaves an access-log line, because there is no other way out. |
+| **Tampering (T)** | Third-party code run in a session can no longer fetch from arbitrary hosts. |
+| **Denial of Service (D)** | A host whose `claude-net` predates this change cannot start a session until it recreates the network. Deliberate: running on it would be running without the control. |
+
+Spoofing and Elevation of Privilege are unaffected. No image, mount,
+capability or allowlist change.
+
+**Enforced by:** S-12, from `claude-base` on `claude-net`: a direct
+connection to an IP literal and to a name both fail, and a DNS query sent
+straight to the network's resolver gets no answer records. Its positive
+control runs the direct probes from `claude-egress`, so a host with no
+internet fails S-12 instead of passing it. C-50 asserts `start.sh`'s refusals
+and the order of the proxy's two networks. C-50 was seen failing on the
+commit before the fix.
+
+**Residual, not yet closed:**
+- **Docker is untested.** The spike and the container tier ran on rootless
+  Podman. S-12 runs on whichever engine the suite is given, so a Docker run
+  would show it.
+- **Squid's own resolution is not explained.** The proxy's `resolv.conf`
+  lists the internal network's resolver first, and Squid still resolved
+  allowlisted hosts. If that stops, Squid fails closed; the S-group would
+  show it.
+- **The proxy is the only bridge between the networks.** A compromise of
+  Squid is a compromise of egress policy, as it already was for proxied
+  traffic.
+- **Sessions on `claude-net` can still reach each other**, as before
+  (`docs/designs/0012-squid-proxy-integration.md` §6.2-S).

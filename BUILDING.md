@@ -112,15 +112,30 @@ Add `--no-cache` to force a full rebuild (pulls updated apt packages):
 
 ## First-time network setup
 
-The sandbox requires a bridge network. Create it once, using the same engine
+The sandbox requires two networks. Create them once, using the same engine
 `build.sh`/`start.sh` will use (`podman` by default; `docker` if
 `ENGINE=docker` is set):
 
 ```bash
-podman network create --driver bridge claude-net
+podman network create --internal claude-net
+podman network create claude-egress
 # or, under Docker:
-# docker network create --driver bridge claude-net
+# docker network create --internal claude-net
+# docker network create claude-egress
 ```
+
+`claude-net` is internal: it has no route out. Sessions join only it. The
+Squid proxy joins both, so it is a session's only way out, and the allowlist
+binds every client, including one that ignores `HTTPS_PROXY`. `start.sh`
+refuses a `claude-net` that is not internal. A host set up before #200 has a
+routable one; recreate it once, with no session running:
+
+```bash
+podman network rm claude-net
+podman network create --internal claude-net
+```
+
+See `docs/designs/0200-egress-only-through-the-proxy.md`.
 
 ## Podman prerequisites (rootless, WSL2)
 

@@ -136,9 +136,9 @@ flowchart LR
      commands.
 
    Proxy reachability by name and allowlist decisions need no new test: the
-   S-group's clients move to `claude-net` and the test proxy is dual-homed,
-   so S-1 to S-11 assert them on the topology a session has. Both CI floors
-   rise with the new tests.
+   S-group's clients were already on `claude-net`, and the test proxy is
+   dual-homed like a session's, so S-1 to S-11 assert them on the topology a
+   session has. Both CI floors rise with the new tests.
 
 ### Step 1 result
 
@@ -227,7 +227,7 @@ Files expected to change. The concrete set is settled in implementation;
 | File | Change | Step |
 |---|---|---|
 | `start.sh` | Network checks; proxy dual-homed | 3 |
-| `tests/test_squid_isolation.bats` | New direct-egress test with positive control; clients on `claude-net`, proxy dual-homed | 2, 4 |
+| `tests/test_squid_isolation.bats` | New direct-egress test with positive control; proxy dual-homed | 2, 4 |
 | `tests/test_config.bats` | `start.sh` refuses a routable `claude-net` | 2 |
 | `.github/workflows/ci.yml` | Raise `HOSTONLY_FLOOR` | 3 |
 | `tests/lib/engine.bash` | `engine_ensure_network` creates `claude-net` internal and `claude-egress` | 4 |
@@ -238,6 +238,7 @@ Files expected to change. The concrete set is settled in implementation;
 | `docs/user-guide.md` | Troubleshooting entry for the refused network | 5 |
 | `docs/claude-code-security-plan.md` | §2.8 states what is enforced | 5 |
 | `docs/squid-proxy-guide.md` | Enforcement claim corrected | 5 |
+| `docs/squid-proxy-guide-changelog.md` | Change 10 | 5 |
 | `docs/claude-code-security-plan-changelog.md` | Change 30, STRIDE delta | 5 |
 
 
@@ -247,7 +248,7 @@ Files expected to change. The concrete set is settled in implementation;
    committed before the fix and seen failing.
 3. `fix(start):` `start.sh` checks both networks and dual-homes the proxy;
    `HOSTONLY_FLOOR` raised.
-4. `test:` the S-group's topology moved to match; `engine_ensure_network`
+4. `test:` the S-group's proxy dual-homed; `engine_ensure_network`
    creates `claude-net` as internal; CI creates both networks; floor raised.
 5. `docs:` `BUILDING.md`, user guide, security plan §2.8, Squid guide,
    changelog Change 30 (closes #200).

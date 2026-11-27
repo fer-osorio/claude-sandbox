@@ -9,10 +9,11 @@ of `claude-code-security-plan.md`. It has two goals:
 
 **1. Enforce a default-deny outbound network policy.** Without network
 restriction, a compromised Claude session can transmit workspace contents to
-any server on the internet. Squid acts as a mandatory checkpoint: all HTTP
-and HTTPS traffic from every Claude container must pass through it, and any
-connection to a domain not on the allowlist is refused before a single byte
-leaves the network.
+any server on the internet. Squid acts as a mandatory checkpoint: the
+network a Claude container is on has no route out, so all of its traffic must
+pass through Squid, and any connection to a domain not on the allowlist is
+refused before a single byte leaves the host. What makes it mandatory is the
+network, not the `HTTPS_PROXY` variable; see Part 2.
 
 **2. Provide a human-readable audit trail of every outbound connection.** The
 Squid access log records one line per attempted connection — destination,
@@ -23,7 +24,7 @@ attempted to contact during a session and whether it succeeded.
 ### Scope
 
 This guide covers running Squid as a companion container on the `claude-net`
-Docker network alongside the Claude Code sandbox images defined in
+and `claude-egress` networks alongside the Claude Code sandbox images defined in
 `build.sh`. It does not cover transparent proxying, TLS inspection, or
 authentication between the Claude container and the proxy — none of which
 are needed for this use case.
@@ -82,30 +83,24 @@ For a cryptographer who values auditability and wants a clear record of every ou
 
 ## Part 2 — Architecture of the Setup
 
-You will run Squid as a **companion container** on the same Docker network as Claude Code. The Claude Code container is configured to route all HTTP and HTTPS traffic through Squid before it leaves the network.
+You will run Squid as a **companion container** on two networks. Claude Code's container is on `claude-net` only, which is internal: it has no route out. Squid is on `claude-net` and on `claude-egress`, a plain bridge, so it is the only member of both and the only way out. `HTTPS_PROXY` tells cooperative clients where the proxy is; the network is what stops the others (#200).
 
+```mermaid
+flowchart LR
+    subgraph net["claude-net (internal, no route)"]
+        s["claude-base / crypto / rust<br/>HTTPS_PROXY=proxy:3128"]
+        p["Squid, port 3128<br/>allowlist, access log"]
+    end
+    subgraph egress["claude-egress (bridge)"]
+        p2["Squid (same container)"]
+    end
+    i(("internet:<br/>allowlisted hosts only"))
+    s --> p
+    p --- p2
+    p2 --> i
 ```
-┌─────────────────────────────────────────────────────────┐
-│                   claude-net (Docker network)            │
-│                                                          │
-│  ┌────────────────────────┐   ┌────────────────────────┐ │
-│  │  claude-base / crypto  │   │  squid-proxy           │ │
-│  │                        │──▶│  (port 3128)           │ │
-│  │  (Claude Code)         │   │                        │ │
-│  │  HTTP_PROXY=squid:3128 │   │  Allowlist policy      │ │
-│  │  HTTPS_PROXY=squid:... │   │  Access logs           │ │
-│  └────────────────────────┘   └───────────┬────────────┘ │
-│                                            │              │
-└────────────────────────────────────────────┼──────────────┘
-                                             │
-                                 ┌───────────▼──────────┐
-                                 │     THE INTERNET      │
-                                 │                       │
-                                 │  ✓ api.anthropic.com  │
-                                 │  ✓ pypi.org           │
-                                 │  ✗ everything else    │
-                                 └──────────────────────┘
-```
+
+`start.sh` starts Squid on `claude-egress`, connects it to `claude-net`, then starts the session on `claude-net`. It refuses to start on a `claude-net` that is not internal. See `docs/designs/0200-egress-only-through-the-proxy.md`.
 
 Port `3128` is Squid's default and conventional port — it has been since the 1990s.
 
@@ -257,8 +252,9 @@ STRIDE analysis behind these decisions.
 Before trusting this in a real session, verify it works as expected:
 
 ```bash
-# Start the proxy manually
-docker run -d --name test-proxy --network claude-net claude-squid
+# Start the proxy manually, on its route out, then on the session network
+docker run -d --name test-proxy --network claude-egress claude-squid
+docker network connect claude-net test-proxy
 
 # Test 1: allowed domain — should succeed
 docker run --rm --network claude-net \
@@ -272,6 +268,11 @@ docker run --rm --network claude-net \
   curlimages/curl:latest \
   curl -sv https://example.com
 
+# Test 3: around the proxy — should fail with no route (curl exit 7 or 28)
+docker run --rm --network claude-net \
+  curlimages/curl:latest \
+  curl -sSk --noproxy '*' -m 10 https://1.1.1.1/
+
 # View the proxy access log
 docker logs test-proxy
 
@@ -279,7 +280,7 @@ docker logs test-proxy
 docker stop test-proxy && docker rm test-proxy
 ```
 
-In Test 1 you should see the connection proceed. In Test 2 you should see a `403 Access Denied` or a connection refusal. The `docker logs test-proxy` output is your audit log — one line per attempted connection, showing the destination, the time, and whether it was permitted.
+In Test 1 you should see the connection proceed. In Test 2 you should see a `403 Access Denied` or a connection refusal. In Test 3 the connection fails without reaching the proxy, and leaves no log line; if it succeeds, `claude-net` is not internal. The `docker logs test-proxy` output is your audit log — one line per attempted connection, showing the destination, the time, and whether it was permitted.
 
 ---
 
@@ -369,3 +370,4 @@ should name the file rather than the number alone.
 | 7 | `pid_filename none` Added After Non-Root Startup Failure |
 | 8 | Access Log Format Corrected from `combined` to `squid` |
 | 9 | `platform.claude.com` Added to the Core Tier Allowlist |
+| 10 | Proxy Made the Only Route Out |

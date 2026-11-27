@@ -258,15 +258,16 @@ The script validates that the named image exists before attempting to run it, an
 
 #### 2.8 — Set up the restricted Docker network
 
-Create the shared network once. All Claude Code containers use it:
+Create the two shared networks once:
 
 ```bash
-docker network create \
-  --driver bridge \
-  claude-net
+docker network create --internal claude-net
+docker network create claude-egress
 ```
 
-This network is created once and reused by every project container. What varies per project is which endpoints you allow through it via the Squid configuration — not the network itself.
+`claude-net` is internal, so it has no route out. Every session joins it and nothing else. The Squid proxy joins both networks, which makes it the only path from a session to the internet: a client that ignores `HTTPS_PROXY` reaches nothing. `start.sh` refuses to launch on a `claude-net` that is not internal, and S-12 asserts from a session image that no direct connection and no external DNS answer get out. See `docs/designs/0200-egress-only-through-the-proxy.md` and Change 30.
+
+These networks are created once and reused by every project container. What varies per project is which endpoints you allow through the proxy via the Squid configuration — not the networks themselves.
 
 **How to restrict outbound traffic:** Docker does not have a simple built-in allowlist for domains. There are two approaches:
 
@@ -275,11 +276,11 @@ This network is created once and reused by every project container. What varies 
 
 Note: Docker's `--add-host` flag is **not** a network restriction mechanism — it only adds static DNS entries to a container's `/etc/hosts` file and does not prevent connections to any destination. Do not use it as a substitute for proper traffic filtering.
 
-**Threat model note:** Network allowlisting is your primary defense against **Information Disclosure (I)** via exfiltration. Without it, a compromised Claude session could transmit your workspace contents to an external server. With the Squid proxy in place, any connection attempt to a non-allowlisted domain is refused before a single byte leaves the container.
+**Threat model note:** Network allowlisting is your primary defense against **Information Disclosure (I)** via exfiltration. Without it, a compromised Claude session could transmit your workspace contents to an external server. With the Squid proxy as the only route out, any connection attempt to a non-allowlisted domain is refused before a single byte leaves the host. That holds only because `claude-net` is internal: before Change 30 it routed, and the allowlist bound only clients that honored `HTTPS_PROXY`.
 
 #### 2.9 — Add the Squid proxy container
 
-See the companion *Squid Proxy Implementation Guide* for the full setup. In brief, you will run Squid as a second container on the same `claude-net` network, and configure the Claude Code container to route all HTTP/HTTPS traffic through it. The Squid configuration file is your explicit, human-readable allowlist — the single document that defines exactly what outbound connections are permitted.
+See the companion *Squid Proxy Implementation Guide* for the full setup. In brief, you will run Squid as a second container, started on `claude-egress` and connected to `claude-net`, and configure the Claude Code container to send its HTTP/HTTPS traffic through it; the internal network leaves it no other way. The Squid configuration file is your explicit, human-readable allowlist — the single document that defines exactly what outbound connections are permitted.
 
 ---
 
@@ -494,3 +495,4 @@ three files under `tests/`.
 | 27 | Unused Profiles Retired, Their Allowlist Entries and SQLite Removed |
 | 28 | CMake Staleness Check Removed From the Entrypoint |
 | 29 | Rust Profile and the `crypto-rust` Combination Added |
+| 30 | Sessions Reach the Internet Only Through the Proxy |

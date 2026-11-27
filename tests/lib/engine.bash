@@ -28,11 +28,15 @@ engine_available() {
     "${ENGINE}" info > /dev/null 2>&1
 }
 
-# Creates claude-net if absent, reuses it otherwise. Never deletes it —
-# it is shared with real developer sessions (SDD §5).
+# Creates a network if absent, reuses it otherwise. Never deletes it — both
+# are shared with real developer sessions (SDD §5). claude-net is created
+# internal, as start.sh requires (#200); any other name, such as
+# claude-egress, as a plain bridge. An existing claude-net is not recreated
+# even if it routes: S-12 reports that, since it is the operator's network.
 engine_ensure_network() {
-    local name="${1:-claude-net}"
+    local name="${1:-claude-net}" flags=()
+    [ "$name" = claude-net ] && flags=(--internal)
     if ! "${ENGINE}" network inspect "$name" > /dev/null 2>&1; then
-        "${ENGINE}" network create --driver bridge "$name" > /dev/null
+        "${ENGINE}" network create "${flags[@]}" "$name" > /dev/null
     fi
 }

@@ -1175,3 +1175,44 @@ STUB
         bash "${REG_TMPDIR}/start.sh" "${REG_TMPDIR}/proj" pair
     [ "$status" -eq 0 ]
 }
+
+# bats test_tags=fast, hostonly
+@test "C-50: start.sh refuses a routable claude-net or a missing claude-egress before starting anything" {
+    # #200: on a routable claude-net the allowlist binds only clients that
+    # honor HTTPS_PROXY (docs/designs/0200-egress-only-through-the-proxy.md,
+    # decision 2). Each refusal must happen before the first `run`, so no
+    # proxy or session ever starts on the wrong topology.
+    bats_require_minimum_version 1.5.0
+    _reg_fixture_dir
+    _cred_fixture
+    export STUB_LOG="${REG_TMPDIR}/engine.log"
+
+    # claude-net exists but routes: the network Podman and Docker create by default.
+    run --separate-stderr env -u GH_TOKEN ENGINE="$ENGINE_STUB" STUB_INTERNAL=false \
+        CREDENTIALS_DIR="${REG_TMPDIR}/store" bash "${REG_TMPDIR}/start.sh" "${REG_TMPDIR}/proj"
+    [ "$status" -ne 0 ]
+    [[ "$stderr" == *"network 'claude-net' is not internal"* ]]
+    [[ "$stderr" == *"network create --internal claude-net"* ]]
+    ! grep -q '^run ' "$STUB_LOG" || { echo "a container was started:" >&2; cat "$STUB_LOG" >&2; return 1; }
+
+    # claude-net is internal, claude-egress is missing.
+    : > "$STUB_LOG"
+    run --separate-stderr env -u GH_TOKEN ENGINE="$ENGINE_STUB" STUB_NETWORKS=claude-net \
+        CREDENTIALS_DIR="${REG_TMPDIR}/store" bash "${REG_TMPDIR}/start.sh" "${REG_TMPDIR}/proj"
+    [ "$status" -ne 0 ]
+    [[ "$stderr" == *"network 'claude-egress' does not exist"* ]]
+    [[ "$stderr" == *"network create claude-egress"* ]]
+    ! grep -q '^run ' "$STUB_LOG" || { echo "a container was started:" >&2; cat "$STUB_LOG" >&2; return 1; }
+
+    # Both networks as required: the launch proceeds, the proxy is started
+    # on claude-egress and connected to claude-net before the session starts.
+    : > "$STUB_LOG"
+    run env -u GH_TOKEN ENGINE="$ENGINE_STUB" \
+        CREDENTIALS_DIR="${REG_TMPDIR}/store" bash "${REG_TMPDIR}/start.sh" "${REG_TMPDIR}/proj"
+    [ "$status" -eq 0 ]
+    run grep -nE '^(run|network connect)' "$STUB_LOG"
+    [ "${#lines[@]}" -eq 3 ]
+    [[ "${lines[0]}" == *"run -d --name claude-proxy-"*"--network claude-egress"* ]]
+    [[ "${lines[1]}" == *"network connect claude-net claude-proxy-"* ]]
+    [[ "${lines[2]}" == *"run --rm"*"--network claude-net"* ]]
+}

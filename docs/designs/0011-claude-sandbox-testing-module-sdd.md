@@ -233,6 +233,7 @@ gate. Its ID is unchanged.
 | S-6 | `mintcdn.com` reachable | The `dstdom_regex` CDN exception from issue #32, curled at the bare apex — Mintlify's CSP documentation lists plain `mintcdn.com` as required, so it is a directly-addressable host and not merely a wildcard zone |
 | S-10 | `doc.rust-lang.org` reachable | Reference-tier allowlist addition from issue #199 resolves and tunnels |
 | S-11 | crates.io fetch through the proxy | `cargo fetch` of an exact-pinned, dependency-free crate succeeds from `claude-rust`, the access log shows `TCP_TUNNEL/200` for `index.crates.io` and `static.crates.io` and no denied crates.io or rust-lang.org host, and the crate lands in `$CARGO_HOME` (#199). The log lines also show cargo used the proxy rather than the direct route |
+| S-12 | No route out but the proxy | From `claude-base` on `claude-net`: a direct connection to an IP literal fails with curl exit 7 or 28, one by name fails, and a DNS query sent straight to the network's resolver returns no answer records. Positive control: the same direct probes succeed from `claude-egress`, so no internet fails the test instead of passing it (#200) |
 
 Mirrors `docs/squid-proxy-guide.md` Part 3 Step 5 exactly, wrapped as assertions instead of manual `docker logs` inspection.
 
@@ -321,6 +322,7 @@ operator's real `config.local.sh`.
 | C-37 | Empty registry listed | Says so and exits 0 |
 | C-38 | `creds.sh list --all` | Key names for every project, no value, and a file that fails to decrypt is reported without stopping the loop |
 | C-39 | Argument errors | On stderr, checked before `age` or the store, and naming the command that fixes them |
+| C-50 | Routable `claude-net` refused | `start.sh` aborts before any `run` when `claude-net` is not internal or `claude-egress` is missing, naming the command that fixes it; with both, the proxy starts on `claude-egress` and is connected to `claude-net` before the session starts (#200) |
 
 ### 4.7 Group 7 — Documentation Integrity
 

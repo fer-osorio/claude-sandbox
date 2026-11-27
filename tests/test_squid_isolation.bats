@@ -44,6 +44,12 @@
 # S-10 covers doc.rust-lang.org, and S-11 the crates.io hosts by letting
 # cargo fetch a crate, both from issue #199.
 #
+# S-12 covers the route around the proxy (#200,
+# docs/designs/0200-egress-only-through-the-proxy.md): from a session image
+# on claude-net, no direct connection and no external DNS answer. Its
+# positive control runs the same probes from claude-egress, so a runner with
+# no internet fails S-12 as inconclusive instead of passing it.
+#
 # S-7/S-8/S-9 cover the planning-research tier from issue #91 —
 # arxiv.org, datatracker.ietf.org and www.rfc-editor.org, the
 # primary/technical sources swe-prior-art-research retrieves from. They
@@ -117,6 +123,7 @@ setup_file() {
     fi
 
     engine_ensure_network claude-net
+    engine_ensure_network claude-egress
     engine_build -t claude-squid:test "$SQUID_DIR" >&2
 
     proxy_name="test-claude-squid-$$"
@@ -152,6 +159,25 @@ setup_file() {
             claude-rust sleep 86400 >&2
         echo "$rust_client_name" > "${BATS_FILE_TMPDIR}/rust_client_name"
     fi
+
+    # S-12's two clients, started here for the same reason. The session
+    # client is the session image with start.sh's flags, on the session's
+    # network; the control client sits on claude-egress, where the direct
+    # route must work for S-12's negative result to mean anything.
+    if engine_inspect claude-base > /dev/null 2>&1; then
+        session_client_name="test-claude-squid-session-$$"
+        engine_run -d --name "$session_client_name" --network claude-net \
+            --env HTTP_PROXY="http://${proxy_name}:3128" \
+            --env HTTPS_PROXY="http://${proxy_name}:3128" \
+            --env NO_PROXY="localhost,127.0.0.1" \
+            --cap-drop=ALL --security-opt=no-new-privileges \
+            claude-base sleep 86400 >&2
+        echo "$session_client_name" > "${BATS_FILE_TMPDIR}/session_client_name"
+    fi
+    egress_client_name="test-claude-squid-egress-$$"
+    engine_run -d --name "$egress_client_name" --network claude-egress \
+        docker.io/curlimages/curl:latest sleep 86400 >&2
+    echo "$egress_client_name" > "${BATS_FILE_TMPDIR}/egress_client_name"
 
     # Both starts above open that window, so wait until the client resolves
     # the proxy's name before the first request. telnet:// to a closed port
@@ -242,7 +268,7 @@ _s_diagnose() {
 
 teardown_file() {
     local c
-    for c in client_name rust_client_name; do
+    for c in client_name rust_client_name session_client_name egress_client_name; do
         client_name="$(cat "${BATS_FILE_TMPDIR}/${c}" 2>/dev/null || true)"
         if [ -n "$client_name" ] && [[ "$client_name" == test-* ]]; then
             engine_rm -f "$client_name" > /dev/null 2>&1 \
@@ -498,6 +524,78 @@ proxy_request() {
     # fails a bats test only when it happens to be the last line.
     if echo "$output" | grep -E 'TCP_DENIED/[0-9]+[[:space:]]+[0-9]+[[:space:]]+CONNECT[[:space:]]+[^ ]*(crates\.io|rust-lang\.org):443' >&2; then
         echo "cargo asked for a host the allowlist refuses (above)" >&2
+        return 1
+    fi
+}
+
+# A DNS query for argv[2] sent straight to argv[1], bypassing the stub
+# resolver: code in a session can do the same, so what resolv.conf says is
+# not the boundary. Prints the answer count, or "none" on no reply.
+_S_DNS_QUERY='
+import socket, struct, sys
+server, name = sys.argv[1], sys.argv[2]
+q = struct.pack(">HHHHHH", 0x1234, 0x0100, 1, 0, 0, 0)
+q += b"".join(bytes([len(p)]) + p.encode() for p in name.split(".")) + b"\0"
+q += struct.pack(">HH", 1, 1)
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.settimeout(5)
+s.sendto(q, (server, 53))
+try:
+    r = s.recv(512)
+    print(struct.unpack(">H", r[6:8])[0])
+except socket.timeout:
+    print("none")
+'
+
+# bats test_tags=slow
+@test "S-12: a session on claude-net has no route out but the proxy: no direct TCP, no external DNS" {
+    # #200. A literal IP tests the route without DNS; the name tests both.
+    # 1.1.1.1 and docs.rs are arbitrary reachable targets, and docs.rs is
+    # refused by the allowlist, so neither can pass through the proxy.
+    local session egress rc ns answers
+    session="$(cat "${BATS_FILE_TMPDIR}/session_client_name" 2>/dev/null || true)"
+    egress="$(cat "${BATS_FILE_TMPDIR}/egress_client_name" 2>/dev/null || true)"
+    if [ -z "$session" ]; then
+        echo "claude-base image not found — build it first with: ./build.sh base" >&2
+        return 1
+    fi
+
+    # Positive control: the same probes succeed from claude-egress. Without
+    # it, a host with no internet would pass every assertion below.
+    for target in https://1.1.1.1/ https://docs.rs/; do
+        rc=0
+        engine_exec "$egress" curl -sS -k --noproxy '*' -m 10 -o /dev/null "$target" >&2 || rc=$?
+        if [ "$rc" -ne 0 ]; then
+            echo "inconclusive: direct ${target} from claude-egress failed (curl exit ${rc});" >&2
+            echo "the session-side result would not show that claude-net is what stops it" >&2
+            return 1
+        fi
+    done
+
+    # Direct TCP by address: refused or unreachable (7) or timed out (28).
+    # Exit 0 is #200 itself.
+    rc=0
+    engine_exec "$session" curl -sS -k --noproxy '*' -m 10 -o /dev/null https://1.1.1.1/ >&2 || rc=$?
+    if [ "$rc" -ne 7 ] && [ "$rc" -ne 28 ]; then
+        echo "direct connection to 1.1.1.1 from claude-net: curl exit ${rc}, expected 7 or 28" >&2
+        return 1
+    fi
+
+    # Direct by name: fails, however it fails.
+    rc=0
+    engine_exec "$session" curl -sS --noproxy '*' -m 10 -o /dev/null https://docs.rs/ >&2 || rc=$?
+    if [ "$rc" -eq 0 ]; then
+        echo "direct connection to docs.rs from claude-net succeeded" >&2
+        return 1
+    fi
+
+    # DNS asked directly of the network's resolver: no answer records. The
+    # rcode is not asserted; the engines' resolvers need not agree on it.
+    ns="$(engine_exec "$session" awk '/^nameserver/ { print $2; exit }' /etc/resolv.conf)"
+    [ -n "$ns" ] || { echo "no nameserver in the session client's resolv.conf" >&2; return 1; }
+    answers="$(engine_exec "$session" python3 -c "$_S_DNS_QUERY" "$ns" docs.rs)"
+    if [ "$answers" != 0 ] && [ "$answers" != none ]; then
+        echo "resolver ${ns} answered docs.rs with ${answers} record(s): DNS reaches outside claude-net" >&2
         return 1
     fi
 }

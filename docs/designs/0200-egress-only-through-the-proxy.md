@@ -30,9 +30,8 @@ After, there is one:
 
 1. session → Squid → internet. The session's network, `claude-net`, has no
    route out; Squid is the only member of both networks.
-2. DNS is a second possible way out in both pictures; whether it stays open
-   on an internal network is settled by implementation step 1
-   (decision 3).
+2. DNS is a second possible way out. On an internal network the resolver
+   does not answer external names (implementation step 1, decision 3).
 
 ```mermaid
 flowchart LR
@@ -64,8 +63,7 @@ flowchart LR
         as -- "HTTPS_PROXY" --> ap
         ap --- ap2
         ap2 -- "allowlisted only" --> ai
-        as -. "DNS: closed or open? (step 1)" .-> adns
-        adns -.-> ai
+        as -. "DNS: NXDOMAIN for external names" .-> adns
     end
 ```
 
@@ -93,8 +91,7 @@ flowchart LR
    2. `claude-egress` missing → abort, print the create command.
    3. Start Squid on `claude-egress`; failure → abort (0012 §6.3).
    4. Connect Squid to `claude-net`; failure → abort, proxy removed.
-   5. Start the session on `claude-net`, with the DNS flags of decision 3
-      if step 1 requires them.
+   5. Start the session on `claude-net`.
 
    ```mermaid
    flowchart TD
@@ -106,31 +103,79 @@ flowchart LR
        D -- fails --> X3["abort (fail closed)"]
        D -- ok --> E["network connect claude-net Squid"]
        E -- fails --> X4["abort; cleanup() removes Squid"]
-       E -- ok --> F{"step 1: internal resolver<br/>forwards external names?"}
-       F -- no --> G["run session on claude-net"]
-       F -- yes --> H["run session on claude-net<br/>with --dns at an unreachable address<br/>and --add-host for Squid"]
+       E -- ok --> G["run session on claude-net"]
    ```
 3. **DNS is part of the route.** A resolver that forwards external names lets
    a session encode data in queries even with no TCP route. The session never
    needs to resolve an external name: with a proxy, the client sends the
-   hostname inside `CONNECT`. Whether the resolver on an internal network
-   forwards external names is not documented consistently across
-   aardvark-dns and Docker's embedded DNS, so implementation step 1 observes
-   it. If it forwards, the session is started with `--dns` pointing at no
-   resolver and the proxy's address passed with `--add-host`, so only the
-   proxy's name resolves.
-4. **Tested, not documented.** A container test asserts, from a client on
-   `claude-net`, that a direct connection fails, that an external name does
-   not resolve, and that a proxied request is still decided by the
-   allowlist. It is written first and seen failing on the current setup. The
+   hostname inside `CONNECT`. Step 1 observed that on rootless Podman the
+   internal network's resolver answers external names with NXDOMAIN, also
+   when queried directly rather than through `resolv.conf` (see "Step 1
+   result"). The session therefore needs no DNS flags. The test of
+   decision 4 keeps the direct query, so a resolver that starts forwarding,
+   on either engine, fails a test instead of reopening the path silently.
+   If that happens, the fallback is the network's resolver disabled
+   (`--disable-dns`) and the proxy's address passed with `--add-host`;
+   `--dns` alone is not enough, because a session can query the network's
+   resolver by address.
+4. **Tested, not documented.** Two tests, both written first and seen
+   failing on the current setup:
+   - A container test, from a client on `claude-net`: a direct TCP
+     connection to an IP literal fails with a connect error or timeout
+     (curl exit 7 or 28), a direct connection by name fails, and a DNS
+     query sent straight to the network's resolver returns no answer
+     records. It asserts the absence of answers, not a particular rcode,
+     since the engines' resolvers may reply differently.
+   - A positive control in the same test: the same IP-literal probe from a
+     client on `claude-egress` must succeed. Without it, a runner with no
+     internet would pass the test; with it, that case is reported as
+     inconclusive and never as a pass.
+   - A host-only test of `start.sh`, with the engine stubbed as in
+     `tests/test_config.bats`: a `claude-net` whose `Internal` is `false`
+     aborts the launch before any container starts and prints the recreate
+     commands.
+
+   Proxy reachability by name and allowlist decisions need no new test: the
    S-group's clients move to `claude-net` and the test proxy is dual-homed,
-   so S-1 to S-11 run on the topology a session has.
+   so S-1 to S-11 assert them on the topology a session has. Both CI floors
+   rise with the new tests.
+
+### Step 1 result
+
+Rootless Podman on the operator's host (Podman version not recorded),
+2026-11-26, with throwaway networks: `--internal` and a plain bridge, the
+proxy started on the bridge then connected to the internal network, a
+`claude-base` client on the internal network with `start.sh`'s security
+flags.
+
+| Probe, from the client | Result |
+|---|---|
+| `network inspect` of the internal network | `Internal=true`, `DNSEnabled=true` |
+| Proxy name | resolves to its internal-network address |
+| External name (`getent hosts docs.rs`) | no result |
+| UDP query for `docs.rs` sent to the resolver in `resolv.conf` | `rcode=3` (NXDOMAIN), 0 answers |
+| Direct HTTPS by name | curl exit 6 |
+| Direct HTTPS to `1.1.1.1` | curl exit 7, immediately |
+| Proxied, allowlisted host | HTTP 301; `TCP_TUNNEL/200` in the access log |
+| Proxied, refused host (`docs.rs`) | curl exit 56; `TCP_DENIED/403` in the access log |
+
+`docs.rs` exists, so an NXDOMAIN answer is read as the query not having
+been forwarded upstream; that is an inference, not observed upstream.
+Docker was not tested.
+
+Open observation: the proxy's `resolv.conf` lists the internal network's
+resolver first and the egress network's second, and `squid/squid.conf` sets
+no `dns_nameservers`. Squid still resolved the allowlisted host. Not
+explained; a likely cause is that aardvark-dns answers per requesting
+container, and the proxy is a member of a non-internal network. If that
+changes, Squid fails to resolve and the launch fails closed rather than
+open. The S-group, run on the new topology, would surface it.
 
 ## STRIDE impact
 
 | Threat | Change |
 |---|---|
-| **Information Disclosure (I)** | The direct route closes: egress is only via Squid's allowlist, which becomes the control the security plan says it is. DNS exfiltration closes too, by observation or by decision 3. What remains is the existing blind-tunnel class through allowlisted hosts (Change 24). |
+| **Information Disclosure (I)** | The direct route closes: egress is only via Squid's allowlist, which becomes the control the security plan says it is. DNS exfiltration closes too, as observed in step 1 and asserted by the test of decision 4. What remains is the existing blind-tunnel class through allowlisted hosts (Change 24). |
 | **Repudiation (R)** | Every outbound connection now produces an access-log line, because there is no other way out. |
 | **Tampering (T)** | Third-party code run in a session (`build.rs`, lifecycle scripts) can no longer fetch from arbitrary hosts. |
 | **Denial of Service (D)** | A host on the old network cannot start a session until it recreates `claude-net`. Deliberate: running on it would be running without the control. |
@@ -181,11 +226,13 @@ Files expected to change. The concrete set is settled in implementation;
 
 | File | Change | Step |
 |---|---|---|
-| `start.sh` | Network checks; proxy dual-homed; DNS flags if needed | 3 |
-| `tests/test_squid_isolation.bats` | New direct-egress test; clients on `claude-net`, proxy dual-homed | 2, 4 |
+| `start.sh` | Network checks; proxy dual-homed | 3 |
+| `tests/test_squid_isolation.bats` | New direct-egress test with positive control; clients on `claude-net`, proxy dual-homed | 2, 4 |
+| `tests/test_config.bats` | `start.sh` refuses a routable `claude-net` | 2 |
+| `.github/workflows/ci.yml` | Raise `HOSTONLY_FLOOR` | 3 |
 | `tests/lib/engine.bash` | `engine_ensure_network` creates `claude-net` internal and `claude-egress` | 4 |
 | `.github/workflows/container.yml` | Create both networks; raise `CONTAINER_FLOOR` | 4 |
-| `docs/designs/0011-claude-sandbox-testing-module-sdd.md` | Row for the new test | 2 |
+| `docs/designs/0011-claude-sandbox-testing-module-sdd.md` | Rows for the new tests | 2 |
 | `docs/designs/0200-egress-only-through-the-proxy.md` | Step 1 result; decision 3 settled | 1 |
 | `BUILDING.md`, `README.md` | Network setup commands | 5 |
 | `docs/user-guide.md` | Troubleshooting entry for the refused network | 5 |
@@ -194,14 +241,12 @@ Files expected to change. The concrete set is settled in implementation;
 | `docs/claude-code-security-plan-changelog.md` | Change 30, STRIDE delta | 5 |
 
 
-1. Spike, not committed: on rootless Podman, create both networks, run the
-   proxy dual-homed and a client on `claude-net`; record whether direct TCP
-   fails, whether an external name resolves from the client, and whether
-   Squid still resolves through the egress network. The result settles
-   decision 3 and is recorded in this document.
-2. `test:` the direct-egress test, committed before the fix and seen failing.
-3. `fix(start):` `start.sh` checks both networks and dual-homes the proxy
-   (plus `--dns`/`--add-host` if step 1 requires them).
+1. Spike, not committed: done; see "Step 1 result". Decision 3 settled
+   with no DNS flags.
+2. `test:` the direct-egress test and the `start.sh` refusal test,
+   committed before the fix and seen failing.
+3. `fix(start):` `start.sh` checks both networks and dual-homes the proxy;
+   `HOSTONLY_FLOOR` raised.
 4. `test:` the S-group's topology moved to match; `engine_ensure_network`
    creates `claude-net` as internal; CI creates both networks; floor raised.
 5. `docs:` `BUILDING.md`, user guide, security plan §2.8, Squid guide,
